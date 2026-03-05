@@ -59,6 +59,14 @@ html, body, #root {
   @apply bg-green-600 text-white hover:bg-green-700;
 }
 
+.btn-info {
+  @apply bg-blue-500 text-white hover:bg-blue-600;
+}
+
+.btn-sm {
+  @apply px-3 py-1 text-sm;
+}
+
 /* Card styles */
 .card {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
