@@ -3,18 +3,23 @@ const fs = require('fs');
 const path = require('path');
 
 class PDFGenerator {
-  static generateReceipt(feeCollection, student) {
+  static async generateReceipt(feeCollection, student, schoolName = 'Alliance School') {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument();
         const filename = `receipt-${feeCollection._id}.pdf`;
-        const filepath = path.join(__dirname, '../uploads', filename);
+        const filepath = path.join(__dirname, '../../uploads', filename);
+
+        // Ensure uploads directory exists
+        if (!fs.existsSync(path.join(__dirname, '../../uploads'))) {
+          fs.mkdirSync(path.join(__dirname, '../../uploads'), { recursive: true });
+        }
 
         const stream = fs.createWriteStream(filepath);
         doc.pipe(stream);
 
         // Header
-        doc.fontSize(20).font('Helvetica-Bold').text('ALLIANCE SCHOOL', 100, 50);
+        doc.fontSize(20).font('Helvetica-Bold').text(schoolName, 100, 50);
         doc.fontSize(10).font('Helvetica').text('Fee Receipt', 100, 75);
         doc.moveTo(100, 90).lineTo(500, 90).stroke();
 
@@ -49,24 +54,31 @@ class PDFGenerator {
         stream.on('finish', () => {
           resolve(filepath);
         });
+
+        stream.on('error', reject);
       } catch (error) {
         reject(error);
       }
     });
   }
 
-  static generatePayslip(payroll, employee) {
+  static async generatePayslip(payroll, employee, schoolName = 'Alliance School') {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument();
         const filename = `payslip-${payroll._id}.pdf`;
-        const filepath = path.join(__dirname, '../uploads', filename);
+        const filepath = path.join(__dirname, '../../uploads', filename);
+
+        // Ensure uploads directory exists
+        if (!fs.existsSync(path.join(__dirname, '../../uploads'))) {
+          fs.mkdirSync(path.join(__dirname, '../../uploads'), { recursive: true });
+        }
 
         const stream = fs.createWriteStream(filepath);
         doc.pipe(stream);
 
         // Header
-        doc.fontSize(20).font('Helvetica-Bold').text('ALLIANCE SCHOOL', 100, 50);
+        doc.fontSize(20).font('Helvetica-Bold').text(schoolName, 100, 50);
         doc.fontSize(10).font('Helvetica').text('Salary Slip', 100, 75);
         doc.moveTo(100, 90).lineTo(500, 90).stroke();
 
@@ -106,24 +118,31 @@ class PDFGenerator {
         stream.on('finish', () => {
           resolve(filepath);
         });
+
+        stream.on('error', reject);
       } catch (error) {
         reject(error);
       }
     });
   }
 
-  static generateFinancialReport(reportType, data) {
+  static async generateFinancialReport(reportType, data, schoolName = 'Alliance School') {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument();
         const filename = `${reportType}-${Date.now()}.pdf`;
-        const filepath = path.join(__dirname, '../uploads', filename);
+        const filepath = path.join(__dirname, '../../uploads', filename);
+
+        // Ensure uploads directory exists
+        if (!fs.existsSync(path.join(__dirname, '../../uploads'))) {
+          fs.mkdirSync(path.join(__dirname, '../../uploads'), { recursive: true });
+        }
 
         const stream = fs.createWriteStream(filepath);
         doc.pipe(stream);
 
         // Header
-        doc.fontSize(20).font('Helvetica-Bold').text('ALLIANCE SCHOOL', 100, 50);
+        doc.fontSize(20).font('Helvetica-Bold').text(schoolName, 100, 50);
         doc.fontSize(14).font('Helvetica-Bold').text(data.title, 100, 80);
         doc.fontSize(10).font('Helvetica').text(data.subtitle, 100, 100);
         doc.moveTo(100, 120).lineTo(500, 120).stroke();
@@ -157,6 +176,8 @@ class PDFGenerator {
         stream.on('finish', () => {
           resolve(filepath);
         });
+
+        stream.on('error', reject);
       } catch (error) {
         reject(error);
       }
