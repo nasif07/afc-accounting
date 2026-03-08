@@ -1,18 +1,18 @@
-const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require("http-status-codes");
 
 const errorMiddleware = (err, req, res, next) => {
-  console.error('Error:', err);
+  console.error("Error:", err);
 
   // Default error
   let statusCode = err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
-  let message = err.message || 'Internal Server Error';
+  let message = err.message || "Internal Server Error";
 
   // Mongoose validation error
-  if (err.name === 'ValidationError') {
+  if (err.name === "ValidationError") {
     statusCode = StatusCodes.BAD_REQUEST;
     message = Object.values(err.errors)
-      .map(e => e.message)
-      .join(', ');
+      .map((e) => e.message)
+      .join(", ");
   }
 
   // Mongoose duplicate key error
@@ -23,20 +23,20 @@ const errorMiddleware = (err, req, res, next) => {
   }
 
   // JWT errors
-  if (err.name === 'JsonWebTokenError') {
+  if (err.name === "JsonWebTokenError") {
     statusCode = StatusCodes.UNAUTHORIZED;
-    message = 'Invalid token';
+    message = "Invalid token";
   }
 
-  if (err.name === 'TokenExpiredError') {
+  if (err.name === "TokenExpiredError") {
     statusCode = StatusCodes.UNAUTHORIZED;
-    message = 'Token expired';
+    message = "Token expired";
   }
 
   res.status(statusCode).json({
     success: false,
     message,
-    ...(process.env.NODE_ENV === 'development' && { error: err })
+    ...(process.env.NODE_ENV === "development" && { error: err }),
   });
 };
 

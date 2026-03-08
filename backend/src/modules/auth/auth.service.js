@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
-const User = require('../users/user.model');
+const jwt = require("jsonwebtoken");
+const User = require("../users/user.model");
 
 class AuthService {
   static async register(userData) {
@@ -8,7 +8,7 @@ class AuthService {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      throw new Error('Email already registered');
+      throw new Error("Email already registered");
     }
 
     // Create new user
@@ -16,7 +16,7 @@ class AuthService {
       name,
       email,
       password,
-      role: role || 'sub-accountant'
+      role: role || "sub-accountant",
     });
 
     await user.save();
@@ -29,22 +29,22 @@ class AuthService {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
       },
-      token
+      token,
     };
   }
 
   static async login(email, password) {
     // Find user by email
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new Error("Invalid email or password");
     }
 
     // Check if account is locked
     if (user.isLocked()) {
-      throw new Error('Account is locked. Try again later.');
+      throw new Error("Account is locked. Try again later.");
     }
 
     // Compare password
@@ -55,7 +55,7 @@ class AuthService {
         user.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock for 30 minutes
       }
       await user.save();
-      throw new Error('Invalid email or password');
+      throw new Error("Invalid email or password");
     }
 
     // Reset login attempts
@@ -72,18 +72,16 @@ class AuthService {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
       },
-      token
+      token,
     };
   }
 
   static generateToken(userId, email, role) {
-    return jwt.sign(
-      { userId, email, role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE || '7d' }
-    );
+    return jwt.sign({ userId, email, role }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE || "7d",
+    });
   }
 
   static async verifyToken(token) {
@@ -91,7 +89,7 @@ class AuthService {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       return decoded;
     } catch (error) {
-      throw new Error('Invalid or expired token');
+      throw new Error("Invalid or expired token");
     }
   }
 }

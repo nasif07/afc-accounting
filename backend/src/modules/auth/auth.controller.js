@@ -1,6 +1,6 @@
-const { StatusCodes } = require('http-status-codes');
-const AuthService = require('./auth.service');
-const ApiResponse = require('../../utils/apiResponse');
+const { StatusCodes } = require("http-status-codes");
+const AuthService = require("./auth.service");
+const ApiResponse = require("../../utils/apiResponse");
 
 class AuthController {
   static async register(req, res, next) {
@@ -9,27 +9,35 @@ class AuthController {
 
       // Validation
       if (!name || !email || !password || !confirmPassword) {
-        return ApiResponse.badRequest(res, 'All fields are required');
+        return ApiResponse.badRequest(res, "All fields are required");
       }
 
       if (password !== confirmPassword) {
-        return ApiResponse.badRequest(res, 'Passwords do not match');
+        return ApiResponse.badRequest(res, "Passwords do not match");
       }
 
       if (password.length < 6) {
-        return ApiResponse.badRequest(res, 'Password must be at least 6 characters');
+        return ApiResponse.badRequest(
+          res,
+          "Password must be at least 6 characters",
+        );
       }
 
-      const result = await AuthService.register({ name, email, password, role });
-
-      res.cookie('token', result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      const result = await AuthService.register({
+        name,
+        email,
+        password,
+        role,
       });
 
-      return ApiResponse.created(res, result, 'User registered successfully');
+      res.cookie("token", result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+
+      return ApiResponse.created(res, result, "User registered successfully");
     } catch (error) {
       next(error);
     }
@@ -41,21 +49,24 @@ class AuthController {
 
       // Validation
       if (!email || !password) {
-        return ApiResponse.badRequest(res, 'Email and password are required');
+        return ApiResponse.badRequest(res, "Email and password are required");
       }
 
       const result = await AuthService.login(email, password);
 
-      res.cookie('token', result.token, {
+      res.cookie("token", result.token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
-      return ApiResponse.success(res, result, 'Login successful');
+      return ApiResponse.success(res, result, "Login successful");
     } catch (error) {
-      if (error.message === 'Invalid email or password' || error.message === 'Account is locked. Try again later.') {
+      if (
+        error.message === "Invalid email or password" ||
+        error.message === "Account is locked. Try again later."
+      ) {
         return ApiResponse.unauthorized(res, error.message);
       }
       next(error);
@@ -64,8 +75,8 @@ class AuthController {
 
   static async logout(req, res, next) {
     try {
-      res.clearCookie('token');
-      return ApiResponse.success(res, null, 'Logout successful');
+      res.clearCookie("token");
+      return ApiResponse.success(res, null, "Logout successful");
     } catch (error) {
       next(error);
     }
@@ -74,7 +85,7 @@ class AuthController {
   static async getCurrentUser(req, res, next) {
     try {
       const user = req.user;
-      return ApiResponse.success(res, user, 'User retrieved successfully');
+      return ApiResponse.success(res, user, "User retrieved successfully");
     } catch (error) {
       next(error);
     }

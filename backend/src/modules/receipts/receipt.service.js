@@ -1,5 +1,5 @@
-const Receipt = require('./receipt.model');
-const PDFGenerator = require('../../utils/pdfGenerator');
+const Receipt = require("./receipt.model");
+const PDFGenerator = require("../../utils/pdfGenerator");
 
 class ReceiptService {
   static async createReceipt(receiptData) {
@@ -20,25 +20,24 @@ class ReceiptService {
     }
 
     return await Receipt.find(query)
-      .populate('student', 'name rollNumber class email')
-      .populate('createdBy', 'name email')
-      .populate('approvedBy', 'name email')
+      .populate("student", "name rollNumber class email")
+      .populate("createdBy", "name email")
+      .populate("approvedBy", "name email")
       .sort({ date: -1 });
   }
 
   static async getReceiptById(receiptId) {
     return await Receipt.findById(receiptId)
-      .populate('student')
-      .populate('createdBy', 'name email')
-      .populate('approvedBy', 'name email');
+      .populate("student")
+      .populate("createdBy", "name email")
+      .populate("approvedBy", "name email");
   }
 
   static async updateReceipt(receiptId, updateData) {
-    return await Receipt.findByIdAndUpdate(
-      receiptId,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    return await Receipt.findByIdAndUpdate(receiptId, updateData, {
+      new: true,
+      runValidators: true,
+    });
   }
 
   static async deleteReceipt(receiptId) {
@@ -49,17 +48,20 @@ class ReceiptService {
     const receipt = await Receipt.findByIdAndUpdate(
       receiptId,
       {
-        approvalStatus: 'approved',
+        approvalStatus: "approved",
         approvedBy,
-        approvalDate: new Date()
+        approvalDate: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
     // Generate PDF receipt
     if (receipt) {
-      const student = await receipt.populate('student');
-      const pdfPath = await PDFGenerator.generateReceipt(receipt, student.student);
+      const student = await receipt.populate("student");
+      const pdfPath = await PDFGenerator.generateReceipt(
+        receipt,
+        student.student,
+      );
       receipt.pdfPath = pdfPath;
       await receipt.save();
     }
@@ -71,22 +73,21 @@ class ReceiptService {
     return await Receipt.findByIdAndUpdate(
       receiptId,
       {
-        approvalStatus: 'rejected',
+        approvalStatus: "rejected",
         approvedBy,
         approvalDate: new Date(),
-        rejectionReason
+        rejectionReason,
       },
-      { new: true }
+      { new: true },
     );
   }
 
   static async getReceiptsByStudent(studentId) {
-    return await Receipt.find({ student: studentId })
-      .sort({ date: -1 });
+    return await Receipt.find({ student: studentId }).sort({ date: -1 });
   }
 
   static async getTotalFeeCollected(filters = {}) {
-    const query = { approvalStatus: 'approved' };
+    const query = { approvalStatus: "approved" };
     if (filters.dateFrom || filters.dateTo) {
       query.date = {};
       if (filters.dateFrom) query.date.$gte = new Date(filters.dateFrom);
@@ -97,11 +98,11 @@ class ReceiptService {
       { $match: query },
       {
         $group: {
-          _id: '$feeType',
-          total: { $sum: '$amount' },
-          count: { $sum: 1 }
-        }
-      }
+          _id: "$feeType",
+          total: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     return result;

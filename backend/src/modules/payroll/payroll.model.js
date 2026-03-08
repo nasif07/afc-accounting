@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const { SALARY_TYPES, APPROVAL_STATUS } = require('../../config/constants');
+const mongoose = require("mongoose");
+const { SALARY_TYPES, APPROVAL_STATUS } = require("../../config/constants");
 
 const payrollSchema = new mongoose.Schema(
   {
@@ -7,79 +7,79 @@ const payrollSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      trim: true
+      trim: true,
     },
     employee: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Employee',
-      required: true
+      ref: "Employee",
+      required: true,
     },
     month: {
       type: String,
-      required: true
+      required: true,
     },
     year: {
       type: Number,
-      required: true
+      required: true,
     },
     salaryType: {
       type: String,
       enum: Object.values(SALARY_TYPES),
-      required: true
+      required: true,
     },
     baseSalary: {
       type: Number,
       required: true,
-      min: 0
+      min: 0,
     },
     allowances: {
       type: Number,
-      default: 0
+      default: 0,
     },
     bonus: {
       type: Number,
-      default: 0
+      default: 0,
     },
     totalEarnings: {
       type: Number,
-      default: 0
+      default: 0,
     },
     deductions: {
       type: Number,
-      default: 0
+      default: 0,
     },
     leaveDeduction: {
       type: Number,
-      default: 0
+      default: 0,
     },
     totalDeductions: {
       type: Number,
-      default: 0
+      default: 0,
     },
     netSalary: {
       type: Number,
-      default: 0
+      default: 0,
     },
     leavesTaken: {
       type: Number,
-      default: 0
+      default: 0,
     },
     workingDays: {
       type: Number,
-      default: 0
+      default: 0,
     },
     attendancePercentage: {
       type: Number,
-      default: 0
+      default: 0,
     },
     approvalStatus: {
       type: String,
       enum: Object.values(APPROVAL_STATUS),
-      default: APPROVAL_STATUS.PENDING
+      default: APPROVAL_STATUS.PENDING,
     },
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      ref: "User",
     },
     approvalDate: Date,
     paymentDate: Date,
@@ -88,15 +88,15 @@ const payrollSchema = new mongoose.Schema(
     pdfPath: String,
     emailSent: {
       type: Boolean,
-      default: false
+      default: false,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    }
+      ref: "User",
+      required: true,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-module.exports = mongoose.model('Payroll', payrollSchema);
+module.exports = mongoose.model("Payroll", payrollSchema);

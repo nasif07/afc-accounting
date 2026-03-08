@@ -1,10 +1,10 @@
-const Expense = require('./expense.model');
+const Expense = require("./expense.model");
 
 class ExpenseService {
   static async createExpense(expenseData) {
     const expense = new Expense(expenseData);
     await expense.save();
-    return expense.populate('vendor').populate('createdBy', 'name email');
+    return expense.populate("vendor").populate("createdBy", "name email");
   }
 
   static async getAllExpenses(filters = {}) {
@@ -19,25 +19,26 @@ class ExpenseService {
     }
 
     return await Expense.find(query)
-      .populate('vendor', 'vendorName vendorCode')
-      .populate('createdBy', 'name email')
-      .populate('approvedBy', 'name email')
+      .populate("vendor", "vendorName vendorCode")
+      .populate("createdBy", "name email")
+      .populate("approvedBy", "name email")
       .sort({ date: -1 });
   }
 
   static async getExpenseById(expenseId) {
     return await Expense.findById(expenseId)
-      .populate('vendor')
-      .populate('createdBy', 'name email')
-      .populate('approvedBy', 'name email');
+      .populate("vendor")
+      .populate("createdBy", "name email")
+      .populate("approvedBy", "name email");
   }
 
   static async updateExpense(expenseId, updateData) {
-    return await Expense.findByIdAndUpdate(
-      expenseId,
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('vendor').populate('createdBy', 'name email');
+    return await Expense.findByIdAndUpdate(expenseId, updateData, {
+      new: true,
+      runValidators: true,
+    })
+      .populate("vendor")
+      .populate("createdBy", "name email");
   }
 
   static async deleteExpense(expenseId) {
@@ -48,34 +49,37 @@ class ExpenseService {
     return await Expense.findByIdAndUpdate(
       expenseId,
       {
-        approvalStatus: 'approved',
+        approvalStatus: "approved",
         approvedBy,
-        approvalDate: new Date()
+        approvalDate: new Date(),
       },
-      { new: true }
-    ).populate('vendor').populate('approvedBy', 'name email');
+      { new: true },
+    )
+      .populate("vendor")
+      .populate("approvedBy", "name email");
   }
 
   static async rejectExpense(expenseId, approvedBy, rejectionReason) {
     return await Expense.findByIdAndUpdate(
       expenseId,
       {
-        approvalStatus: 'rejected',
+        approvalStatus: "rejected",
         approvedBy,
         approvalDate: new Date(),
-        rejectionReason
+        rejectionReason,
       },
-      { new: true }
+      { new: true },
     );
   }
 
   static async getExpensesByCategory(category) {
-    return await Expense.find({ category, approvalStatus: 'approved' })
-      .sort({ date: -1 });
+    return await Expense.find({ category, approvalStatus: "approved" }).sort({
+      date: -1,
+    });
   }
 
   static async getTotalExpenses(filters = {}) {
-    const query = { approvalStatus: 'approved' };
+    const query = { approvalStatus: "approved" };
     if (filters.category) query.category = filters.category;
     if (filters.dateFrom || filters.dateTo) {
       query.date = {};
@@ -87,20 +91,20 @@ class ExpenseService {
       { $match: query },
       {
         $group: {
-          _id: '$category',
-          total: { $sum: '$amount' },
-          count: { $sum: 1 }
-        }
-      }
+          _id: "$category",
+          total: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     return result;
   }
 
   static async getPendingApprovals() {
-    return await Expense.find({ approvalStatus: 'pending' })
-      .populate('vendor', 'vendorName')
-      .populate('createdBy', 'name email')
+    return await Expense.find({ approvalStatus: "pending" })
+      .populate("vendor", "vendorName")
+      .populate("createdBy", "name email")
       .sort({ date: 1 });
   }
 }

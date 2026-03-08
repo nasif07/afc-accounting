@@ -1,14 +1,25 @@
-const { StatusCodes } = require('http-status-codes');
-const ReceiptService = require('./receipt.service');
-const ApiResponse = require('../../utils/apiResponse');
+const { StatusCodes } = require("http-status-codes");
+const ReceiptService = require("./receipt.service");
+const ApiResponse = require("../../utils/apiResponse");
 
 class ReceiptController {
   static async createReceipt(req, res, next) {
     try {
-      const { receiptNumber, student, feeType, amount, paymentMode, referenceNumber, description } = req.body;
+      const {
+        receiptNumber,
+        student,
+        feeType,
+        amount,
+        paymentMode,
+        referenceNumber,
+        description,
+      } = req.body;
 
       if (!receiptNumber || !student || !feeType || !amount || !paymentMode) {
-        return ApiResponse.badRequest(res, 'Receipt number, student, fee type, amount, and payment mode are required');
+        return ApiResponse.badRequest(
+          res,
+          "Receipt number, student, fee type, amount, and payment mode are required",
+        );
       }
 
       const receiptData = {
@@ -19,11 +30,11 @@ class ReceiptController {
         paymentMode,
         referenceNumber,
         description,
-        createdBy: req.user.userId
+        createdBy: req.user.userId,
       };
 
       const receipt = await ReceiptService.createReceipt(receiptData);
-      return ApiResponse.created(res, receipt, 'Receipt created successfully');
+      return ApiResponse.created(res, receipt, "Receipt created successfully");
     } catch (error) {
       next(error);
     }
@@ -42,7 +53,11 @@ class ReceiptController {
       }
 
       const receipts = await ReceiptService.getAllReceipts(filters);
-      return ApiResponse.success(res, receipts, 'Receipts retrieved successfully');
+      return ApiResponse.success(
+        res,
+        receipts,
+        "Receipts retrieved successfully",
+      );
     } catch (error) {
       next(error);
     }
@@ -54,10 +69,14 @@ class ReceiptController {
       const receipt = await ReceiptService.getReceiptById(id);
 
       if (!receipt) {
-        return ApiResponse.notFound(res, 'Receipt not found');
+        return ApiResponse.notFound(res, "Receipt not found");
       }
 
-      return ApiResponse.success(res, receipt, 'Receipt retrieved successfully');
+      return ApiResponse.success(
+        res,
+        receipt,
+        "Receipt retrieved successfully",
+      );
     } catch (error) {
       next(error);
     }
@@ -71,10 +90,10 @@ class ReceiptController {
       const receipt = await ReceiptService.updateReceipt(id, updateData);
 
       if (!receipt) {
-        return ApiResponse.notFound(res, 'Receipt not found');
+        return ApiResponse.notFound(res, "Receipt not found");
       }
 
-      return ApiResponse.success(res, receipt, 'Receipt updated successfully');
+      return ApiResponse.success(res, receipt, "Receipt updated successfully");
     } catch (error) {
       next(error);
     }
@@ -86,10 +105,10 @@ class ReceiptController {
       const receipt = await ReceiptService.deleteReceipt(id);
 
       if (!receipt) {
-        return ApiResponse.notFound(res, 'Receipt not found');
+        return ApiResponse.notFound(res, "Receipt not found");
       }
 
-      return ApiResponse.success(res, null, 'Receipt deleted successfully');
+      return ApiResponse.success(res, null, "Receipt deleted successfully");
     } catch (error) {
       next(error);
     }
@@ -101,10 +120,10 @@ class ReceiptController {
       const receipt = await ReceiptService.approveReceipt(id, req.user.userId);
 
       if (!receipt) {
-        return ApiResponse.notFound(res, 'Receipt not found');
+        return ApiResponse.notFound(res, "Receipt not found");
       }
 
-      return ApiResponse.success(res, receipt, 'Receipt approved successfully');
+      return ApiResponse.success(res, receipt, "Receipt approved successfully");
     } catch (error) {
       next(error);
     }
@@ -116,16 +135,20 @@ class ReceiptController {
       const { rejectionReason } = req.body;
 
       if (!rejectionReason) {
-        return ApiResponse.badRequest(res, 'Rejection reason is required');
+        return ApiResponse.badRequest(res, "Rejection reason is required");
       }
 
-      const receipt = await ReceiptService.rejectReceipt(id, req.user.userId, rejectionReason);
+      const receipt = await ReceiptService.rejectReceipt(
+        id,
+        req.user.userId,
+        rejectionReason,
+      );
 
       if (!receipt) {
-        return ApiResponse.notFound(res, 'Receipt not found');
+        return ApiResponse.notFound(res, "Receipt not found");
       }
 
-      return ApiResponse.success(res, receipt, 'Receipt rejected successfully');
+      return ApiResponse.success(res, receipt, "Receipt rejected successfully");
     } catch (error) {
       next(error);
     }
@@ -141,7 +164,11 @@ class ReceiptController {
       }
 
       const totals = await ReceiptService.getTotalFeeCollected(filters);
-      return ApiResponse.success(res, totals, 'Fee collection totals retrieved successfully');
+      return ApiResponse.success(
+        res,
+        totals,
+        "Fee collection totals retrieved successfully",
+      );
     } catch (error) {
       next(error);
     }
