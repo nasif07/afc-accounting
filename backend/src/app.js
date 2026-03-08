@@ -17,7 +17,7 @@ app.use(cookieParser());
 
 // Routes
 const routes = require('./routes');
-app.use('/api/v1', routes);
+app.use('/api', routes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
-// Import route files (to be created)
+// Import route files
 const authRoutes = require('../modules/auth/auth.routes');
-// const userRoutes = require('../modules/users/user.routes');
 const studentRoutes = require('../modules/students/student.routes');
 const receiptRoutes = require('../modules/receipts/receipt.routes');
 const expenseRoutes = require('../modules/expenses/expense.routes');
@@ -19,7 +18,6 @@ const searchRoutes = require('../modules/search/search.routes');
 
 // Register routes
 router.use('/auth', authRoutes);
-// router.use('/users', userRoutes);
 router.use('/students', studentRoutes);
 router.use('/receipts', receiptRoutes);
 router.use('/expenses', expenseRoutes);
