@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { logout } from '../store/slices/authSlice';
+import { logout, logoutAsync } from '../store/slices/authSlice';
 import { Menu, X, LogOut, Home, Users, Receipt, DollarSign, Briefcase, Zap, FileText, Settings } from 'lucide-react';
 
 export default function Layout({ children }) {
@@ -22,9 +22,14 @@ export default function Layout({ children }) {
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await dispatch(logoutAsync()).unwrap();
+      navigate('/login');
+    } catch (error) {
+      dispatch(logout());
+      navigate('/login');
+    }
   };
 
   const isActive = (path) => location.pathname === path;
@@ -32,25 +37,25 @@ export default function Layout({ children }) {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-gray-900 text-white transition-all duration-300 flex flex-col`}>
-        <div className="p-4 flex items-center justify-between">
-          {sidebarOpen && <h1 className="text-xl font-bold">Alliance</h1>}
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="hover:bg-gray-800 p-2 rounded">
+      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-gradient-to-b from-gray-900 to-gray-800 text-white transition-all duration-300 flex flex-col shadow-lg`}>
+        <div className="p-4 flex items-center justify-between border-b border-gray-700">
+          {sidebarOpen && <h1 className="text-xl font-bold text-blue-400">Alliance</h1>}
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="hover:bg-gray-700 p-2 rounded transition">
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
 
-        <nav className="flex-1 px-2 py-4 space-y-2">
+        <nav className="flex-1 px-2 py-4 space-y-1">
           {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                isActive(item.path) ? 'bg-blue-600' : 'hover:bg-gray-800'
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition duration-200 ${
+                isActive(item.path) ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
               }`}
             >
               <item.icon size={20} />
-              {sidebarOpen && <span>{item.label}</span>}
+              {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
             </Link>
           ))}
         </nav>
@@ -58,10 +63,10 @@ export default function Layout({ children }) {
         <div className="p-4 border-t border-gray-700">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition duration-200"
           >
             <LogOut size={20} />
-            {sidebarOpen && <span>Logout</span>}
+            {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
           </button>
         </div>
       </div>
@@ -69,18 +74,21 @@ export default function Layout({ children }) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-800">Alliance Accounting System</h2>
+        <div className="bg-white shadow-md px-6 py-4 flex items-center justify-between border-b border-gray-200">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Alliance Accounting System</h2>
+            <p className="text-xs text-gray-500 mt-1">Financial Management Platform</p>
+          </div>
           <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-              <p className="text-xs text-gray-500">{user?.role}</p>
+            <div className="text-right bg-gray-50 px-4 py-2 rounded-lg">
+              <p className="text-sm font-semibold text-gray-900">{user?.name || 'User'}</p>
+              <p className="text-xs text-blue-600 font-medium">{user?.role || 'User'}</p>
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-6 bg-gray-50">
           {children}
         </div>
       </div>

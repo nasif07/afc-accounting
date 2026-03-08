@@ -17,10 +17,13 @@ import Settings from './pages/Settings';
 
 export default function App() {
   const dispatch = useDispatch();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, token } = useSelector((state) => state.auth);
+
+
 
   useEffect(() => {
-    if (isAuthenticated) {
+    const token = localStorage.getItem('token');
+    if (token && isAuthenticated) {
       dispatch(getCurrentUser());
     }
   }, [isAuthenticated, dispatch]);
@@ -110,7 +113,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </Router>
   );
