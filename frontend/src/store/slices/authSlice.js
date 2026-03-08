@@ -35,8 +35,24 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
   }
 });
 
+export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem('token');
+    await axios.post(`${API_URL}/auth/logout`, {}, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    return null;
+  } catch (error) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    return null;
+  }
+});
+
 const initialState = {
-  user: null,
+  user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
   token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
@@ -52,6 +68,7 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
     },
     clearError: (state) => {
       state.error = null;
@@ -68,6 +85,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.isAuthenticated = true;
+        localStorage.setItem('user', JSON.stringify(action.payload.user));
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
@@ -82,6 +100,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.isAuthenticated = true;
+        localStorage.setItem('user', JSON.stringify(action.payload.user));
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -99,6 +118,13 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = false;
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      })
+      .addCase(logoutAsync.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.loading = false;
       });
   },
 });
