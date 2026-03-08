@@ -1,0 +1,1383 @@
+{
+  "info": {
+    "name": "Alliance Accounting System - API Collection",
+    "description": "Complete Postman collection for testing all Alliance Accounting System APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/register",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@alliance.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/me",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/logout",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chart of Accounts",
+      "item": [
+        {
+          "name": "Create Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountCode\": \"1001\",\n  \"accountName\": \"Bank Account\",\n  \"accountType\": \"asset\",\n  \"openingBalance\": 100000\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/chart-of-accounts",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "chart-of-accounts"]
+            }
+          }
+        },
+        {
+          "name": "Get All Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/chart-of-accounts",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "chart-of-accounts"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/chart-of-accounts/{{ACCOUNT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "chart-of-accounts", "{{ACCOUNT_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Account",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountName\": \"Main Bank Account\",\n  \"openingBalance\": 150000\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/chart-of-accounts/{{ACCOUNT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "chart-of-accounts", "{{ACCOUNT_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/chart-of-accounts/{{ACCOUNT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "chart-of-accounts", "{{ACCOUNT_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Account Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/chart-of-accounts/{{ACCOUNT_ID}}/balance",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "chart-of-accounts", "{{ACCOUNT_ID}}", "balance"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Students",
+      "item": [
+        {
+          "name": "Create Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rollNumber\": \"001\",\n  \"name\": \"John Doe\",\n  \"class\": \"10A\",\n  \"section\": \"A\",\n  \"email\": \"john@example.com\",\n  \"phone\": \"9876543210\",\n  \"parentName\": \"Mr. Doe\",\n  \"parentEmail\": \"parent@example.com\",\n  \"parentPhone\": \"9876543211\",\n  \"address\": \"123 Main Street\",\n  \"totalFeesPayable\": 50000\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/students",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "students"]
+            }
+          }
+        },
+        {
+          "name": "Get All Students",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/students",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "students"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Student",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/students/{{STUDENT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "students", "{{STUDENT_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Student",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe Updated\",\n  \"totalFeesPayable\": 55000\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/students/{{STUDENT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "students", "{{STUDENT_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Student",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/students/{{STUDENT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "students", "{{STUDENT_ID}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Receipts (Fee Collection)",
+      "item": [
+        {
+          "name": "Create Receipt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student\": \"{{STUDENT_ID}}\",\n  \"feeType\": \"tuition\",\n  \"amount\": 10000,\n  \"paymentMode\": \"bank\",\n  \"referenceNumber\": \"TXN123456\",\n  \"description\": \"Tuition fee for March 2026\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/receipts",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "receipts"]
+            }
+          }
+        },
+        {
+          "name": "Get All Receipts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/receipts",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "receipts"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Receipt",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/receipts/{{RECEIPT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "receipts", "{{RECEIPT_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Approve Receipt",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/receipts/{{RECEIPT_ID}}/approve",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "receipts", "{{RECEIPT_ID}}", "approve"]
+            }
+          }
+        },
+        {
+          "name": "Reject Receipt",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejectionReason\": \"Student fee already paid\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/receipts/{{RECEIPT_ID}}/reject",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "receipts", "{{RECEIPT_ID}}", "reject"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "Create Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"salary\",\n  \"vendor\": \"{{VENDOR_ID}}\",\n  \"description\": \"Monthly salary payment\",\n  \"amount\": 50000,\n  \"paymentMode\": \"bank\",\n  \"referenceNumber\": \"TXN789012\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/expenses",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "expenses"]
+            }
+          }
+        },
+        {
+          "name": "Get All Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/expenses",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "expenses"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Expense",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/expenses/{{EXPENSE_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "expenses", "{{EXPENSE_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Approve Expense",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/expenses/{{EXPENSE_ID}}/approve",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "expenses", "{{EXPENSE_ID}}", "approve"]
+            }
+          }
+        },
+        {
+          "name": "Reject Expense",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejectionReason\": \"Missing invoice\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/expenses/{{EXPENSE_ID}}/reject",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "expenses", "{{EXPENSE_ID}}", "reject"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vendors",
+      "item": [
+        {
+          "name": "Create Vendor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorCode\": \"V001\",\n  \"vendorName\": \"ABC Supplies\",\n  \"vendorType\": \"supplier\",\n  \"contactPerson\": \"Mr. Smith\",\n  \"email\": \"abc@example.com\",\n  \"phone\": \"9876543210\",\n  \"address\": \"456 Market Street\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/vendors",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "vendors"]
+            }
+          }
+        },
+        {
+          "name": "Get All Vendors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/vendors",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "vendors"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Vendor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/vendors/{{VENDOR_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "vendors", "{{VENDOR_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Vendor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorName\": \"ABC Supplies Updated\",\n  \"phone\": \"9876543211\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/vendors/{{VENDOR_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "vendors", "{{VENDOR_ID}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeCode\": \"E001\",\n  \"name\": \"Mr. Johnson\",\n  \"designation\": \"Teacher\",\n  \"department\": \"Science\",\n  \"dateOfJoining\": \"2020-01-15\",\n  \"email\": \"johnson@example.com\",\n  \"phone\": \"9876543210\",\n  \"address\": \"789 Oak Street\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/employees",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Get All Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/employees",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Employee",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/employees/{{EMPLOYEE_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "employees", "{{EMPLOYEE_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Employee",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"designation\": \"Senior Teacher\",\n  \"department\": \"Science\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/employees/{{EMPLOYEE_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "employees", "{{EMPLOYEE_ID}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payroll",
+      "item": [
+        {
+          "name": "Create Payroll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee\": \"{{EMPLOYEE_ID}}\",\n  \"month\": 3,\n  \"year\": 2026,\n  \"baseSalary\": 30000,\n  \"allowances\": 5000,\n  \"bonus\": 2000,\n  \"deductions\": 3000,\n  \"leaveDeduction\": 0,\n  \"description\": \"March 2026 Payroll\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/payroll",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "payroll"]
+            }
+          }
+        },
+        {
+          "name": "Get All Payroll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/payroll",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "payroll"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Payroll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/payroll/{{PAYROLL_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "payroll", "{{PAYROLL_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Approve Payroll",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/payroll/{{PAYROLL_ID}}/approve",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "payroll", "{{PAYROLL_ID}}", "approve"]
+            }
+          }
+        },
+        {
+          "name": "Mark Payroll as Paid",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentDate\": \"2026-03-31\",\n  \"paymentMode\": \"bank\",\n  \"referenceNumber\": \"TXN345678\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/payroll/{{PAYROLL_ID}}/mark-paid",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "payroll", "{{PAYROLL_ID}}", "mark-paid"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Journal Entries",
+      "item": [
+        {
+          "name": "Create Journal Entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"general\",\n  \"description\": \"Opening balance entry\",\n  \"date\": \"2026-03-01\",\n  \"bookEntries\": [\n    {\n      \"account\": \"{{BANK_ACCOUNT_ID}}\",\n      \"isDebit\": true,\n      \"amount\": 100000\n    },\n    {\n      \"account\": \"{{EQUITY_ACCOUNT_ID}}\",\n      \"isDebit\": false,\n      \"amount\": 100000\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/accounting/journal-entries",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "accounting", "journal-entries"]
+            }
+          }
+        },
+        {
+          "name": "Get All Journal Entries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/accounting/journal-entries",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "accounting", "journal-entries"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Journal Entry",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/accounting/journal-entries/{{ENTRY_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "accounting", "journal-entries", "{{ENTRY_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Approve Journal Entry",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/accounting/journal-entries/{{ENTRY_ID}}/approve",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "accounting", "journal-entries", "{{ENTRY_ID}}", "approve"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank",
+      "item": [
+        {
+          "name": "Create Bank Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankName\": \"State Bank of India\",\n  \"accountNumber\": \"1234567890\",\n  \"accountHolder\": \"School Name\",\n  \"ifscCode\": \"SBIN0001234\",\n  \"branch\": \"Main Branch\",\n  \"accountType\": \"savings\",\n  \"openingBalance\": 500000\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/bank",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "bank"]
+            }
+          }
+        },
+        {
+          "name": "Get All Bank Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/bank",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "bank"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Bank Account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/bank/{{BANK_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "bank", "{{BANK_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Reconcile Bank Account",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reconciledBalance\": 485000,\n  \"reconciledDate\": \"2026-03-31\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/bank/{{BANK_ID}}/reconcile",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "bank", "{{BANK_ID}}", "reconcile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Income Statement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/reports/income-statement?fromDate=2026-01-01&toDate=2026-03-31",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "reports", "income-statement"],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-03-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Balance Sheet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/reports/balance-sheet?asOfDate=2026-03-31",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "reports", "balance-sheet"],
+              "query": [
+                {
+                  "key": "asOfDate",
+                  "value": "2026-03-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cash Flow Statement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/reports/cash-flow?fromDate=2026-01-01&toDate=2026-03-31",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "reports", "cash-flow"],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-03-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Receipt & Payment Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/reports/receipt-payment?fromDate=2026-01-01&toDate=2026-03-31",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "reports", "receipt-payment"],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-03-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Trial Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/reports/trial-balance?asOfDate=2026-03-31",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "reports", "trial-balance"],
+              "query": [
+                {
+                  "key": "asOfDate",
+                  "value": "2026-03-31"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Global Search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/search?q=john",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "john"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Receipts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/search/receipts?q=john&dateFrom=2026-01-01&dateTo=2026-03-31",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "search", "receipts"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "john"
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-03-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/search/expenses?q=salary",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "search", "expenses"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "salary"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search by Amount Range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/search/amount-range?minAmount=1000&maxAmount=50000",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "search", "amount-range"],
+              "query": [
+                {
+                  "key": "minAmount",
+                  "value": "1000"
+                },
+                {
+                  "key": "maxAmount",
+                  "value": "50000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "Get Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings"]
+            }
+          }
+        },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schoolName\": \"Alliance School\",\n  \"address\": \"123 Education Street\",\n  \"financialYear\": \"july-june\",\n  \"currency\": \"INR\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings"]
+            }
+          }
+        },
+        {
+          "name": "Get Approval Limits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings/approval-limits",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings", "approval-limits"]
+            }
+          }
+        },
+        {
+          "name": "Update Approval Limits",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountantLimit\": 50000,\n  \"directorLimit\": 999999999\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings/approval-limits",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings", "approval-limits"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ACCOUNT_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "STUDENT_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "RECEIPT_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "EXPENSE_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "VENDOR_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "EMPLOYEE_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "PAYROLL_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ENTRY_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "BANK_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "BANK_ACCOUNT_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "EQUITY_ACCOUNT_ID",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
