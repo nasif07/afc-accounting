@@ -1,12 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import api from '../../services/api';
 
 export const register = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
-    const response = await axios.post(`${API_URL}/auth/register`, userData);
-    localStorage.setItem('token', response.data.token);
+    const response = await api.post('/auth/register', userData);
+    // Token is now stored in httpOnly cookie by backend
     return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Registration failed');
@@ -15,8 +13,8 @@ export const register = createAsyncThunk('auth/register', async (userData, { rej
 
 export const login = createAsyncThunk('auth/login', async (credentials, { rejectWithValue }) => {
   try {
-    const response = await axios.post(`${API_URL}/auth/login`, credentials);
-    localStorage.setItem('token', response.data.token);
+    const response = await api.post('/auth/login', credentials);
+    // Token is now stored in httpOnly cookie by backend
     return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Login failed');
@@ -25,10 +23,8 @@ export const login = createAsyncThunk('auth/login', async (credentials, { reject
 
 export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get(`${API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // Cookies are automatically sent with requests due to withCredentials: true
+    const response = await api.get('/auth/me');
     return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Failed to fetch user');
@@ -37,26 +33,21 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
 
 export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem('token');
-    await axios.post(`${API_URL}/auth/logout`, {}, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    // Cookies are automatically sent with requests
+    await api.post('/auth/logout');
+    // Backend clears the cookie
     return null;
   } catch (error) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    // Even if logout fails, clear local state
     return null;
   }
 });
 
 const initialState = {
   user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
-  token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: false,
 };
 
 const authSlice = createSlice({
@@ -65,13 +56,15 @@ const authSlice = createSlice({
   reducers: {
     logout: (state) => {
       state.user = null;
-      state.token = null;
       state.isAuthenticated = false;
-      localStorage.removeItem('token');
       localStorage.removeItem('user');
     },
     clearError: (state) => {
       state.error = null;
+    },
+    setUser: (state, action) => {
+      state.user = action.payload;
+      state.isAuthenticated = !!action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -83,7 +76,6 @@ const authSlice = createSlice({
       .addCase(register.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-        state.token = action.payload.token;
         state.isAuthenticated = true;
         localStorage.setItem('user', JSON.stringify(action.payload.user));
       })
@@ -98,7 +90,6 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-        state.token = action.payload.token;
         state.isAuthenticated = true;
         localStorage.setItem('user', JSON.stringify(action.payload.user));
       })
@@ -111,23 +102,23 @@ const authSlice = createSlice({
       })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload;
+        state.user = action.payload.user || action.payload;
         state.isAuthenticated = true;
       })
       .addCase(getCurrentUser.rejected, (state) => {
         state.loading = false;
         state.isAuthenticated = false;
-        localStorage.removeItem('token');
+        state.user = null;
         localStorage.removeItem('user');
       })
       .addCase(logoutAsync.fulfilled, (state) => {
         state.user = null;
-        state.token = null;
         state.isAuthenticated = false;
         state.loading = false;
+        localStorage.removeItem('user');
       });
   },
 });
 
-export const { logout, clearError } = authSlice.actions;
+export const { logout, clearError, setUser } = authSlice.actions;
 export default authSlice.reducer;

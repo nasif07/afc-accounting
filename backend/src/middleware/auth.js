@@ -3,7 +3,13 @@ const { StatusCodes } = require("http-status-codes");
 
 const auth = (req, res, next) => {
   try {
-    const token = req.header("Authorization")?.replace("Bearer ", "");
+    // Try to get token from cookies first, then fall back to Authorization header
+    let token = req.cookies?.token;
+    
+    if (!token) {
+      // Fallback to Authorization header for backward compatibility
+      token = req.header("Authorization")?.replace("Bearer ", "");
+    }
 
     if (!token) {
       return res.status(StatusCodes.UNAUTHORIZED).json({
