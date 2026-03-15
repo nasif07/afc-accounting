@@ -1,7 +1,7 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
+const uploadDir = process.env.UPLOAD_DIR || "./uploads";
 
 // Ensure upload directory exists
 if (!fs.existsSync(uploadDir)) {
@@ -22,7 +22,7 @@ const fileUploader = (req, res, next) => {
     if (file.size > maxFileSize) {
       return res.status(400).json({
         success: false,
-        message: `File size exceeds maximum limit of ${maxFileSize / 1024 / 1024}MB`
+        message: `File size exceeds maximum limit of ${maxFileSize / 1024 / 1024}MB`,
       });
     }
 
@@ -35,8 +35,8 @@ const fileUploader = (req, res, next) => {
       if (err) {
         return res.status(500).json({
           success: false,
-          message: 'Error uploading file',
-          error: err.message
+          message: "Error uploading file",
+          error: err.message,
         });
       }
     });
@@ -48,7 +48,7 @@ const fileUploader = (req, res, next) => {
       originalName: file.name,
       size: file.size,
       mimetype: file.mimetype,
-      path: filepath
+      path: filepath,
     };
   }
 

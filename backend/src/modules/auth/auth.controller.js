@@ -28,6 +28,7 @@ class AuthController {
         email,
         password,
         role,
+        userId: `USR-${Date.now()}`
       });
 
       res.cookie("token", result.token, {

@@ -1,28 +1,32 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { useEffect } from 'react';
-import { getCurrentUser } from './store/slices/authSlice';
-import ProtectedRoute from './components/ProtectedRoute';
-import Layout from './components/Layout';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Students from './pages/Students';
-import Receipts from './pages/Receipts';
-import Expenses from './pages/Expenses';
-import Payroll from './pages/Payroll';
-import Accounting from './pages/Accounting';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { useEffect } from "react";
+import { getCurrentUser } from "./store/slices/authSlice";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Layout from "./components/Layout";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Students from "./pages/Students";
+import Receipts from "./pages/Receipts";
+import Expenses from "./pages/Expenses";
+import Payroll from "./pages/Payroll";
+import Accounting from "./pages/Accounting";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
 
 export default function App() {
   const dispatch = useDispatch();
   const { isAuthenticated, token } = useSelector((state) => state.auth);
 
-
-
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
+    console.log(token);
     if (token && isAuthenticated) {
       dispatch(getCurrentUser());
     }
@@ -37,20 +41,20 @@ export default function App() {
           path="/dashboard"
           element={
             // <ProtectedRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
+            <Layout>
+              <Dashboard />
+            </Layout>
             // </ProtectedRoute>
           }
         />
         <Route
           path="/students"
           element={
-            <ProtectedRoute>
+            // <ProtectedRoute>
               <Layout>
                 <Students />
               </Layout>
-            </ProtectedRoute>
+            // </ProtectedRoute>
           }
         />
         <Route
@@ -113,7 +117,12 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+        {/* <Route
+          path="/"
+          element={
+            <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+          }
+        /> */}
       </Routes>
     </Router>
   );

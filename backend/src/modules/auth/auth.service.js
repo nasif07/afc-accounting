@@ -3,7 +3,7 @@ const User = require("../users/user.model");
 
 class AuthService {
   static async register(userData) {
-    const { name, email, password, role } = userData;
+    const { name, email, password, role, userId } = userData;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -13,6 +13,7 @@ class AuthService {
 
     // Create new user
     const user = new User({
+      userId,
       name,
       email,
       password,
@@ -30,6 +31,7 @@ class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        userId
       },
       token,
     };

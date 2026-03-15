@@ -1,90 +1,103 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { accountingAPI } from '../../services/apiMethods';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { accountingAPI } from "../../services/apiMethods";
 
 export const fetchAccounting = createAsyncThunk(
-  'accounting/fetchAccounting',
+  "accounting/fetchAccounting",
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await accountingAPI.getAll(params);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch accounting');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch accounting",
+      );
     }
-  }
+  },
 );
 
 export const fetchAccountingById = createAsyncThunk(
-  'accounting/fetchAccountingById',
+  "accounting/fetchAccountingById",
   async (id, { rejectWithValue }) => {
     try {
       const response = await accountingAPI.getById(id);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch accounting');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch accounting",
+      );
     }
-  }
+  },
 );
 
 export const createAccounting = createAsyncThunk(
-  'accounting/createAccounting',
+  "accounting/createAccounting",
   async (data, { rejectWithValue }) => {
     try {
       const response = await accountingAPI.create(data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create accounting');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to create accounting",
+      );
     }
-  }
+  },
 );
 
 export const updateAccounting = createAsyncThunk(
-  'accounting/updateAccounting',
+  "accounting/updateAccounting",
   async ({ id, data }, { rejectWithValue }) => {
     try {
       const response = await accountingAPI.update(id, data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update accounting');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update accounting",
+      );
     }
-  }
+  },
 );
 
 export const deleteAccounting = createAsyncThunk(
-  'accounting/deleteAccounting',
+  "accounting/deleteAccounting",
   async (id, { rejectWithValue }) => {
     try {
       await accountingAPI.delete(id);
       return id;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete accounting');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to delete accounting",
+      );
     }
-  }
+  },
 );
 
 export const approveAccounting = createAsyncThunk(
-  'accounting/approveAccounting',
+  "accounting/approveAccounting",
   async (id, { rejectWithValue }) => {
     try {
       const response = await accountingAPI.approve(id);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to approve accounting');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to approve accounting",
+      );
     }
-  }
+  },
 );
 
 export const rejectAccounting = createAsyncThunk(
-  'accounting/rejectAccounting',
+  "accounting/rejectAccounting",
   async ({ id, data }, { rejectWithValue }) => {
     try {
       const response = await accountingAPI.reject(id, data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to reject accounting');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to reject accounting",
+      );
     }
-  }
+  },
 );
-
 
 const initialState = {
   items: [],
@@ -95,7 +108,7 @@ const initialState = {
 };
 
 const accountingSlice = createSlice({
-  name: 'accounting',
+  name: "accounting",
   initialState,
   reducers: {
     clearError: (state) => {
@@ -154,7 +167,9 @@ const accountingSlice = createSlice({
       .addCase(updateAccounting.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        const index = state.items.findIndex(item => item._id === action.payload.data._id);
+        const index = state.items.findIndex(
+          (item) => item._id === action.payload.data._id,
+        );
         if (index !== -1) {
           state.items[index] = action.payload.data;
         }
@@ -170,13 +185,13 @@ const accountingSlice = createSlice({
       .addCase(deleteAccounting.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        state.items = state.items.filter(item => item._id !== action.payload);
+        state.items = state.items.filter((item) => item._id !== action.payload);
       })
       .addCase(deleteAccounting.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
-      
+
       .addCase(approveAccounting.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -184,7 +199,9 @@ const accountingSlice = createSlice({
       .addCase(approveAccounting.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        const index = state.items.findIndex(item => item._id === action.payload.data._id);
+        const index = state.items.findIndex(
+          (item) => item._id === action.payload.data._id,
+        );
         if (index !== -1) {
           state.items[index] = action.payload.data;
         }
@@ -200,7 +217,9 @@ const accountingSlice = createSlice({
       .addCase(rejectAccounting.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        const index = state.items.findIndex(item => item._id === action.payload.data._id);
+        const index = state.items.findIndex(
+          (item) => item._id === action.payload.data._id,
+        );
         if (index !== -1) {
           state.items[index] = action.payload.data;
         }
@@ -208,8 +227,7 @@ const accountingSlice = createSlice({
       .addCase(rejectAccounting.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      })
-
+      });
   },
 });
 

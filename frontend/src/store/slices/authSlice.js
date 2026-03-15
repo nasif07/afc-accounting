@@ -1,74 +1,96 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export const register = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
-  try {
-    const response = await axios.post(`${API_URL}/auth/register`, userData);
-    localStorage.setItem('token', response.data.token);
-    return response.data;
-  } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Registration failed');
-  }
-});
+export const register = createAsyncThunk(
+  "auth/register",
+  async (userData, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/register`, userData);
+      localStorage.setItem("token", response.data.token);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Registration failed",
+      );
+    }
+  },
+);
 
-export const login = createAsyncThunk('auth/login', async (credentials, { rejectWithValue }) => {
-  try {
-    const response = await axios.post(`${API_URL}/auth/login`, credentials);
-    localStorage.setItem('token', response.data.token);
-    return response.data;
-  } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Login failed');
-  }
-});
+export const login = createAsyncThunk(
+  "auth/login",
+  async (credentials, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/login`, credentials);
+      localStorage.setItem("token", response.data.token);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || "Login failed");
+    }
+  },
+);
 
-export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, { rejectWithValue }) => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get(`${API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return response.data;
-  } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Failed to fetch user');
-  }
-});
+export const getCurrentUser = createAsyncThunk(
+  "auth/getCurrentUser",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        withCredentials: true,
+      });
 
-export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { rejectWithValue }) => {
-  try {
-    const token = localStorage.getItem('token');
-    await axios.post(`${API_URL}/auth/logout`, {}, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    return null;
-  } catch (error) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    return null;
-  }
-});
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch user",
+      );
+    }
+  },
+);
+
+export const logoutAsync = createAsyncThunk(
+  "auth/logoutAsync",
+  async (_, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `${API_URL}/auth/logout`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      return null;
+    } catch (error) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      return null;
+    }
+  },
+);
 
 const initialState = {
-  user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
-  token: localStorage.getItem('token') || null,
+  user: localStorage.getItem("user")
+    ? JSON.parse(localStorage.getItem("user"))
+    : null,
+  token: localStorage.getItem("token") || null,
   loading: false,
   error: null,
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: !!localStorage.getItem("token"),
 };
 
 const authSlice = createSlice({
-  name: 'auth',
+  name: "auth",
   initialState,
   reducers: {
     logout: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
     },
     clearError: (state) => {
       state.error = null;
@@ -85,7 +107,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.isAuthenticated = true;
-        localStorage.setItem('user', JSON.stringify(action.payload.user));
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
@@ -100,7 +122,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.isAuthenticated = true;
-        localStorage.setItem('user', JSON.stringify(action.payload.user));
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -117,8 +139,8 @@ const authSlice = createSlice({
       .addCase(getCurrentUser.rejected, (state) => {
         state.loading = false;
         state.isAuthenticated = false;
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
       })
       .addCase(logoutAsync.fulfilled, (state) => {
         state.user = null;

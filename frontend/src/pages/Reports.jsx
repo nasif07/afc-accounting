@@ -1,24 +1,46 @@
-import { Download, Filter, Loader } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import toast from 'react-hot-toast';
-import { fetchReports, clearError } from '../store/slices/reportSlice';
+import { Download, Filter, Loader } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
+import { fetchReports, clearError } from "../store/slices/reportSlice";
 
 const REPORT_TYPES = [
-  { id: 'income_statement', name: 'Income Statement', description: 'Profit & Loss Report' },
-  { id: 'balance_sheet', name: 'Balance Sheet', description: 'Assets, Liabilities & Equity' },
-  { id: 'cash_flow', name: 'Cash Flow', description: 'Cash inflows and outflows' },
-  { id: 'trial_balance', name: 'Trial Balance', description: 'All accounts with balances' },
-  { id: 'receipt_payment', name: 'Receipt & Payment', description: 'Fee collection report' },
+  {
+    id: "income_statement",
+    name: "Income Statement",
+    description: "Profit & Loss Report",
+  },
+  {
+    id: "balance_sheet",
+    name: "Balance Sheet",
+    description: "Assets, Liabilities & Equity",
+  },
+  {
+    id: "cash_flow",
+    name: "Cash Flow",
+    description: "Cash inflows and outflows",
+  },
+  {
+    id: "trial_balance",
+    name: "Trial Balance",
+    description: "All accounts with balances",
+  },
+  {
+    id: "receipt_payment",
+    name: "Receipt & Payment",
+    description: "Fee collection report",
+  },
 ];
 
 export default function Reports() {
   const dispatch = useDispatch();
   const { items, loading, error } = useSelector((state) => state.reports);
-  const [selectedReport, setSelectedReport] = useState('income_statement');
+  const [selectedReport, setSelectedReport] = useState("income_statement");
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
+    startDate: new Date(new Date().getFullYear(), 0, 1)
+      .toISOString()
+      .split("T")[0],
+    endDate: new Date().toISOString().split("T")[0],
   });
 
   useEffect(() => {
@@ -45,7 +67,9 @@ export default function Reports() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Financial Reports</h1>
-        <p className="text-gray-600 mt-1">Generate and view financial reports</p>
+        <p className="text-gray-600 mt-1">
+          Generate and view financial reports
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -55,10 +79,9 @@ export default function Reports() {
             onClick={() => setSelectedReport(report.id)}
             className={`p-4 rounded-lg cursor-pointer transition ${
               selectedReport === report.id
-                ? 'bg-blue-100 border-2 border-blue-600'
-                : 'bg-white border border-gray-200 hover:border-blue-400'
-            }`}
-          >
+                ? "bg-blue-100 border-2 border-blue-600"
+                : "bg-white border border-gray-200 hover:border-blue-400"
+            }`}>
             <h3 className="font-semibold text-gray-900">{report.name}</h3>
             <p className="text-sm text-gray-600 mt-1">{report.description}</p>
           </div>
@@ -69,7 +92,9 @@ export default function Reports() {
         <h2 className="text-xl font-bold text-gray-900 mb-4">Report Filters</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Start Date
+            </label>
             <input
               type="date"
               name="startDate"
@@ -79,7 +104,9 @@ export default function Reports() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              End Date
+            </label>
             <input
               type="date"
               name="endDate"
@@ -92,10 +119,13 @@ export default function Reports() {
             <button
               onClick={handleGenerateReport}
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2"
-            >
-              {loading ? <Loader className="animate-spin" size={20} /> : <Filter size={20} />}
-              {loading ? 'Generating...' : 'Generate Report'}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2">
+              {loading ? (
+                <Loader className="animate-spin" size={20} />
+              ) : (
+                <Filter size={20} />
+              )}
+              {loading ? "Generating..." : "Generate Report"}
             </button>
           </div>
         </div>
@@ -106,10 +136,14 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900">Report Data</h2>
             <div className="flex gap-2">
-              <button onClick={() => handleDownload('pdf')} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+              <button
+                onClick={() => handleDownload("pdf")}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
                 <Download size={18} /> PDF
               </button>
-              <button onClick={() => handleDownload('excel')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+              <button
+                onClick={() => handleDownload("excel")}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
                 <Download size={18} /> Excel
               </button>
             </div>
@@ -126,7 +160,9 @@ export default function Reports() {
                 {items.map((item, index) => (
                   <tr key={index} className="border-b border-gray-100">
                     <td className="py-3 px-4">{item.name}</td>
-                    <td className="py-3 px-4 text-right font-semibold">₹{item.amount}</td>
+                    <td className="py-3 px-4 text-right font-semibold">
+                      ₹{item.amount}
+                    </td>
                   </tr>
                 ))}
               </tbody>

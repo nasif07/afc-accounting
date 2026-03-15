@@ -1,7 +1,7 @@
-import { Plus, Edit2, Trash2, Search, Loader, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import toast from 'react-hot-toast';
+import { Plus, Edit2, Trash2, Search, Loader, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import {
   fetchStudents,
   createStudent,
@@ -10,26 +10,28 @@ import {
   clearError,
   clearSuccess,
   clearItem,
-} from '../store/slices/studentSlice';
+} from "../store/slices/studentSlice";
 
 export default function Students() {
   const dispatch = useDispatch();
-  const { items, loading, error, success } = useSelector((state) => state.students);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { items, loading, error, success } = useSelector(
+    (state) => state.students,
+  );
+  const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    name: '',
-    rollNumber: '',
-    class: '',
-    section: '',
-    email: '',
-    phone: '',
-    parentName: '',
-    parentEmail: '',
-    parentPhone: '',
-    address: '',
-    dateOfBirth: '',
+    name: "",
+    rollNumber: "",
+    class: "",
+    section: "",
+    email: "",
+    phone: "",
+    parentName: "",
+    parentEmail: "",
+    parentPhone: "",
+    address: "",
+    dateOfBirth: "",
     totalFeesPayable: 0,
   });
 
@@ -39,7 +41,11 @@ export default function Students() {
 
   useEffect(() => {
     if (success) {
-      toast.success(editingId ? 'Student updated successfully!' : 'Student created successfully!');
+      toast.success(
+        editingId
+          ? "Student updated successfully!"
+          : "Student created successfully!",
+      );
       dispatch(clearSuccess());
       setShowModal(false);
       resetForm();
@@ -56,17 +62,17 @@ export default function Students() {
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      rollNumber: '',
-      class: '',
-      section: '',
-      email: '',
-      phone: '',
-      parentName: '',
-      parentEmail: '',
-      parentPhone: '',
-      address: '',
-      dateOfBirth: '',
+      name: "",
+      rollNumber: "",
+      class: "",
+      section: "",
+      email: "",
+      phone: "",
+      parentName: "",
+      parentEmail: "",
+      parentPhone: "",
+      address: "",
+      dateOfBirth: "",
       totalFeesPayable: 0,
     });
     setEditingId(null);
@@ -91,7 +97,7 @@ export default function Students() {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'totalFeesPayable' ? parseFloat(value) || 0 : value,
+      [name]: name === "totalFeesPayable" ? parseFloat(value) || 0 : value,
     }));
   };
 
@@ -105,9 +111,9 @@ export default function Students() {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this student?')) {
+    if (window.confirm("Are you sure you want to delete this student?")) {
       dispatch(deleteStudent(id));
-      toast.success('Student deleted successfully!');
+      toast.success("Student deleted successfully!");
     }
   };
 
@@ -115,20 +121,23 @@ export default function Students() {
     (student) =>
       student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.rollNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      student.email?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Students Management</h1>
-          <p className="text-gray-600 mt-1">Manage student profiles and information</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Students Management
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Manage student profiles and information
+          </p>
         </div>
         <button
           onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition"
-        >
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition">
           <Plus size={20} /> Add Student
         </button>
       </div>
@@ -162,46 +171,69 @@ export default function Students() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Name</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Roll No</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Class</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Email</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Phone</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Actions</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
+                    Name
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
+                    Roll No
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
+                    Class
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
+                    Email
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
+                    Phone
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
+                    Status
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.map((student) => (
-                  <tr key={student._id} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                    <td className="py-3 px-4 text-sm font-medium text-gray-900">{student.name}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{student.rollNumber}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{student.class}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{student.email}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{student.phone}</td>
+                  <tr
+                    key={student._id}
+                    className="border-b border-gray-100 hover:bg-gray-50 transition">
+                    <td className="py-3 px-4 text-sm font-medium text-gray-900">
+                      {student.name}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {student.rollNumber}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {student.class}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {student.email}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {student.phone}
+                    </td>
                     <td className="py-3 px-4">
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                          student.status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {student.status || 'Active'}
+                          student.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}>
+                        {student.status || "Active"}
                       </span>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleOpenModal(student)}
-                          className="text-blue-600 hover:text-blue-700 transition"
-                        >
+                          className="text-blue-600 hover:text-blue-700 transition">
                           <Edit2 size={18} />
                         </button>
                         <button
                           onClick={() => handleDelete(student._id)}
-                          className="text-red-600 hover:text-red-700 transition"
-                        >
+                          className="text-red-600 hover:text-red-700 transition">
                           <Trash2 size={18} />
                         </button>
                       </div>
@@ -220,9 +252,11 @@ export default function Students() {
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
-                {editingId ? 'Edit Student' : 'Add New Student'}
+                {editingId ? "Edit Student" : "Add New Student"}
               </h2>
-              <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-500 hover:text-gray-700">
                 <X size={24} />
               </button>
             </div>
@@ -230,7 +264,9 @@ export default function Students() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Name *
+                  </label>
                   <input
                     type="text"
                     name="name"
@@ -242,7 +278,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Roll Number *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Roll Number *
+                  </label>
                   <input
                     type="text"
                     name="rollNumber"
@@ -254,7 +292,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Class *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Class *
+                  </label>
                   <input
                     type="text"
                     name="class"
@@ -266,7 +306,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Section
+                  </label>
                   <input
                     type="text"
                     name="section"
@@ -277,7 +319,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
                   <input
                     type="email"
                     name="email"
@@ -288,7 +332,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone
+                  </label>
                   <input
                     type="tel"
                     name="phone"
@@ -299,7 +345,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parent Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Parent Name
+                  </label>
                   <input
                     type="text"
                     name="parentName"
@@ -310,7 +358,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parent Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Parent Email
+                  </label>
                   <input
                     type="email"
                     name="parentEmail"
@@ -321,7 +371,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parent Phone</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Parent Phone
+                  </label>
                   <input
                     type="tel"
                     name="parentPhone"
@@ -332,7 +384,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Date of Birth
+                  </label>
                   <input
                     type="date"
                     name="dateOfBirth"
@@ -343,7 +397,9 @@ export default function Students() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Total Fees Payable</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Fees Payable
+                  </label>
                   <input
                     type="number"
                     name="totalFeesPayable"
@@ -354,7 +410,9 @@ export default function Students() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Address
+                  </label>
                   <textarea
                     name="address"
                     value={formData.address}
@@ -369,16 +427,20 @@ export default function Students() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader className="animate-spin" size={20} /> : null}
-                  {loading ? 'Saving...' : editingId ? 'Update Student' : 'Create Student'}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2">
+                  {loading ? (
+                    <Loader className="animate-spin" size={20} />
+                  ) : null}
+                  {loading
+                    ? "Saving..."
+                    : editingId
+                      ? "Update Student"
+                      : "Create Student"}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg transition"
-                >
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg transition">
                   Cancel
                 </button>
               </div>
