@@ -22,15 +22,12 @@ import Settings from "./pages/Settings";
 
 export default function App() {
   const dispatch = useDispatch();
-  const { isAuthenticated, token } = useSelector((state) => state.auth);
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    console.log(token);
-    if (token && isAuthenticated) {
-      dispatch(getCurrentUser());
-    }
-  }, [isAuthenticated, dispatch]);
+  // useEffect(() => {
+  //   // Check if user is authenticated via cookie on app load
+  //   dispatch(getCurrentUser());
+  // }, [dispatch]);
 
   return (
     <Router>
@@ -40,11 +37,11 @@ export default function App() {
         <Route
           path="/dashboard"
           element={
-            // <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
-            // </ProtectedRoute>
+            <ProtectedRoute>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
           }
         />
         <Route

@@ -17,9 +17,9 @@ export default function ProtectedRoute({ children }) {
   // }
 
   // If not authenticated, redirect to login
-  // if (!isAuthenticated) {
-  //   return <Navigate to="/login" replace />;
-  // }
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   // If authenticated, show the protected component
   return children;
