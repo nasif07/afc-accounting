@@ -61,6 +61,18 @@ export const deleteCoa = createAsyncThunk(
   }
 );
 
+export const getCoaBalance = createAsyncThunk(
+  'coa/getCoaBalance',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await coaAPI.getBalance(id);
+      return response.data.data || response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch balance');
+    }
+  }
+);
+
 
 const initialState = {
   items: [],
@@ -152,9 +164,28 @@ const coaSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      
+      .addCase(getCoaBalance.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getCoaBalance.fulfilled, (state, action) => {
+        state.loading = false;
+        state.item = action.payload;
+      })
+      .addCase(getCoaBalance.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
   },
 });
 
 export const { clearError, clearSuccess, clearItem } = coaSlice.actions;
+
+// Selectors
+export const selectCoaItems = (state) => state.coa.items;
+export const selectCoaItem = (state) => state.coa.item;
+export const selectCoaLoading = (state) => state.coa.loading;
+export const selectCoaError = (state) => state.coa.error;
+export const selectCoaSuccess = (state) => state.coa.success;
+
 export default coaSlice.reducer;

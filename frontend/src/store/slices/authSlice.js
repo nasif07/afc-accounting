@@ -25,9 +25,10 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
   try {
     // Cookies are automatically sent with requests due to withCredentials: true
     const response = await api.get('/auth/me');
-    return response.data;
+    return response.data.data || response.data; // Handle both response formats
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Failed to fetch user');
+    // Silently fail if not authenticated (user will be redirected to login)
+    return rejectWithValue(null);
   }
 });
 
@@ -44,8 +45,8 @@ export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { reje
 });
 
 const initialState = {
-  user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
-  loading: false,
+  user: null,
+  loading: true, // Start as loading to check auth status on app load
   error: null,
   isAuthenticated: false,
 };
@@ -57,7 +58,6 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
-      localStorage.removeItem('user');
     },
     clearError: (state) => {
       state.error = null;
@@ -77,7 +77,6 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload.user;
         state.isAuthenticated = true;
-        localStorage.setItem("user", JSON.stringify(action.payload.user));
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
@@ -91,7 +90,6 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload.user;
         state.isAuthenticated = true;
-        localStorage.setItem("user", JSON.stringify(action.payload.user));
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -102,23 +100,25 @@ const authSlice = createSlice({
       })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload.user || action.payload;
-        state.isAuthenticated = true;
+        state.user = action.payload?.user || action.payload;
+        state.isAuthenticated = !!state.user;
       })
       .addCase(getCurrentUser.rejected, (state) => {
         state.loading = false;
         state.isAuthenticated = false;
         state.user = null;
-        localStorage.removeItem('user');
       })
       .addCase(logoutAsync.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.loading = false;
-        localStorage.removeItem('user');
       });
   },
 });
 
 export const { logout, clearError, setUser } = authSlice.actions;
+export const selectUser = (state) => state.auth.user;
+export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
+export const selectAuthLoading = (state) => state.auth.loading;
+export const selectAuthError = (state) => state.auth.error;
 export default authSlice.reducer;
