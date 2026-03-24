@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: Object.values(USER_ROLES),
-      default: USER_ROLES.SUB_ACCOUNTANT
+      default: USER_ROLES.ACCOUNTANT
     },
     phone: {
       type: String,
@@ -41,6 +41,20 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    approvedAt: {
+      type: Date,
+      default: null
     },
     lastLogin: {
       type: Date

@@ -19,10 +19,30 @@ export default function Login() {
     e.preventDefault();
     try {
       const result = await dispatch(login(formData)).unwrap();
+      
+      // CHECK IF ACCOUNT IS APPROVED
+      if (result.user?.status === 'pending') {
+        toast.error('Account pending Director approval. Please wait for approval email.');
+        return;
+      }
+      
       toast.success('Login successful!');
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err || 'Login failed');
+      // SHOW SPECIFIC ERROR MESSAGES
+      if (err === 'Account pending Director approval') {
+        toast.error('Your account is pending Director approval. Please check your email.');
+      } else if (err === 'Account has been rejected') {
+        toast.error('Your account has been rejected. Please contact support.');
+      } else if (err === 'User not found') {
+        toast.error('Email not found. Please register first.');
+      } else if (err === 'Invalid email or password') {
+        toast.error('Invalid email or password.');
+      } else if (err === 'Account is locked. Try again later.') {
+        toast.error('Account locked due to too many login attempts. Try again later.');
+      } else {
+        toast.error(err || 'Login failed');
+      }
     }
   };
 

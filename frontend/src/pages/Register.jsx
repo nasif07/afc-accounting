@@ -22,11 +22,26 @@ export default function Register() {
       return;
     }
     try {
-      await dispatch(register(formData)).unwrap();
+      const result = await dispatch(register(formData)).unwrap();
+      
+      // SHOW PENDING MESSAGE INSTEAD OF REDIRECTING
+      if (result.user?.status === 'pending') {
+        toast.success('Registration successful! Awaiting Director approval.');
+        // Redirect to login after 2 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+        return;
+      }
+      
       toast.success('Registration successful!');
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err || 'Registration failed');
+      if (err === 'Email already registered') {
+        toast.error('This email is already registered. Please login instead.');
+      } else {
+        toast.error(err || 'Registration failed');
+      }
     }
   };
 

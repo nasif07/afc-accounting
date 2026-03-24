@@ -4,7 +4,10 @@ import api from '../../services/api';
 export const register = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/register', userData);
-    // Token is now stored in httpOnly cookie by backend
+    // STORE TOKEN
+    if (response.data?.token) {
+      localStorage.setItem('authToken', response.data.token);
+    }
     return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Registration failed');
@@ -14,7 +17,10 @@ export const register = createAsyncThunk('auth/register', async (userData, { rej
 export const login = createAsyncThunk('auth/login', async (credentials, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/login', credentials);
-    // Token is now stored in httpOnly cookie by backend
+    // STORE TOKEN
+    if (response.data?.token) {
+      localStorage.setItem('authToken', response.data.token);
+    }
     return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Login failed');
@@ -23,32 +29,42 @@ export const login = createAsyncThunk('auth/login', async (credentials, { reject
 
 export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, { rejectWithValue }) => {
   try {
-    // Cookies are automatically sent with requests due to withCredentials: true
+    // TRY TO GET TOKEN FROM STORAGE FIRST
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      return rejectWithValue(null);
+    }
+    
     const response = await api.get('/auth/me');
-    return response.data.data || response.data; // Handle both response formats
+    return response.data.data || response.data;
   } catch (error) {
-    // Silently fail if not authenticated (user will be redirected to login)
+    // CLEAR TOKEN ON ERROR
+    localStorage.removeItem('authToken');
     return rejectWithValue(null);
   }
 });
 
 export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { rejectWithValue }) => {
   try {
-    // Cookies are automatically sent with requests
     await api.post('/auth/logout');
-    // Backend clears the cookie
+    // CLEAR TOKEN ON LOGOUT
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
     return null;
   } catch (error) {
-    // Even if logout fails, clear local state
+    // Clear anyway
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
     return null;
   }
 });
 
 const initialState = {
   user: null,
-  loading: true, // Start as loading to check auth status on app load
+  loading: true,
   error: null,
   isAuthenticated: false,
+  isPending: false,  // Track pending approval status
 };
 
 const authSlice = createSlice({
@@ -58,6 +74,8 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
+      state.isPending = false;
+      localStorage.removeItem('authToken');
     },
     clearError: (state) => {
       state.error = null;
@@ -65,6 +83,7 @@ const authSlice = createSlice({
     setUser: (state, action) => {
       state.user = action.payload;
       state.isAuthenticated = !!action.payload;
+      state.isPending = action.payload?.status === 'pending';
     },
   },
   extraReducers: (builder) => {
@@ -76,7 +95,9 @@ const authSlice = createSlice({
       .addCase(register.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-        state.isAuthenticated = true;
+        // Check if pending approval
+        state.isPending = action.payload.user?.status === 'pending';
+        state.isAuthenticated = action.payload.user?.status === 'approved';
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
@@ -102,15 +123,18 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload?.user || action.payload;
         state.isAuthenticated = !!state.user;
+        state.isPending = state.user?.status === 'pending';
       })
       .addCase(getCurrentUser.rejected, (state) => {
         state.loading = false;
         state.isAuthenticated = false;
         state.user = null;
+        state.isPending = false;
       })
       .addCase(logoutAsync.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
+        state.isPending = false;
         state.loading = false;
       });
   },
@@ -121,4 +145,5 @@ export const selectUser = (state) => state.auth.user;
 export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
 export const selectAuthLoading = (state) => state.auth.loading;
 export const selectAuthError = (state) => state.auth.error;
+export const selectIsPending = (state) => state.auth.isPending;
 export default authSlice.reducer;

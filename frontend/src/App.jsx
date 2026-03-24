@@ -20,6 +20,7 @@ import Payroll from "./pages/Payroll";
 import Accounting from "./pages/Accounting";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import DirectorApprovals from "./pages/DirectorApprovals";
 
 export default function App() {
   const dispatch = useDispatch();
@@ -112,6 +113,16 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <Settings />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/approvals"
+            element={
+              <ProtectedRoute requiredRole="director">
+                <Layout>
+                  <DirectorApprovals />
                 </Layout>
               </ProtectedRoute>
             }

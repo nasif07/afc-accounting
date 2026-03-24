@@ -11,15 +11,36 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Handle responses
+// REQUEST INTERCEPTOR - ADD TOKEN TO HEADERS
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// RESPONSE INTERCEPTOR - HANDLE 401 & TOKEN STORAGE
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // EXTRACT AND STORE TOKEN FROM RESPONSE
+    if (response.data?.token) {
+      localStorage.setItem('authToken', response.data.token);
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
-      // Clear any stored auth state and redirect to login
-      localStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      window.location.href = '/login';
+      // Clear auth state on 401
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      // Only redirect if not already on login page
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
