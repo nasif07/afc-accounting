@@ -1,17 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-const getAuthHeader = () => ({
-  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-});
+import api from '../../services/api';
 
 export const fetchJournalEntries = createAsyncThunk(
   'journals/fetchJournalEntries',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/journal-entries`, getAuthHeader());
+      const response = await api.get('/journal-entries');
       return response.data.entries;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch entries');
@@ -23,7 +17,7 @@ export const createJournalEntry = createAsyncThunk(
   'journals/createJournalEntry',
   async (entryData, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/journal-entries`, entryData, getAuthHeader());
+      const response = await api.post('/journal-entries', entryData);
       return response.data.entry;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create entry');

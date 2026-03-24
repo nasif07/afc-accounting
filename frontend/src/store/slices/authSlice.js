@@ -4,10 +4,7 @@ import api from '../../services/api';
 export const register = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/register', userData);
-    // STORE TOKEN
-    if (response.data?.token) {
-      localStorage.setItem('authToken', response.data.token);
-    }
+    // Token is set in httpOnly cookie by backend, not in response
     return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Registration failed');
@@ -17,10 +14,7 @@ export const register = createAsyncThunk('auth/register', async (userData, { rej
 export const login = createAsyncThunk('auth/login', async (credentials, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/login', credentials);
-    // STORE TOKEN
-    if (response.data?.token) {
-      localStorage.setItem('authToken', response.data.token);
-    }
+    // Token is set in httpOnly cookie by backend, not in response
     return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Login failed');
@@ -29,19 +23,11 @@ export const login = createAsyncThunk('auth/login', async (credentials, { reject
 
 export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, { rejectWithValue }) => {
   try {
-    // TRY TO GET TOKEN FROM STORAGE FIRST
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      // No token on first load is not an error - just return null
-      return null;
-    }
-    
     const response = await api.get('/auth/me');
     // Handle both response formats: { user: {...} } or direct user object
     return response.data?.user || response.data?.data || response.data;
   } catch (error) {
-    // CLEAR TOKEN ON ERROR
-    localStorage.removeItem('authToken');
+    // 401 is expected when no cookie exists - not an error
     return null;
   }
 });
@@ -49,14 +35,10 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
 export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { rejectWithValue }) => {
   try {
     await api.post('/auth/logout');
-    // CLEAR TOKEN ON LOGOUT
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
+    // Cookie is cleared by backend
     return null;
   } catch (error) {
     // Clear anyway
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
     return null;
   }
 });
@@ -77,7 +59,6 @@ const authSlice = createSlice({
       state.user = null;
       state.isAuthenticated = false;
       state.isPending = false;
-      localStorage.removeItem('authToken');
     },
     clearError: (state) => {
       state.error = null;
@@ -123,13 +104,13 @@ const authSlice = createSlice({
       })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
         state.loading = false;
-        // Handle null payload (no token on first load)
+        // Handle null payload (no cookie exists)
         if (action.payload === null) {
           state.user = null;
           state.isAuthenticated = false;
           state.isPending = false;
         } else {
-          state.user = action.payload?.user || action.payload;
+          state.user = action.payload;
           state.isAuthenticated = !!state.user;
           state.isPending = state.user?.status === 'pending';
         }

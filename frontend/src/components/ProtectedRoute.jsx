@@ -34,7 +34,6 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
           </p>
           <button
             onClick={() => {
-              localStorage.removeItem('authToken');
               window.location.href = '/login';
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"

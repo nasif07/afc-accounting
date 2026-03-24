@@ -37,7 +37,6 @@ export const ErrorHandler = {
 
     if (error.response?.status === 401) {
       ErrorHandler.showToast('Unauthorized. Please login again.');
-      localStorage.removeItem('authToken');
       window.location.href = '/login';
       return { status: 401, message: 'Unauthorized' };
     }

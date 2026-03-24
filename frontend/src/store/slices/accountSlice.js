@@ -1,17 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-const getAuthHeader = () => ({
-  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-});
+import api from '../../services/api';
 
 export const fetchAccounts = createAsyncThunk(
   'accounts/fetchAccounts',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/accounts`, getAuthHeader());
+      const response = await api.get('/accounts');
       return response.data.accounts;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch accounts');
@@ -23,7 +17,7 @@ export const createAccount = createAsyncThunk(
   'accounts/createAccount',
   async (accountData, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/accounts`, accountData, getAuthHeader());
+      const response = await api.post('/accounts', accountData);
       return response.data.account;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create account');
@@ -35,7 +29,7 @@ export const updateAccount = createAsyncThunk(
   'accounts/updateAccount',
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${API_URL}/accounts/${id}`, data, getAuthHeader());
+      const response = await api.put(`/accounts/${id}`, data);
       return response.data.account;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update account');
@@ -47,7 +41,7 @@ export const deleteAccount = createAsyncThunk(
   'accounts/deleteAccount',
   async (id, { rejectWithValue }) => {
     try {
-      await axios.delete(`${API_URL}/accounts/${id}`, getAuthHeader());
+      await api.delete(`/accounts/${id}`);
       return id;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete account');
