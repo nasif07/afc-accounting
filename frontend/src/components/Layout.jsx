@@ -1,12 +1,12 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, Link, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { logout, logoutAsync } from "../store/slices/authSlice";
 import {
   Menu,
   X,
   LogOut,
-  Home,
+  LayoutDashboard,
   Users,
   Receipt,
   DollarSign,
@@ -14,19 +14,22 @@ import {
   Zap,
   FileText,
   Settings,
+  ChevronDown,
 } from "lucide-react";
+import { toast } from "sonner";
 
-export default function Layout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+function Layout({ children }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Start closed on mobile
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
 
   const menuItems = [
-    { icon: Home, label: "Dashboard", path: "/dashboard" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: Users, label: "Students", path: "/students" },
-    { icon: Receipt, label: "Fee Collection", path: "/receipts" },
+    { icon: Receipt, label: "Receipts", path: "/receipts" },
     { icon: DollarSign, label: "Expenses", path: "/expenses" },
     { icon: Briefcase, label: "Payroll", path: "/payroll" },
     { icon: Zap, label: "Accounting", path: "/accounting" },
@@ -34,10 +37,18 @@ export default function Layout({ children }) {
     { icon: Settings, label: "Settings", path: "/settings" },
   ];
 
+  // Close sidebar when navigating on mobile
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
+
   const handleLogout = async () => {
     try {
       await dispatch(logoutAsync()).unwrap();
       navigate("/login");
+      toast.success("Logged out successfully");
     } catch (error) {
       dispatch(logout());
       navigate("/login");
@@ -47,76 +58,128 @@ export default function Layout({ children }) {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div
-        className={`${sidebarOpen ? "w-64" : "w-20"} bg-gradient-to-b from-gray-900 to-gray-800 text-white transition-all duration-300 flex flex-col shadow-lg`}>
-        <div className="p-4 flex items-center justify-between border-b border-gray-700">
+    <div className="flex h-screen bg-neutral-50 overflow-hidden">
+      {/* Mobile Sidebar Backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Mobile Responsive */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-neutral-200 transition-transform lg:static lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } flex flex-col shadow-sm lg:shadow-none`}
+      >
+        {/* Logo */}
+        <div className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-neutral-200">
           {sidebarOpen && (
-            <h1 className="text-xl font-bold text-blue-400">Alliance</h1>
+            <h1 className="text-lg md:text-xl font-bold text-mahogany-700">Alliance</h1>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hover:bg-gray-700 p-2 rounded transition">
+            className="text-neutral-600 hover:text-neutral-900 transition-colors lg:hidden"
+          >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
 
-        <nav className="flex-1 px-2 py-4 space-y-1">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition duration-200 ${
-                isActive(item.path)
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-300 hover:bg-gray-700 hover:text-white"
-              }`}>
-              <item.icon size={20} />
-              {sidebarOpen && (
-                <span className="text-sm font-medium">{item.label}</span>
-              )}
-            </Link>
-          ))}
+        {/* Navigation */}
+        <nav className="flex-1 px-2 md:px-3 py-4 md:py-6 space-y-1 md:space-y-2 overflow-y-auto">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className={`w-full flex items-center gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg transition-all duration-200 text-sm md:text-base ${
+                  isActive(item.path)
+                    ? "bg-mahogany-50 text-mahogany-700 border-l-4 border-mahogany-700"
+                    : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+                }`}
+                title={!sidebarOpen ? item.label : ""}
+              >
+                <Icon size={20} className="flex-shrink-0" />
+                {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="p-4 border-t border-gray-700">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition duration-200">
-            <LogOut size={20} />
-            {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
-          </button>
+        {/* User Profile & Logout */}
+        <div className="border-t border-neutral-200 p-2 md:p-3">
+          <div className="relative">
+            <button
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className="w-full flex items-center gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-neutral-50 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-mahogany-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-bold text-mahogany-700">
+                  {user?.name?.charAt(0).toUpperCase() || "U"}
+                </span>
+              </div>
+              {sidebarOpen && (
+                <>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-sm font-medium text-neutral-900 truncate">
+                      {user?.name || "User"}
+                    </p>
+                    <p className="text-xs text-neutral-600 truncate capitalize">
+                      {user?.role || "user"}
+                    </p>
+                  </div>
+                  <ChevronDown size={16} />
+                </>
+              )}
+            </button>
+
+            {/* User Menu Dropdown */}
+            {userMenuOpen && sidebarOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-neutral-200 rounded-lg shadow-lg py-2 z-50">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <div className="bg-white shadow-md px-6 py-4 flex items-center justify-between border-b border-gray-200">
+        {/* Top Bar - Mobile Responsive */}
+        <header className="h-14 md:h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-4 md:px-8 shadow-sm">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">
-              Alliance Accounting System
+            <h2 className="text-base md:text-lg font-semibold text-neutral-900">
+              {menuItems.find((item) => item.path === location.pathname)?.label ||
+                "Dashboard"}
             </h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Financial Management Platform
-            </p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right bg-gray-50 px-4 py-2 rounded-lg">
-              <p className="text-sm font-semibold text-gray-900">
-                {user?.name || "User"}
-              </p>
-              <p className="text-xs text-blue-600 font-medium">
-                {user?.role || "User"}
-              </p>
-            </div>
-          </div>
-        </div>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="lg:hidden text-neutral-600 hover:text-neutral-900"
+          >
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </header>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6 bg-gray-50">{children}</div>
+        {/* Page Content - Mobile Responsive */}
+        <main className="flex-1 overflow-y-auto bg-neutral-50">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
 }
+
+Layout.displayName = "Layout";
+
+export default Layout;

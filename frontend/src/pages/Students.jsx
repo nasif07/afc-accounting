@@ -1,452 +1,186 @@
-import { Plus, Edit2, Trash2, Search, Loader, X } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import toast from "react-hot-toast";
-import {
-  fetchStudents,
-  createStudent,
-  updateStudent,
-  deleteStudent,
-  clearError,
-  clearSuccess,
-  clearItem,
-} from "../store/slices/studentSlice";
+import { useState } from 'react';
+import { Plus, Edit2, Trash2, Eye, Search } from 'lucide-react';
+import { useStudents, useCreateStudent, useUpdateStudent, useDeleteStudent } from '../hooks/useStudents';
+import Table from '../components/ui/Table';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import EmptyState from '../components/EmptyState';
+import { Card, CardContent } from '../components/ui/Card';
+import { formatCurrency } from '../utils/currency';
 
 export default function Students() {
-  const dispatch = useDispatch();
-  const { items, loading, error, success } = useSelector(
-    (state) => state.students,
-  );
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    rollNumber: "",
-    class: "",
-    section: "",
-    email: "",
-    phone: "",
-    parentName: "",
-    parentEmail: "",
-    parentPhone: "",
-    address: "",
-    dateOfBirth: "",
-    totalFeesPayable: 0,
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
 
-  useEffect(() => {
-    dispatch(fetchStudents());
-  }, [dispatch]);
+  // Fetch data
+  const { data: students, isLoading } = useStudents();
 
-  useEffect(() => {
-    if (success) {
-      toast.success(
-        editingId
-          ? "Student updated successfully!"
-          : "Student created successfully!",
-      );
-      dispatch(clearSuccess());
-      setShowModal(false);
-      resetForm();
-      dispatch(fetchStudents());
-    }
-  }, [success, dispatch, editingId]);
+  // Mutations
+  const createMutation = useCreateStudent();
+  const updateMutation = useUpdateStudent();
+  const deleteMutation = useDeleteStudent();
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error);
-      dispatch(clearError());
-    }
-  }, [error, dispatch]);
+  // Filter students
+  const filteredStudents = students?.filter((student) =>
+    student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.rollNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      rollNumber: "",
-      class: "",
-      section: "",
-      email: "",
-      phone: "",
-      parentName: "",
-      parentEmail: "",
-      parentPhone: "",
-      address: "",
-      dateOfBirth: "",
-      totalFeesPayable: 0,
-    });
-    setEditingId(null);
+  // Handle edit
+  const handleEdit = (student) => {
+    setEditingStudent(student);
+    setShowForm(true);
   };
 
-  const handleOpenModal = (student = null) => {
-    if (student) {
-      setFormData(student);
-      setEditingId(student._id);
-    } else {
-      resetForm();
-    }
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    resetForm();
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "totalFeesPayable" ? parseFloat(value) || 0 : value,
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (editingId) {
-      dispatch(updateStudent({ id: editingId, data: formData }));
-    } else {
-      dispatch(createStudent(formData));
+  // Handle delete
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this student?')) {
+      await deleteMutation.mutateAsync(id);
     }
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this student?")) {
-      dispatch(deleteStudent(id));
-      toast.success("Student deleted successfully!");
-    }
+  // Close form
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingStudent(null);
   };
 
-  const filteredStudents = items.filter(
-    (student) =>
-      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.rollNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email?.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  // Table columns
+  const columns = [
+    { key: 'rollNumber', label: 'Roll #' },
+    { key: 'name', label: 'Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    {
+      key: 'totalFeesPaid',
+      label: 'Fees Paid',
+      render: (value) => formatCurrency(value || 0),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (value) => (
+        <Badge variant={value === 'active' ? 'success' : 'warning'}>
+          {value || 'Active'}
+        </Badge>
+      ),
+    },
+    {
+      key: '_id',
+      label: 'Actions',
+      render: (value, row) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.location.href = `/students/${value}`}
+            className="text-blue-600 hover:text-blue-700 transition"
+            title="View"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={() => handleEdit(row)}
+            className="text-blue-600 hover:text-blue-700 transition"
+            title="Edit"
+          >
+            <Edit2 size={16} />
+          </button>
+          <button
+            onClick={() => handleDelete(value)}
+            className="text-red-600 hover:text-red-700 transition"
+            title="Delete"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Students Management
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Manage student profiles and information
-          </p>
+          <h1 className="text-4xl font-bold text-neutral-900">Students</h1>
+          <p className="text-neutral-600 mt-2">Manage student information and records</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition">
-          <Plus size={20} /> Add Student
-        </button>
+        <Button
+          variant="primary"
+          onClick={() => {
+            setEditingStudent(null);
+            setShowForm(true);
+          }}
+        >
+          <Plus size={18} />
+          Add Student
+        </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search by name, roll number, or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader className="animate-spin text-blue-600" size={32} />
-          </div>
-        )}
-
-        {!loading && filteredStudents.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>No students found. Create a new student to get started.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
-                    Name
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
-                    Roll No
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
-                    Class
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
-                    Email
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
-                    Phone
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
-                    Status
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStudents.map((student) => (
-                  <tr
-                    key={student._id}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition">
-                    <td className="py-3 px-4 text-sm font-medium text-gray-900">
-                      {student.name}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {student.rollNumber}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {student.class}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {student.email}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {student.phone}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                          student.status === "active"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}>
-                        {student.status || "Active"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleOpenModal(student)}
-                          className="text-blue-600 hover:text-blue-700 transition">
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(student._id)}
-                          className="text-red-600 hover:text-red-700 transition">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-neutral-600 mb-2">Total Students</p>
+            <p className="text-3xl font-bold text-neutral-900">{students?.length || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-neutral-600 mb-2">Active</p>
+            <p className="text-3xl font-bold text-neutral-900">
+              {students?.filter((s) => s.status === 'active')?.length || 0}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-neutral-600 mb-2">Total Fees Collected</p>
+            <p className="text-3xl font-bold text-neutral-900">
+              {formatCurrency(
+                students?.reduce((sum, s) => sum + (s.totalFeesPaid || 0), 0) || 0
+              )}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">
-                {editingId ? "Edit Student" : "Add New Student"}
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-500 hover:text-gray-700">
-                <X size={24} />
-              </button>
-            </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-3 text-neutral-400" size={20} />
+        <input
+          type="text"
+          placeholder="Search by name, email, or roll number..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-mahogany-700"
+        />
+      </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Roll Number *
-                  </label>
-                  <input
-                    type="text"
-                    name="rollNumber"
-                    value={formData.rollNumber}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Class *
-                  </label>
-                  <input
-                    type="text"
-                    name="class"
-                    value={formData.class}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Section
-                  </label>
-                  <input
-                    type="text"
-                    name="section"
-                    value={formData.section}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Parent Name
-                  </label>
-                  <input
-                    type="text"
-                    name="parentName"
-                    value={formData.parentName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Parent Email
-                  </label>
-                  <input
-                    type="email"
-                    name="parentEmail"
-                    value={formData.parentEmail}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Parent Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="parentPhone"
-                    value={formData.parentPhone}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date of Birth
-                  </label>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    value={formData.dateOfBirth}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Total Fees Payable
-                  </label>
-                  <input
-                    type="number"
-                    name="totalFeesPayable"
-                    value={formData.totalFeesPayable}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address
-                  </label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    rows="3"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2">
-                  {loading ? (
-                    <Loader className="animate-spin" size={20} />
-                  ) : null}
-                  {loading
-                    ? "Saving..."
-                    : editingId
-                      ? "Update Student"
-                      : "Create Student"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg transition">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Students Table */}
+      {isLoading ? (
+        <div className="bg-white rounded-lg border border-neutral-200 p-6 text-center">
+          <p className="text-neutral-600">Loading students...</p>
         </div>
+      ) : filteredStudents && filteredStudents.length > 0 ? (
+        <Table
+          columns={columns}
+          data={filteredStudents}
+          paginated
+          pageSize={10}
+        />
+      ) : (
+        <EmptyState
+          icon={Plus}
+          title="No Students"
+          description="Start by adding your first student."
+          action={() => {
+            setEditingStudent(null);
+            setShowForm(true);
+          }}
+          actionLabel="Add Student"
+        />
       )}
     </div>
   );

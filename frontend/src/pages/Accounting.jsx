@@ -1,177 +1,250 @@
-import { Plus, Edit2, Trash2, Search, Loader, X, CheckCircle, XCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import toast from 'react-hot-toast';
-import { fetchAccounting, createAccounting, updateAccounting, deleteAccounting, approveAccounting, rejectAccounting, clearError, clearSuccess } from '../store/slices/accountingSlice';
-import { fetchCoa } from '../store/slices/coaSlice';
+import { useState } from 'react';
+import { useSelector } from 'react-redux';
+import { Plus, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { useJournalEntries, useCreateJournalEntry, useUpdateJournalEntry, useDeleteJournalEntry, useApproveJournalEntry, useRejectJournalEntry, useChartOfAccounts } from '../hooks/useJournal';
+import TransactionForm from '../components/TransactionForm';
+import Table from '../components/ui/Table';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import EmptyState from '../components/EmptyState';
+import { Card, CardContent } from '../components/ui/Card';
+import { formatCurrency } from '../utils/currency';
 
 export default function Accounting() {
-  const dispatch = useDispatch();
-  const { items, loading, error, success } = useSelector((state) => state.accounting);
-  const { items: accounts } = useSelector((state) => state.coa);
   const { user } = useSelector((state) => state.auth);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
-    voucherNumber: '',
-    transactionType: 'journal',
-    debitAccount: '',
-    creditAccount: '',
-    amount: '',
-    description: '',
-    referenceNumber: '',
-    transactionDate: new Date().toISOString().split('T')[0],
-  });
+  const [showForm, setShowForm] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
 
-  useEffect(() => {
-    dispatch(fetchAccounting());
-    dispatch(fetchCoa());
-  }, [dispatch]);
+  // Fetch data
+  const { data: entries, isLoading: entriesLoading } = useJournalEntries();
+  const { data: accounts, isLoading: accountsLoading } = useChartOfAccounts();
 
-  useEffect(() => {
-    if (success) {
-      toast.success(editingId ? 'Entry updated!' : 'Entry created!');
-      dispatch(clearSuccess());
-      setShowModal(false);
-      dispatch(fetchAccounting());
-    }
-  }, [success, dispatch, editingId]);
+  // Mutations
+  const createMutation = useCreateJournalEntry();
+  const updateMutation = useUpdateJournalEntry();
+  const deleteMutation = useDeleteJournalEntry();
+  const approveMutation = useApproveJournalEntry();
+  const rejectMutation = useRejectJournalEntry();
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error);
-      dispatch(clearError());
-    }
-  }, [error, dispatch]);
-
-  const handleOpenModal = (entry = null) => {
-    if (entry) setFormData(entry);
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setFormData({
-      voucherNumber: '',
-      transactionType: 'journal',
-      debitAccount: '',
-      creditAccount: '',
-      amount: '',
-      description: '',
-      referenceNumber: '',
-      transactionDate: new Date().toISOString().split('T')[0],
-    });
-    setEditingId(null);
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: name === 'amount' ? parseFloat(value) || '' : value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (editingId) {
-      dispatch(updateAccounting({ id: editingId, data: formData }));
+  // Handle form submit
+  const handleFormSubmit = async (data) => {
+    if (editingEntry) {
+      await updateMutation.mutateAsync({
+        id: editingEntry._id,
+        data,
+      });
     } else {
-      dispatch(createAccounting(formData));
+      await createMutation.mutateAsync(data);
     }
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Delete this entry?')) {
-      dispatch(deleteAccounting(id));
-      toast.success('Entry deleted!');
+  // Handle edit
+  const handleEdit = (entry) => {
+    setEditingEntry(entry);
+    setShowForm(true);
+  };
+
+  // Handle delete
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this entry?')) {
+      await deleteMutation.mutateAsync(id);
     }
   };
 
-  const filteredEntries = items.filter((entry) =>
-    entry.voucherNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Handle approve
+  const handleApprove = async (id) => {
+    if (window.confirm('Approve this entry?')) {
+      await approveMutation.mutateAsync(id);
+    }
+  };
+
+  // Handle reject
+  const handleReject = async (id) => {
+    const reason = window.prompt('Enter rejection reason:');
+    if (reason) {
+      await rejectMutation.mutateAsync({ id, reason });
+    }
+  };
+
+  // Close form
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingEntry(null);
+  };
+
+  // Table columns
+  const columns = [
+    { key: 'voucherNumber', label: 'Voucher #' },
+    {
+      key: 'voucherDate',
+      label: 'Date',
+      render: (value) => new Date(value).toLocaleDateString(),
+    },
+    { key: 'description', label: 'Description' },
+    { key: 'transactionType', label: 'Type', render: (value) => <Badge variant="info">{value}</Badge> },
+    {
+      key: 'totalDebit',
+      label: 'Debit',
+      render: (value) => formatCurrency(value),
+    },
+    {
+      key: 'totalCredit',
+      label: 'Credit',
+      render: (value) => formatCurrency(value),
+    },
+    {
+      key: 'isBalanced',
+      label: 'Balance',
+      render: (value) => (
+        <Badge variant={value ? 'success' : 'danger'}>
+          {value ? 'Balanced' : 'Unbalanced'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'approvalStatus',
+      label: 'Status',
+      render: (value) => (
+        <Badge
+          variant={
+            value === 'approved'
+              ? 'success'
+              : value === 'rejected'
+              ? 'danger'
+              : 'warning'
+          }
+        >
+          {value || 'Pending'}
+        </Badge>
+      ),
+    },
+    {
+      key: '_id',
+      label: 'Actions',
+      render: (value, row) => (
+        <div className="flex items-center gap-2">
+          {row.approvalStatus === 'pending' && (
+            <>
+              <button
+                onClick={() => handleEdit(row)}
+                className="text-blue-600 hover:text-blue-700 transition"
+                title="Edit"
+              >
+                <Edit2 size={16} />
+              </button>
+              <button
+                onClick={() => handleDelete(value)}
+                className="text-red-600 hover:text-red-700 transition"
+                title="Delete"
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
+          )}
+          {user?.role === 'director' && row.approvalStatus === 'pending' && (
+            <>
+              <button
+                onClick={() => handleApprove(value)}
+                className="text-green-600 hover:text-green-700 transition"
+                title="Approve"
+              >
+                <CheckCircle size={16} />
+              </button>
+              <button
+                onClick={() => handleReject(value)}
+                className="text-red-600 hover:text-red-700 transition"
+                title="Reject"
+              >
+                <XCircle size={16} />
+              </button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Journal Entries</h1>
-          <p className="text-gray-600 mt-1">Manage accounting journal entries</p>
+          <h1 className="text-4xl font-bold text-neutral-900">Accounting</h1>
+          <p className="text-neutral-600 mt-2">Manage journal entries and double-entry transactions</p>
         </div>
-        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition">
-          <Plus size={20} /> Add Entry
-        </button>
+        <Button
+          variant="primary"
+          onClick={() => {
+            setEditingEntry(null);
+            setShowForm(true);
+          }}
+        >
+          <Plus size={18} />
+          New Entry
+        </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-            <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg" />
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader className="animate-spin text-blue-600" size={32} />
-          </div>
-        ) : filteredEntries.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>No entries found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-semibold">Voucher #</th>
-                  <th className="text-left py-3 px-4 font-semibold">Description</th>
-                  <th className="text-left py-3 px-4 font-semibold">Amount</th>
-                  <th className="text-left py-3 px-4 font-semibold">Status</th>
-                  <th className="text-left py-3 px-4 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEntries.map((entry) => (
-                  <tr key={entry._id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4 font-medium">{entry.voucherNumber}</td>
-                    <td className="py-3 px-4">{entry.description}</td>
-                    <td className="py-3 px-4 font-semibold">₹{entry.amount}</td>
-                    <td className="py-3 px-4"><span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs">{entry.approvalStatus || 'Pending'}</span></td>
-                    <td className="py-3 px-4 flex gap-2">
-                      <button onClick={() => handleOpenModal(entry)} className="text-blue-600 hover:text-blue-700"><Edit2 size={18} /></button>
-                      <button onClick={() => handleDelete(entry._id)} className="text-red-600 hover:text-red-700"><Trash2 size={18} /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-neutral-600 mb-2">Total Entries</p>
+            <p className="text-3xl font-bold text-neutral-900">{entries?.length || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-neutral-600 mb-2">Pending Approval</p>
+            <p className="text-3xl font-bold text-neutral-900">
+              {entries?.filter((e) => e.approvalStatus === 'pending')?.length || 0}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-neutral-600 mb-2">Approved</p>
+            <p className="text-3xl font-bold text-neutral-900">
+              {entries?.filter((e) => e.approvalStatus === 'approved')?.length || 0}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-bold">{editingId ? 'Edit' : 'Add'} Entry</h2>
-              <button onClick={handleCloseModal} className="text-gray-500"><X size={24} /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="text" name="voucherNumber" value={formData.voucherNumber} onChange={handleChange} placeholder="Voucher Number" required className="px-4 py-2 border rounded-lg" />
-                <input type="number" name="amount" value={formData.amount} onChange={handleChange} placeholder="Amount" required step="0.01" className="px-4 py-2 border rounded-lg" />
-                <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Description" rows="3" className="md:col-span-2 px-4 py-2 border rounded-lg" />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="submit" disabled={loading} className="flex-1 bg-blue-600 text-white py-2 rounded-lg">
-                  {loading ? 'Saving...' : 'Save'}
-                </button>
-                <button type="button" onClick={handleCloseModal} className="flex-1 bg-gray-200 py-2 rounded-lg">Cancel</button>
-              </div>
-            </form>
-          </div>
+      {/* Journal Table */}
+      {entriesLoading ? (
+        <div className="bg-white rounded-lg border border-neutral-200 p-6 text-center">
+          <p className="text-neutral-600">Loading entries...</p>
         </div>
+      ) : entries && entries.length > 0 ? (
+        <Table
+          columns={columns}
+          data={entries}
+          searchable
+          paginated
+          pageSize={10}
+        />
+      ) : (
+        <EmptyState
+          icon={Plus}
+          title="No Journal Entries"
+          description="Start by creating your first journal entry."
+          action={() => {
+            setEditingEntry(null);
+            setShowForm(true);
+          }}
+          actionLabel="Create Entry"
+        />
       )}
+
+      {/* Transaction Form Modal */}
+      <TransactionForm
+        isOpen={showForm}
+        onClose={handleCloseForm}
+        onSubmit={handleFormSubmit}
+        initialData={editingEntry}
+        accounts={accounts || []}
+        loading={createMutation.isPending || updateMutation.isPending}
+      />
     </div>
   );
 }

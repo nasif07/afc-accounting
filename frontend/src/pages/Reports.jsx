@@ -1,175 +1,229 @@
-import { Download, Filter, Loader } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import toast from "react-hot-toast";
-import { fetchReports, clearError } from "../store/slices/reportSlice";
-
-const REPORT_TYPES = [
-  {
-    id: "income_statement",
-    name: "Income Statement",
-    description: "Profit & Loss Report",
-  },
-  {
-    id: "balance_sheet",
-    name: "Balance Sheet",
-    description: "Assets, Liabilities & Equity",
-  },
-  {
-    id: "cash_flow",
-    name: "Cash Flow",
-    description: "Cash inflows and outflows",
-  },
-  {
-    id: "trial_balance",
-    name: "Trial Balance",
-    description: "All accounts with balances",
-  },
-  {
-    id: "receipt_payment",
-    name: "Receipt & Payment",
-    description: "Fee collection report",
-  },
-];
+import { useState } from 'react';
+import { FileText, BarChart3 } from 'lucide-react';
+import ReportRenderer from '../components/ReportRenderer';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
+import FormField from '../components/ui/FormField';
 
 export default function Reports() {
-  const dispatch = useDispatch();
-  const { items, loading, error } = useSelector((state) => state.reports);
-  const [selectedReport, setSelectedReport] = useState("income_statement");
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), 0, 1)
-      .toISOString()
-      .split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
-  });
+  const [reportType, setReportType] = useState('pl');
+  const [period, setPeriod] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error);
-      dispatch(clearError());
-    }
-  }, [error, dispatch]);
-
-  const handleGenerateReport = () => {
-    dispatch(fetchReports({ reportType: selectedReport, ...dateRange }));
+  // Sample data for P&L
+  const plData = {
+    revenue: {
+      items: [
+        { name: 'Tuition Fees', amount: 500000000 },
+        { name: 'Exam Fees', amount: 50000000 },
+        { name: 'Registration Fees', amount: 30000000 },
+      ],
+      total: 580000000,
+    },
+    expenses: {
+      items: [
+        { name: 'Salaries & Wages', amount: 200000000 },
+        { name: 'Rent & Utilities', amount: 50000000 },
+        { name: 'Teaching Materials', amount: 30000000 },
+        { name: 'Maintenance', amount: 20000000 },
+      ],
+      total: 300000000,
+    },
   };
 
-  const handleDownload = (format) => {
-    toast.success(`Report downloaded as ${format.toUpperCase()}`);
+  // Sample data for Balance Sheet
+  const bsData = {
+    assets: {
+      current: {
+        items: [
+          { name: 'Cash in Hand', amount: 100000000 },
+          { name: 'Bank Accounts', amount: 150000000 },
+          { name: 'Accounts Receivable', amount: 80000000 },
+        ],
+        total: 330000000,
+      },
+      fixed: {
+        items: [
+          { name: 'Buildings', amount: 500000000 },
+          { name: 'Equipment', amount: 100000000 },
+          { name: 'Furniture', amount: 50000000 },
+        ],
+        total: 650000000,
+      },
+    },
+    liabilities: {
+      current: {
+        items: [
+          { name: 'Accounts Payable', amount: 50000000 },
+          { name: 'Short-term Loans', amount: 100000000 },
+        ],
+        total: 150000000,
+      },
+    },
+    equity: {
+      items: [
+        { name: 'Capital', amount: 500000000 },
+        { name: 'Retained Earnings', amount: 330000000 },
+      ],
+      total: 830000000,
+    },
   };
 
-  const handleDateChange = (e) => {
-    const { name, value } = e.target;
-    setDateRange((prev) => ({ ...prev, [name]: value }));
+  const handleGenerateReport = async () => {
+    setLoading(true);
+    // Simulate API call
+    setTimeout(() => {
+      setLoading(false);
+      setPeriod(`${startDate} to ${endDate}`);
+    }, 1000);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Financial Reports</h1>
-        <p className="text-gray-600 mt-1">
-          Generate and view financial reports
-        </p>
+        <h1 className="text-4xl font-bold text-neutral-900">Financial Reports</h1>
+        <p className="text-neutral-600 mt-2">Generate and view financial statements</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {REPORT_TYPES.map((report) => (
-          <div
-            key={report.id}
-            onClick={() => setSelectedReport(report.id)}
-            className={`p-4 rounded-lg cursor-pointer transition ${
-              selectedReport === report.id
-                ? "bg-blue-100 border-2 border-blue-600"
-                : "bg-white border border-gray-200 hover:border-blue-400"
-            }`}>
-            <h3 className="font-semibold text-gray-900">{report.name}</h3>
-            <p className="text-sm text-gray-600 mt-1">{report.description}</p>
-          </div>
-        ))}
-      </div>
+      {/* Report Generator */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Generate Report</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormField label="Report Type">
+              <select
+                value={reportType}
+                onChange={(e) => setReportType(e.target.value)}
+                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-mahogany-700"
+              >
+                <option value="pl">Profit & Loss Statement</option>
+                <option value="bs">Balance Sheet</option>
+              </select>
+            </FormField>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Report Filters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Date
-            </label>
-            <input
-              type="date"
-              name="startDate"
-              value={dateRange.startDate}
-              onChange={handleDateChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            <FormField label="Start Date">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </FormField>
+
+            <FormField label="End Date">
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </FormField>
+          </div>
+
+          <Button
+            variant="primary"
+            onClick={handleGenerateReport}
+            isLoading={loading}
+            fullWidth
+          >
+            <BarChart3 size={18} />
+            Generate Report
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Report Tabs */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Quick Reports */}
+        <div className="lg:col-span-1 space-y-3">
+          <h3 className="font-semibold text-neutral-900">Quick Reports</h3>
+          <Button
+            variant="outline"
+            fullWidth
+            onClick={() => {
+              setReportType('pl');
+              const today = new Date();
+              const startOfYear = new Date(today.getFullYear(), 0, 1);
+              setStartDate(startOfYear.toISOString().split('T')[0]);
+              setEndDate(today.toISOString().split('T')[0]);
+              setPeriod(`${startOfYear.toISOString().split('T')[0]} to ${today.toISOString().split('T')[0]}`);
+            }}
+          >
+            <FileText size={16} />
+            YTD P&L
+          </Button>
+          <Button
+            variant="outline"
+            fullWidth
+            onClick={() => {
+              setReportType('bs');
+              const today = new Date();
+              setStartDate(today.toISOString().split('T')[0]);
+              setEndDate(today.toISOString().split('T')[0]);
+              setPeriod(`As of ${today.toISOString().split('T')[0]}`);
+            }}
+          >
+            <FileText size={16} />
+            Current Balance Sheet
+          </Button>
+        </div>
+
+        {/* Report Display */}
+        <div className="lg:col-span-3">
+          {period ? (
+            <ReportRenderer
+              title={reportType === 'pl' ? 'Profit & Loss Statement' : 'Balance Sheet'}
+              reportType={reportType}
+              data={reportType === 'pl' ? plData : bsData}
+              period={period}
+              loading={loading}
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              End Date
-            </label>
-            <input
-              type="date"
-              name="endDate"
-              value={dateRange.endDate}
-              onChange={handleDateChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={handleGenerateReport}
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2">
-              {loading ? (
-                <Loader className="animate-spin" size={20} />
-              ) : (
-                <Filter size={20} />
-              )}
-              {loading ? "Generating..." : "Generate Report"}
-            </button>
-          </div>
+          ) : (
+            <Card>
+              <CardContent className="pt-12 text-center">
+                <BarChart3 size={48} className="mx-auto text-neutral-300 mb-4" />
+                <p className="text-neutral-600">Select dates and generate a report to view it here</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
-      {items.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Report Data</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleDownload("pdf")}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                <Download size={18} /> PDF
-              </button>
-              <button
-                onClick={() => handleDownload("excel")}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                <Download size={18} /> Excel
-              </button>
-            </div>
+      {/* Report History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Reports</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {[
+              { name: 'Profit & Loss - Jan 2026', date: '2026-01-31', type: 'P&L' },
+              { name: 'Balance Sheet - Dec 2025', date: '2025-12-31', type: 'BS' },
+              { name: 'Profit & Loss - Dec 2025', date: '2025-12-31', type: 'P&L' },
+            ].map((report, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText size={20} className="text-mahogany-700" />
+                  <div>
+                    <p className="font-medium text-neutral-900">{report.name}</p>
+                    <p className="text-xs text-neutral-600">{report.date}</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm">
+                  View
+                </Button>
+              </div>
+            ))}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-semibold">Account</th>
-                  <th className="text-right py-3 px-4 font-semibold">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, index) => (
-                  <tr key={index} className="border-b border-gray-100">
-                    <td className="py-3 px-4">{item.name}</td>
-                    <td className="py-3 px-4 text-right font-semibold">
-                      ₹{item.amount}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
