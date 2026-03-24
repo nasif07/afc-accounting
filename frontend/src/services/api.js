@@ -37,8 +37,9 @@ api.interceptors.response.use(
       // Clear auth state on 401
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
-      // Only redirect if not already on login page
-      if (window.location.pathname !== '/login') {
+      // Only redirect if not already on auth pages
+      const pathname = window.location.pathname;
+      if (pathname !== '/login' && pathname !== '/register' && pathname !== '/') {
         window.location.href = '/login';
       }
     }

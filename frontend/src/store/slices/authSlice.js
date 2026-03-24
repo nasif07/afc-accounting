@@ -32,15 +32,17 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
     // TRY TO GET TOKEN FROM STORAGE FIRST
     const token = localStorage.getItem('authToken');
     if (!token) {
-      return rejectWithValue(null);
+      // No token on first load is not an error - just return null
+      return null;
     }
     
     const response = await api.get('/auth/me');
-    return response.data.data || response.data;
+    // Handle both response formats: { user: {...} } or direct user object
+    return response.data?.user || response.data?.data || response.data;
   } catch (error) {
     // CLEAR TOKEN ON ERROR
     localStorage.removeItem('authToken');
-    return rejectWithValue(null);
+    return null;
   }
 });
 
@@ -121,9 +123,16 @@ const authSlice = createSlice({
       })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload?.user || action.payload;
-        state.isAuthenticated = !!state.user;
-        state.isPending = state.user?.status === 'pending';
+        // Handle null payload (no token on first load)
+        if (action.payload === null) {
+          state.user = null;
+          state.isAuthenticated = false;
+          state.isPending = false;
+        } else {
+          state.user = action.payload?.user || action.payload;
+          state.isAuthenticated = !!state.user;
+          state.isPending = state.user?.status === 'pending';
+        }
       })
       .addCase(getCurrentUser.rejected, (state) => {
         state.loading = false;
