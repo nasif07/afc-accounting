@@ -35,6 +35,7 @@ function Layout({ children }) {
     { icon: DollarSign, label: "Expenses", path: "/expenses" },
     { icon: Briefcase, label: "Payroll", path: "/payroll" },
     { icon: Zap, label: "Accounting", path: "/accounting" },
+    { icon: FileText, label: "Chart of Accounts", path: "/accounts" },
     { icon: FileText, label: "Journal Entries", path: "/journal-entries" },
     // --- Added Approvals Route (Role Protected) ---
     { 

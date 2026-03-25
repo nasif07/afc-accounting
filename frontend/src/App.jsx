@@ -18,6 +18,7 @@ import Receipts from "./pages/Receipts";
 import Expenses from "./pages/Expenses";
 import Payroll from "./pages/Payroll";
 import Accounting from "./pages/Accounting";
+import Accounts from "./pages/Accounts";
 import JournalEntries from "./pages/JournalEntries";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -99,6 +100,16 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <Accounting />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accounts"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Accounts />
                 </Layout>
               </ProtectedRoute>
             }
