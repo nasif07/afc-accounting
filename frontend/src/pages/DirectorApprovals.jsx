@@ -59,18 +59,19 @@ export default function DirectorApprovals() {
       </div>
     );
   }
+  console.log(pendingUsers);
 
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Pending User Approvals</h1>
       
-      {pendingUsers.length === 0 ? (
+      {pendingUsers.data?.length === 0 ? (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
           No pending users to approve.
         </div>
       ) : (
         <div className="grid gap-4">
-          {pendingUsers.map((pendingUser) => (
+          {pendingUsers.data?.map((pendingUser) => (
             <div key={pendingUser._id} className="bg-white border border-gray-200 rounded-lg p-6 flex justify-between items-center">
               <div>
                 <h3 className="font-semibold text-gray-800">{pendingUser.name}</h3>

@@ -24,12 +24,17 @@ import DirectorApprovals from "./pages/DirectorApprovals";
 
 export default function App() {
   const dispatch = useDispatch();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  // Destructure 'loading' (or 'status') from your Redux state
+  const { isAuthenticated, loading } = useSelector((state) => state.auth);
 
   useEffect(() => {
-    // Check if user is authenticated via cookie on app load
     dispatch(getCurrentUser());
   }, [dispatch]);
+
+  // 1. Prevent redirection while the check is in progress
+  if (loading) {
+    return <div>Loading...</div>; // Or a nice Spinner component
+  }
 
   return (
     <ErrorBoundary>
@@ -130,7 +135,10 @@ export default function App() {
           <Route
             path="/"
             element={
-              <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+              <Navigate
+                to={isAuthenticated ? "/dashboard" : "/login"}
+                replace
+              />
             }
           />
         </Routes>

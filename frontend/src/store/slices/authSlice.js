@@ -25,7 +25,7 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
   try {
     const response = await api.get('/auth/me');
     // Handle both response formats: { user: {...} } or direct user object
-    return response.data?.user || response.data?.data || response.data;
+    return response.data?.user || response.data?.data?.user || response.data;
   } catch (error) {
     // 401 is expected when no cookie exists - not an error
     return null;

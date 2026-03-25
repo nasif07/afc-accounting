@@ -1,12 +1,17 @@
-import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
-import { register } from '../store/slices/authSlice';
-import toast from 'react-hot-toast';
-import { User, Mail, Lock, Loader } from 'lucide-react';
+import { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, Link } from "react-router-dom";
+import { register } from "../store/slices/authSlice";
+import toast from "react-hot-toast";
+import { User, Mail, Lock, Loader } from "lucide-react";
 
 export default function Register() {
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { loading, error } = useSelector((state) => state.auth);
@@ -18,29 +23,29 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error("Passwords do not match");
       return;
     }
     try {
       const result = await dispatch(register(formData)).unwrap();
-      
+
       // SHOW PENDING MESSAGE INSTEAD OF REDIRECTING
-      if (result.user?.status === 'pending') {
-        toast.success('Registration successful! Awaiting Director approval.');
+      if (result.user?.status === "pending") {
+        toast.success("Registration successful! Awaiting Director approval.");
         // Redirect to login after 2 seconds
         setTimeout(() => {
-          navigate('/login');
+          navigate("/login");
         }, 2000);
         return;
       }
-      
-      toast.success('Registration successful!');
-      navigate('/dashboard');
+
+      toast.success("Registration successful!");
+      navigate("/dashboard");
     } catch (err) {
-      if (err === 'Email already registered') {
-        toast.error('This email is already registered. Please login instead.');
+      if (err === "Email already registered") {
+        toast.error("This email is already registered. Please login instead.");
       } else {
-        toast.error(err || 'Registration failed');
+        toast.error(err || "Registration failed");
       }
     }
   };
@@ -55,7 +60,9 @@ export default function Register() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Full Name
+            </label>
             <div className="relative">
               <User className="absolute left-3 top-3 text-gray-400" size={20} />
               <input
@@ -71,7 +78,9 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
               <input
@@ -87,7 +96,9 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
             <div className="relative">
               <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
               <input
@@ -103,7 +114,9 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirm Password
+            </label>
             <div className="relative">
               <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
               <input
@@ -118,22 +131,27 @@ export default function Register() {
             </div>
           </div>
 
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2"
-          >
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2">
             {loading ? <Loader className="animate-spin" size={20} /> : null}
-            {loading ? 'Creating Account...' : 'Register'}
+            {loading ? "Creating Account..." : "Register"}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              className="text-blue-600 hover:text-blue-700 font-medium">
               Login here
             </Link>
           </p>
