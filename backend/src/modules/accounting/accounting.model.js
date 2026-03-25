@@ -6,16 +6,6 @@ const bookEntrySchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ChartOfAccounts',
     required: true,
-    validate: {
-      async validator(value) {
-        const account = await mongoose.model('ChartOfAccounts').findById(value);
-        if (!account) throw new Error("Account does not exist");
-        if (account.hasChildren) throw new Error("Cannot use parent account in transaction");
-        if (account.status !== 'active') throw new Error("Account is not active");
-        return true;
-      },
-      message: "Invalid account",
-    },
   },
   debit: {
     type: Number,
@@ -32,18 +22,17 @@ const bookEntrySchema = new mongoose.Schema({
     set: (v) => Math.round(v * 100),
   },
   description: String,
-  validate: {
-    validator: function() {
-      if (this.debit > 0 && this.credit > 0) {
-        throw new Error("Cannot have both debit and credit in same line");
-      }
-      if (this.debit === 0 && this.credit === 0) {
-        throw new Error("Amount cannot be zero");
-      }
-      return true;
-    },
-    message: "Invalid book entry",
-  },
+});
+
+// Add custom validation to bookEntrySchema
+bookEntrySchema.pre('validate', function(next) {
+  if (this.debit > 0 && this.credit > 0) {
+    throw new Error("Cannot have both debit and credit in same line");
+  }
+  if (this.debit === 0 && this.credit === 0) {
+    throw new Error("Amount cannot be zero");
+  }
+  next();
 });
 
 const journalEntrySchema = new mongoose.Schema(

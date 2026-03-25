@@ -42,29 +42,6 @@ const coaSchema = new mongoose.Schema(
     parentAccount: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ChartOfAccounts",
-      validate: {
-        async validator(value) {
-          if (!value) return true;
-          const parent = await mongoose.model("ChartOfAccounts").findById(value);
-          if (!parent) throw new Error("Parent account does not exist");
-          if (parent.accountType !== this.accountType) {
-            throw new Error("Parent account type must match");
-          }
-          let current = parent;
-          const visited = new Set([parent._id.toString()]);
-          while (current.parentAccount) {
-            const parentId = current.parentAccount.toString();
-            if (visited.has(parentId) || parentId === this._id.toString()) {
-              throw new Error("Circular parent reference detected");
-            }
-            visited.add(parentId);
-            current = await mongoose.model("ChartOfAccounts").findById(current.parentAccount);
-            if (!current) break;
-          }
-          return true;
-        },
-        message: "Invalid parent account",
-      },
     },
     hasChildren: {
       type: Boolean,
@@ -97,6 +74,34 @@ const coaSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Validate parent account on save
+coaSchema.pre('save', async function(next) {
+  if (this.parentAccount) {
+    const parent = await mongoose.model("ChartOfAccounts").findById(this.parentAccount);
+    if (!parent) {
+      return next(new Error("Parent account does not exist"));
+    }
+    if (parent.accountType !== this.accountType) {
+      return next(new Error("Parent account type must match"));
+    }
+
+    // Check for circular references
+    let current = parent;
+    const visited = new Set([parent._id.toString()]);
+    while (current.parentAccount) {
+      const parentId = current.parentAccount.toString();
+      if (visited.has(parentId) || parentId === this._id.toString()) {
+        return next(new Error("Circular parent reference detected"));
+      }
+      visited.add(parentId);
+      current = await mongoose.model("ChartOfAccounts").findById(current.parentAccount);
+      if (!current) break;
+    }
+  }
+  next();
+});
+
+// Add indexes
 coaSchema.index({ accountCode: 1 });
 coaSchema.index({ status: 1, accountType: 1 });
 coaSchema.index({ parentAccount: 1, status: 1 });
