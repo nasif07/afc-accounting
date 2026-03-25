@@ -46,7 +46,6 @@ const coaSchema = new mongoose.Schema(
     hasChildren: {
       type: Boolean,
       default: false,
-      index: true,
     },
     hasTransactions: {
       type: Boolean,
@@ -56,7 +55,6 @@ const coaSchema = new mongoose.Schema(
       type: String,
       enum: ["active", "inactive", "archived"],
       default: "active",
-      index: true,
     },
     deletedAt: {
       type: Date,

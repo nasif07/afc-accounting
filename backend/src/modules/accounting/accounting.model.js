@@ -42,13 +42,11 @@ const journalEntrySchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
-      index: true,
     },
     voucherDate: {
       type: Date,
       required: true,
       default: Date.now,
-      index: true,
     },
     transactionType: {
       type: String,
@@ -93,13 +91,11 @@ const journalEntrySchema = new mongoose.Schema(
       type: String,
       enum: Object.values(APPROVAL_STATUS),
       default: APPROVAL_STATUS.PENDING,
-      index: true,
     },
     status: {
       type: String,
       enum: ['draft', 'posted', 'reversed'],
       default: 'draft',
-      index: true,
     },
     isLocked: {
       type: Boolean,
@@ -119,7 +115,6 @@ const journalEntrySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
     },
     attachments: [String],
   },
@@ -167,7 +162,7 @@ journalEntrySchema.pre('findByIdAndUpdate', function(next) {
   }
 });
 
-// Add indexes
+// Add indexes (removed inline index: true to prevent duplicates)
 journalEntrySchema.index({ voucherNumber: 1 });
 journalEntrySchema.index({ voucherDate: -1 });
 journalEntrySchema.index({ createdBy: 1, voucherDate: -1 });
