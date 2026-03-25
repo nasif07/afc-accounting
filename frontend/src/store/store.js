@@ -12,6 +12,8 @@ import bankReducer from './slices/bankSlice';
 import reportReducer from './slices/reportSlice';
 import settingsReducer from './slices/settingsSlice';
 import searchReducer from './slices/searchSlice';
+import journalReducer from './slices/journalSlice';
+import accountReducer from './slices/accountSlice';
 
 export const store = configureStore({
   reducer: {
@@ -28,6 +30,8 @@ export const store = configureStore({
     reports: reportReducer,
     settings: settingsReducer,
     search: searchReducer,
+    journals: journalReducer,
+    accounts: accountReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -35,7 +39,7 @@ export const store = configureStore({
         ignoredActions: ['auth/loginSuccess', 'auth/registerSuccess'],
         ignoredPaths: ['auth.user'],
       },
-    }),
+    })
 });
 
 export default store;
