@@ -25,7 +25,7 @@ router.use('/vendors', vendorRoutes);
 router.use('/employees', employeeRoutes);
 router.use('/payroll', payrollRoutes);
 router.use('/accounting', accountingRoutes);
-router.use('/chart-of-accounts', coaRoutes);
+router.use('/accounts', coaRoutes);
 router.use('/bank', bankRoutes);
 router.use('/reports', reportRoutes);
 router.use('/settings', settingsRoutes);

@@ -6,7 +6,7 @@ export const fetchAccounts = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('/accounts');
-      return response.data.accounts;
+      return response.data.data || response.data.accounts || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch accounts');
     }
@@ -18,7 +18,7 @@ export const createAccount = createAsyncThunk(
   async (accountData, { rejectWithValue }) => {
     try {
       const response = await api.post('/accounts', accountData);
-      return response.data.account;
+      return response.data.data || response.data.account || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create account');
     }
@@ -30,7 +30,7 @@ export const updateAccount = createAsyncThunk(
   async ({ id, data }, { rejectWithValue }) => {
     try {
       const response = await api.put(`/accounts/${id}`, data);
-      return response.data.account;
+      return response.data.data || response.data.account || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update account');
     }
