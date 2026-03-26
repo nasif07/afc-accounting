@@ -5,8 +5,8 @@ export const fetchJournalEntries = createAsyncThunk(
   'journals/fetchJournalEntries',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/journal-entries');
-      return response.data.entries;
+      const response = await api.get('/accounting/journal-entries');
+      return response.data.data || response.data.entries || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch entries');
     }
@@ -17,8 +17,8 @@ export const createJournalEntry = createAsyncThunk(
   'journals/createJournalEntry',
   async (entryData, { rejectWithValue }) => {
     try {
-      const response = await api.post('/journal-entries', entryData);
-      return response.data.entry;
+      const response = await api.post('/accounting/journal-entries', entryData);
+      return response.data.data || response.data.entry || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create entry');
     }
@@ -46,14 +46,24 @@ const journalSlice = createSlice({
       })
       .addCase(fetchJournalEntries.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.entries = action.payload;
+        state.entries = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(fetchJournalEntries.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
+      .addCase(createJournalEntry.pending, (state) => {
+        state.isLoading = true;
+      })
       .addCase(createJournalEntry.fulfilled, (state, action) => {
-        state.entries.push(action.payload);
+        state.isLoading = false;
+        if (action.payload) {
+          state.entries.push(action.payload);
+        }
+      })
+      .addCase(createJournalEntry.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });
