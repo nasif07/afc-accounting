@@ -5,14 +5,29 @@ const ApiResponse = require('../../utils/apiResponse');
 class AccountingController {
   static async createJournalEntry(req, res, next) {
     try {
-      const { referenceNumber, transactionType, description, bookEntries } = req.body;
+      // ✅ FIX #1 & #2: Changed referenceNumber → voucherNumber, added voucherDate validation
+      const { voucherNumber, voucherDate, transactionType, description, bookEntries } = req.body;
 
-      if (!referenceNumber || !transactionType || !bookEntries || bookEntries.length === 0) {
-        return ApiResponse.badRequest(res, 'Reference number, transaction type, and book entries are required');
+      // ✅ FIX #2: Added voucherDate validation
+      if (!voucherNumber || !voucherDate || !transactionType || !bookEntries || bookEntries.length === 0) {
+        return ApiResponse.badRequest(
+          res,
+          'Voucher number, date, transaction type, and book entries are required'
+        );
       }
 
+      // ✅ FIX #8: Validate minimum 2 line items
+      if (bookEntries.length < 2) {
+        return ApiResponse.badRequest(
+          res,
+          'Journal entry must have at least 2 line items'
+        );
+      }
+
+      // ✅ FIX #1: Changed referenceNumber → voucherNumber, added voucherDate
       const entryData = {
-        referenceNumber,
+        voucherNumber,
+        voucherDate,
         transactionType,
         description,
         bookEntries,
@@ -79,7 +94,7 @@ class AccountingController {
   static async deleteEntry(req, res, next) {
     try {
       const { id } = req.params;
-      const entry = await AccountingService.deleteEntry(id);
+      const entry = await AccountingService.deleteEntry(id, req.user.userId);
 
       if (!entry) {
         return ApiResponse.notFound(res, 'Journal entry not found');

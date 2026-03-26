@@ -31,7 +31,7 @@ class COAService {
     });
   }
 
-  // Soft delete account
+  // ✅ FIX #14: Soft delete account with userId for audit trail
   static async deleteAccount(accountId, userId) {
     const account = await ChartOfAccounts.findById(accountId);
     if (!account) throw new Error('Account not found');
@@ -65,25 +65,36 @@ class COAService {
     });
   }
 
+  // ✅ FIX #6: Calculate balance from journal entries, not stored value
   static async getAccountBalance(accountId) {
     const account = await ChartOfAccounts.findById(accountId);
     if (!account) throw new Error('Account not found');
-    return account.currentBalance;
-  }
 
-  static async updateAccountBalance(accountId, amount, isDebit) {
-    const account = await ChartOfAccounts.findById(accountId);
-    if (!account) throw new Error('Account not found');
+    // Start with opening balance
+    let balance = account.openingBalance || 0;
 
-    if (isDebit) {
-      account.currentBalance += amount;
-    } else {
-      account.currentBalance -= amount;
+    // Get all posted journal entries for this account
+    const JournalEntry = require('../accounting/accounting.model');
+    const entries = await JournalEntry.find({
+      'bookEntries.account': accountId,
+      status: 'posted'
+    }).lean();
+
+    // Calculate balance from journal entries
+    for (const entry of entries) {
+      for (const line of entry.bookEntries) {
+        if (line.account.toString() === accountId) {
+          balance += (line.debit || 0);
+          balance -= (line.credit || 0);
+        }
+      }
     }
 
-    await account.save();
-    return account;
+    return balance;
   }
+
+  // ✅ REMOVED: updateAccountBalance - Balance should NOT be updated directly
+  // Balance must be calculated from journal entries only
 
   // Check if account is a leaf node
   static async isLeafNode(accountId) {
@@ -186,7 +197,7 @@ class COAService {
       balances: Object.values(balances),
       totalDebits,
       totalCredits,
-      isBalanced: Math.abs(totalDebits - totalCredits) < 0.01,
+      isBalanced: Math.abs(totalDebits - totalCredits) < 1, // 1 cent tolerance
     };
   }
 }

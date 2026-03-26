@@ -15,6 +15,12 @@ router.get("/:id", COAController.getAccountById);
 router.put("/:id", accountantOrDirector, COAController.updateAccount);
 router.delete("/:id", accountantOrDirector, COAController.deleteAccount);
 
+// ✅ FIX #10: Get account tree
+router.get("/tree", COAController.getAccountTree);
+
+// ✅ FIX #10: Get leaf nodes only
+router.get("/leaf-nodes", COAController.getLeafNodes);
+
 // Get account balance
 router.get("/:id/balance", COAController.getAccountBalance);
 

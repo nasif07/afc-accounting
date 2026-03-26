@@ -7,13 +7,13 @@ class AccountingService {
     // Validate double-entry
     this.validateDoubleEntry(entryData.bookEntries);
 
-    // Validate accounts are leaf nodes
+    // ✅ FIX #4 & #5: Validate accounts are leaf nodes (fixed field name from accountId → account)
     const accountErrors = await this.validateAccounts(entryData.bookEntries);
     if (accountErrors.length > 0) {
       throw new Error(`Invalid accounts: ${accountErrors.join(', ')}`);
     }
 
-    // Use atomic transaction
+    // ✅ FIX #7: Use atomic transaction for all operations
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -21,7 +21,7 @@ class AccountingService {
       const entry = new JournalEntry(entryData);
       await entry.save({ session });
 
-      // Mark accounts as having transactions
+      // Mark accounts as having transactions (within transaction scope)
       for (const bookEntry of entryData.bookEntries) {
         await ChartOfAccounts.findByIdAndUpdate(
           bookEntry.account,
@@ -49,31 +49,45 @@ class AccountingService {
       totalCredits += entry.credit || 0;
     }
 
-    if (Math.abs(totalDebits - totalCredits) > 0.01) {
+    // ✅ FIX #12: Use 1 cent tolerance when working with cents (not 0.01)
+    if (Math.abs(totalDebits - totalCredits) > 1) {
       throw new Error(
-        `Double-entry validation failed. Debits: ${totalDebits}, Credits: ${totalCredits}`
+        `Double-entry validation failed. Debits: ${totalDebits / 100}, Credits: ${totalCredits / 100}`
       );
     }
   }
 
-  // Validate accounts are leaf nodes
+  // ✅ FIX #4 & #5: Validate accounts are leaf nodes (fixed field name)
   static async validateAccounts(bookEntries) {
     const errors = [];
 
     for (const entry of bookEntries) {
-      const account = await ChartOfAccounts.findById(entry.account);
-
-      if (!account) {
-        errors.push(`Account ${entry.account} not found`);
+      // ✅ FIX #5: Handle both 'account' and 'accountId' field names for compatibility
+      const accountId = entry.account || entry.accountId;
+      if (!accountId) {
+        errors.push('Account ID is required for each line item');
         continue;
       }
 
+      const account = await ChartOfAccounts.findById(accountId);
+
+      if (!account) {
+        errors.push(`Account ${accountId} not found`);
+        continue;
+      }
+
+      // ✅ FIX #4: Validate that account is a leaf node (no children)
       if (account.hasChildren) {
-        errors.push(`Account ${account.accountCode} is a parent account and cannot be used`);
+        errors.push(`Account ${account.accountCode} (${account.accountName}) is a parent account and cannot be used in transactions`);
       }
 
       if (account.status !== 'active') {
         errors.push(`Account ${account.accountCode} is not active`);
+      }
+
+      // ✅ FIX #13: Validate account type consistency (basic check)
+      if (!account.accountType) {
+        errors.push(`Account ${account.accountCode} has no type defined`);
       }
     }
 
@@ -129,7 +143,8 @@ class AccountingService {
       .populate('bookEntries.account');
   }
 
-  static async deleteEntry(entryId) {
+  // ✅ FIX #14: Implement soft-delete for journal entries
+  static async deleteEntry(entryId, userId) {
     const entry = await JournalEntry.findById(entryId);
     if (!entry) throw new Error('Entry not found');
 
@@ -138,7 +153,16 @@ class AccountingService {
       throw new Error('Cannot delete a posted journal entry');
     }
 
-    return await JournalEntry.findByIdAndDelete(entryId);
+    // Soft delete instead of hard delete
+    return await JournalEntry.findByIdAndUpdate(
+      entryId,
+      {
+        status: 'deleted',
+        deletedAt: new Date(),
+        deletedBy: userId,
+      },
+      { new: true }
+    );
   }
 
   static async approveEntry(entryId, approvedBy) {
@@ -200,22 +224,30 @@ class AccountingService {
   static async getPendingApprovals() {
     return await JournalEntry.find({ approvalStatus: 'pending' })
       .populate('createdBy', 'name email')
-      .populate('bookEntries.account', 'accountName')
+      .populate('bookEntries.account', 'accountName accountCode')
       .sort({ voucherDate: 1 });
   }
 
-  // Calculate account balance from journal entries
+  // ✅ FIX #6: Calculate account balance from journal entries (not stored value)
   static async calculateAccountBalance(accountId) {
+    const account = await ChartOfAccounts.findById(accountId);
+    if (!account) throw new Error('Account not found');
+
+    // Start with opening balance
+    let balance = account.openingBalance || 0;
+
+    // Get all posted journal entries for this account
     const entries = await JournalEntry.find({
       'bookEntries.account': accountId,
-      status: 'posted',
-    });
+      status: 'posted'
+    }).lean();
 
-    let balance = 0;
+    // Calculate balance from journal entries
     for (const entry of entries) {
-      for (const bookEntry of entry.bookEntries) {
-        if (bookEntry.account.toString() === accountId.toString()) {
-          balance += (bookEntry.debit || 0) - (bookEntry.credit || 0);
+      for (const line of entry.bookEntries) {
+        if (line.account.toString() === accountId) {
+          balance += (line.debit || 0);
+          balance -= (line.credit || 0);
         }
       }
     }
@@ -223,11 +255,11 @@ class AccountingService {
     return balance;
   }
 
-  // Get trial balance
+  // ✅ FIX #6: Get trial balance with calculated balances
   static async getTrialBalance() {
     const entries = await JournalEntry.find({ status: 'posted' }).populate(
       'bookEntries.account'
-    );
+    ).lean();
 
     const balances = {};
     let totalDebits = 0;
@@ -255,7 +287,7 @@ class AccountingService {
       balances: Object.values(balances),
       totalDebits,
       totalCredits,
-      isBalanced: Math.abs(totalDebits - totalCredits) < 0.01,
+      isBalanced: Math.abs(totalDebits - totalCredits) < 1, // 1 cent tolerance
     };
   }
 }

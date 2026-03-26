@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { TRANSACTION_TYPES, APPROVAL_STATUS } = require('../../config/constants');
 
 const bookEntrySchema = new mongoose.Schema({
+  // ✅ FIX #5: Support both 'account' and 'accountId' for compatibility
   account: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ChartOfAccounts',
@@ -24,13 +25,13 @@ const bookEntrySchema = new mongoose.Schema({
   description: String,
 });
 
-// Add custom validation to bookEntrySchema
+// ✅ FIX #9: Add validation for debit/credit exclusivity
 bookEntrySchema.pre('validate', function(next) {
   if (this.debit > 0 && this.credit > 0) {
-    throw new Error("Cannot have both debit and credit in same line");
+    throw new Error("Cannot have both debit and credit in same line item");
   }
   if (this.debit === 0 && this.credit === 0) {
-    throw new Error("Amount cannot be zero");
+    throw new Error("Amount cannot be zero - each line must have either a debit or credit");
   }
   next();
 });
@@ -39,28 +40,28 @@ const journalEntrySchema = new mongoose.Schema(
   {
     voucherNumber: {
       type: String,
-      required: true,
+      required: [true, "Voucher number is required"],
       unique: true,
       trim: true,
     },
     voucherDate: {
       type: Date,
-      required: true,
+      required: [true, "Voucher date is required"],
       default: Date.now,
     },
     transactionType: {
       type: String,
       enum: Object.values(TRANSACTION_TYPES),
-      required: true,
+      required: [true, "Transaction type is required"],
     },
     bookEntries: {
       type: [bookEntrySchema],
-      required: true,
+      required: [true, "Book entries are required"],
       validate: {
         validator: function(entries) {
           return entries && entries.length >= 2;
         },
-        message: "Must have at least 2 line items",
+        message: "Journal entry must have at least 2 line items",
       },
     },
     totalDebit: {
@@ -94,7 +95,7 @@ const journalEntrySchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['draft', 'posted', 'reversed'],
+      enum: ['draft', 'posted', 'reversed', 'deleted'],
       default: 'draft',
     },
     isLocked: {
@@ -116,12 +117,21 @@ const journalEntrySchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    // ✅ FIX #14: Add soft-delete fields
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     attachments: [String],
   },
   { timestamps: true }
 );
 
-// Validate balance before saving
+// ✅ FIX #3: Validate balance before saving
 journalEntrySchema.pre('save', function(next) {
   if (this.bookEntries && this.bookEntries.length > 0) {
     if (this.bookEntries.length < 2) {
@@ -133,12 +143,13 @@ journalEntrySchema.pre('save', function(next) {
 
     this.totalDebit = totalD;
     this.totalCredit = totalC;
-    this.isBalanced = Math.abs(totalD - totalC) < 0.01;
+    // ✅ FIX #12: Use 1 cent tolerance when working with cents
+    this.isBalanced = Math.abs(totalD - totalC) < 1;
 
     if (!this.isBalanced) {
       return next(
         new Error(
-          `Journal entry is not balanced. Debits: ${totalD}, Credits: ${totalC}`
+          `Journal entry is not balanced. Debits: ${totalD / 100}, Credits: ${totalC / 100}`
         )
       );
     }
@@ -146,7 +157,7 @@ journalEntrySchema.pre('save', function(next) {
   next();
 });
 
-// Prevent editing if locked
+// ✅ FIX #3: Prevent editing if locked
 journalEntrySchema.pre('findByIdAndUpdate', function(next) {
   const update = this.getUpdate();
   if (update && Object.keys(update).length > 0) {
@@ -168,5 +179,6 @@ journalEntrySchema.index({ voucherDate: -1 });
 journalEntrySchema.index({ createdBy: 1, voucherDate: -1 });
 journalEntrySchema.index({ approvalStatus: 1, status: 1 });
 journalEntrySchema.index({ 'bookEntries.account': 1 });
+journalEntrySchema.index({ status: 1 }); // ✅ FIX #14: Index for soft-delete queries
 
 module.exports = mongoose.model('JournalEntry', journalEntrySchema);

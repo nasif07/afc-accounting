@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { fetchJournalEntries, createJournalEntry, clearError } from '../store/slices/journalSlice'
 import { fetchAccounts } from '../store/slices/accountSlice'
@@ -16,8 +16,8 @@ export default function JournalEntries() {
     voucherNumber: '',
     transactionType: 'General',
     bookEntries: [
-      { accountId: '', debit: 0, credit: 0 },
-      { accountId: '', debit: 0, credit: 0 }
+      { account: '', debit: 0, credit: 0 },
+      { account: '', debit: 0, credit: 0 }
     ]
   })
 
@@ -40,7 +40,7 @@ export default function JournalEntries() {
     }
     setFormData({
       ...formData,
-      bookEntries: [...formData.bookEntries, { accountId: '', debit: 0, credit: 0 }]
+      bookEntries: [...formData.bookEntries, { account: '', debit: 0, credit: 0 }]
     })
   }
 
@@ -65,7 +65,7 @@ export default function JournalEntries() {
   const calculateTotalCredit = () => formData.bookEntries.reduce((sum, e) => sum + parseFloat(e.credit || 0), 0)
 
   const isBalanced = Math.abs(calculateTotalDebit() - calculateTotalCredit()) < 0.01
-  const hasValidAccounts = formData.bookEntries.every(e => e.accountId)
+  const hasValidAccounts = formData.bookEntries.every(e => e.account)
   const hasValidAmounts = formData.bookEntries.every(e => (e.debit > 0 || e.credit > 0) && !(e.debit > 0 && e.credit > 0))
 
   const canSubmit = isBalanced && hasValidAccounts && hasValidAmounts && formData.bookEntries.length >= 2
@@ -107,8 +107,8 @@ export default function JournalEntries() {
           voucherNumber: '',
           transactionType: 'General',
           bookEntries: [
-            { accountId: '', debit: 0, credit: 0 },
-            { accountId: '', debit: 0, credit: 0 }
+            { account: '', debit: 0, credit: 0 },
+            { account: '', debit: 0, credit: 0 }
           ]
         })
         setShowForm(false)
@@ -123,8 +123,8 @@ export default function JournalEntries() {
       voucherNumber: '',
       transactionType: 'General',
       bookEntries: [
-        { accountId: '', debit: 0, credit: 0 },
-        { accountId: '', debit: 0, credit: 0 }
+        { account: '', debit: 0, credit: 0 },
+        { account: '', debit: 0, credit: 0 }
       ]
     })
     setShowForm(false)
@@ -212,8 +212,8 @@ export default function JournalEntries() {
                     <div>
                       <label className="text-xs text-gray-600 font-medium">Account *</label>
                       <select
-                        value={entry.accountId}
-                        onChange={(e) => handleEntryChange(index, 'accountId', e.target.value)}
+                        value={entry.account}
+                        onChange={(e) => handleEntryChange(index, 'account', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         required
                       >
