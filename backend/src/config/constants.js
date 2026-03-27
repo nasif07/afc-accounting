@@ -1,17 +1,17 @@
 // Financial Year Configuration
 const FINANCIAL_YEAR_TYPES = {
   JULY_JUNE: 'july-june',
-  JAN_DEC: 'jan-dec'
+  JAN_DEC: 'jan-dec',
 };
 
-// Default: July-June (Indian Financial Year)
+// Default: Bangladesh academic/accounting preference can be adjusted as needed
 const DEFAULT_FINANCIAL_YEAR = FINANCIAL_YEAR_TYPES.JULY_JUNE;
 
 // User Roles
 const USER_ROLES = {
   DIRECTOR: 'director',
   ACCOUNTANT: 'accountant',
-  SUB_ACCOUNTANT: 'sub-accountant'
+  SUB_ACCOUNTANT: 'sub-accountant',
 };
 
 // Transaction Types
@@ -19,7 +19,15 @@ const TRANSACTION_TYPES = {
   RECEIPT: 'receipt',
   PAYMENT: 'payment',
   JOURNAL_ENTRY: 'journal-entry',
-  TRANSFER: 'transfer'
+  TRANSFER: 'transfer',
+};
+
+// Optional labels for frontend display
+const TRANSACTION_TYPE_LABELS = {
+  [TRANSACTION_TYPES.RECEIPT]: 'Receipt',
+  [TRANSACTION_TYPES.PAYMENT]: 'Payment',
+  [TRANSACTION_TYPES.JOURNAL_ENTRY]: 'Journal Entry',
+  [TRANSACTION_TYPES.TRANSFER]: 'Transfer',
 };
 
 // Account Types
@@ -28,7 +36,7 @@ const ACCOUNT_TYPES = {
   LIABILITY: 'liability',
   EQUITY: 'equity',
   INCOME: 'income',
-  EXPENSE: 'expense'
+  EXPENSE: 'expense',
 };
 
 // Fee Types
@@ -38,7 +46,7 @@ const FEE_TYPES = {
   REGISTRATION: 'registration',
   ACTIVITY: 'activity',
   TRANSPORT: 'transport',
-  HOSTEL: 'hostel'
+  HOSTEL: 'hostel',
 };
 
 // Payment Modes
@@ -47,7 +55,7 @@ const PAYMENT_MODES = {
   CHEQUE: 'cheque',
   CARD: 'card',
   CASH: 'cash',
-  ONLINE: 'online'
+  ONLINE: 'online',
 };
 
 // Expense Categories
@@ -57,28 +65,28 @@ const EXPENSE_CATEGORIES = {
   UTILITIES: 'utilities',
   SUPPLIES: 'supplies',
   PETTY_CASH: 'petty-cash',
-  OTHER: 'other'
+  OTHER: 'other',
 };
 
 // Approval Status
 const APPROVAL_STATUS = {
   PENDING: 'pending',
   APPROVED: 'approved',
-  REJECTED: 'rejected'
+  REJECTED: 'rejected',
 };
 
 // Salary Types
 const SALARY_TYPES = {
   FIXED: 'fixed',
   HOURLY: 'hourly',
-  PER_CLASS: 'per-class'
+  PER_CLASS: 'per-class',
 };
 
 // Currency
 const CURRENCY = {
-  SYMBOL: '₹',
-  CODE: 'INR',
-  DECIMAL_PLACES: 2
+  SYMBOL: '৳',
+  CODE: 'BDT',
+  DECIMAL_PLACES: 2,
 };
 
 module.exports = {
@@ -86,11 +94,12 @@ module.exports = {
   DEFAULT_FINANCIAL_YEAR,
   USER_ROLES,
   TRANSACTION_TYPES,
+  TRANSACTION_TYPE_LABELS,
   ACCOUNT_TYPES,
   FEE_TYPES,
   PAYMENT_MODES,
   EXPENSE_CATEGORIES,
   APPROVAL_STATUS,
   SALARY_TYPES,
-  CURRENCY
+  CURRENCY,
 };

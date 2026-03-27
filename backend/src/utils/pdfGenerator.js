@@ -53,7 +53,7 @@ class PDFGenerator {
         doc.fontSize(12).font("Helvetica-Bold").text("Fee Details", 100, 260);
         doc.fontSize(10).font("Helvetica");
         doc.text(`Fee Type: ${feeCollection.feeType}`, 100, 280);
-        doc.text(`Amount: ₹${feeCollection.amount.toFixed(2)}`, 100, 300);
+        doc.text(`Amount: ৳${feeCollection.amount.toFixed(2)}`, 100, 300);
         doc.text(`Payment Mode: ${feeCollection.paymentMode}`, 100, 320);
         doc.text(`Reference: ${feeCollection.referenceNumber}`, 100, 340);
 
@@ -61,7 +61,7 @@ class PDFGenerator {
         doc
           .fontSize(12)
           .font("Helvetica-Bold")
-          .text(`Total Amount: ₹${feeCollection.amount.toFixed(2)}`, 100, 380);
+          .text(`Total Amount: ৳${feeCollection.amount.toFixed(2)}`, 100, 380);
 
         // Footer
         doc
@@ -131,16 +131,16 @@ class PDFGenerator {
         // Earnings
         doc.fontSize(12).font("Helvetica-Bold").text("Earnings", 100, 280);
         doc.fontSize(10).font("Helvetica");
-        doc.text(`Base Salary: ₹${payroll.baseSalary.toFixed(2)}`, 100, 300);
-        doc.text(`Allowances: ₹${payroll.allowances.toFixed(2)}`, 100, 320);
-        doc.text(`Bonus: ₹${payroll.bonus.toFixed(2)}`, 100, 340);
+        doc.text(`Base Salary: ৳${payroll.baseSalary.toFixed(2)}`, 100, 300);
+        doc.text(`Allowances: ৳${payroll.allowances.toFixed(2)}`, 100, 320);
+        doc.text(`Bonus: ৳${payroll.bonus.toFixed(2)}`, 100, 340);
 
         // Deductions
         doc.fontSize(12).font("Helvetica-Bold").text("Deductions", 100, 380);
         doc.fontSize(10).font("Helvetica");
-        doc.text(`Deductions: ₹${payroll.deductions.toFixed(2)}`, 100, 400);
+        doc.text(`Deductions: ৳${payroll.deductions.toFixed(2)}`, 100, 400);
         doc.text(
-          `Leave Deduction: ₹${payroll.leaveDeduction.toFixed(2)}`,
+          `Leave Deduction: ৳${payroll.leaveDeduction.toFixed(2)}`,
           100,
           420,
         );
@@ -149,7 +149,7 @@ class PDFGenerator {
         doc
           .fontSize(14)
           .font("Helvetica-Bold")
-          .text(`Net Salary: ₹${payroll.netSalary.toFixed(2)}`, 100, 470);
+          .text(`Net Salary: ৳${payroll.netSalary.toFixed(2)}`, 100, 470);
 
         // Footer
         doc
@@ -214,7 +214,7 @@ class PDFGenerator {
           section.items.forEach((item) => {
             doc.fontSize(10).font("Helvetica");
             doc.text(item.label, 120, yPosition);
-            doc.text(`₹${item.value.toLocaleString()}`, 400, yPosition, {
+            doc.text(`৳${item.value.toLocaleString()}`, 400, yPosition, {
               align: "right",
             });
             yPosition += 20;
@@ -226,7 +226,7 @@ class PDFGenerator {
           );
           doc.fontSize(10).font("Helvetica-Bold");
           doc.text(`${section.name} Total`, 120, yPosition);
-          doc.text(`₹${total.toLocaleString()}`, 400, yPosition, {
+          doc.text(`৳${total.toLocaleString()}`, 400, yPosition, {
             align: "right",
           });
           yPosition += 30;

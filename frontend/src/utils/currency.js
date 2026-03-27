@@ -4,8 +4,8 @@
  */
 
 const CURRENCY_CONFIG = {
-  symbol: '₹',
-  code: 'INR',
+  symbol: '৳',
+  code: 'BDT',
   decimalPlaces: 2,
   decimalSeparator: '.',
   thousandsSeparator: ',',

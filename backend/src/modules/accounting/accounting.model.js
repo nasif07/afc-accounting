@@ -1,80 +1,132 @@
 const mongoose = require('mongoose');
 const { TRANSACTION_TYPES, APPROVAL_STATUS } = require('../../config/constants');
 
-const bookEntrySchema = new mongoose.Schema({
-  // ✅ FIX #5: Support both 'account' and 'accountId' for compatibility
-  account: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'ChartOfAccounts',
-    required: true,
+const bookEntrySchema = new mongoose.Schema(
+  {
+    account: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ChartOfAccounts',
+      required: [true, 'Account is required'],
+    },
+    debit: {
+      type: Number,
+      default: 0,
+      min: [0, 'Debit cannot be negative'],
+      get: (v) => v / 100,
+      set: (v) => Math.round((v || 0) * 100),
+    },
+    credit: {
+      type: Number,
+      default: 0,
+      min: [0, 'Credit cannot be negative'],
+      get: (v) => v / 100,
+      set: (v) => Math.round((v || 0) * 100),
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: '',
+    },
   },
-  debit: {
-    type: Number,
-    default: 0,
-    min: 0,
-    get: (v) => v / 100,
-    set: (v) => Math.round(v * 100),
-  },
-  credit: {
-    type: Number,
-    default: 0,
-    min: 0,
-    get: (v) => v / 100,
-    set: (v) => Math.round(v * 100),
-  },
-  description: String,
-});
+  {
+    _id: false,
+    toJSON: { getters: true },
+    toObject: { getters: true },
+  }
+);
 
-// ✅ FIX #9: Add validation for debit/credit exclusivity
-bookEntrySchema.pre('validate', function(next) {
-  if (this.debit > 0 && this.credit > 0) {
-    throw new Error("Cannot have both debit and credit in same line item");
+// Validate each journal line
+bookEntrySchema.pre('validate', async function (next) {
+  try {
+    if (!this.account) {
+      return next(new Error('Account is required for each line item'));
+    }
+
+    if (this.debit > 0 && this.credit > 0) {
+      return next(
+        new Error('Cannot have both debit and credit in the same line item')
+      );
+    }
+
+    if (this.debit === 0 && this.credit === 0) {
+      return next(
+        new Error(
+          'Amount cannot be zero - each line must have either a debit or credit'
+        )
+      );
+    }
+
+    const ChartOfAccounts = mongoose.model('ChartOfAccounts');
+    const account = await ChartOfAccounts.findById(this.account);
+
+    if (!account) {
+      return next(new Error('Invalid account selected'));
+    }
+
+    if (account.deletedAt) {
+      return next(new Error('Deleted account cannot be used in transactions'));
+    }
+
+    if (!account.isActive || account.status !== 'active') {
+      return next(new Error('Inactive account cannot be used in transactions'));
+    }
+
+    const hasChildren = await ChartOfAccounts.exists({
+      parentAccount: account._id,
+      deletedAt: null,
+      status: { $ne: 'archived' },
+    });
+
+    if (hasChildren) {
+      return next(
+        new Error('Parent account cannot be used in journal transactions')
+      );
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
-  if (this.debit === 0 && this.credit === 0) {
-    throw new Error("Amount cannot be zero - each line must have either a debit or credit");
-  }
-  next();
 });
 
 const journalEntrySchema = new mongoose.Schema(
   {
     voucherNumber: {
       type: String,
-      required: [true, "Voucher number is required"],
       unique: true,
       trim: true,
     },
     voucherDate: {
       type: Date,
-      required: [true, "Voucher date is required"],
+      required: [true, 'Voucher date is required'],
       default: Date.now,
     },
     transactionType: {
       type: String,
       enum: Object.values(TRANSACTION_TYPES),
-      required: [true, "Transaction type is required"],
+      required: [true, 'Transaction type is required'],
     },
     bookEntries: {
       type: [bookEntrySchema],
-      required: [true, "Book entries are required"],
+      required: [true, 'Book entries are required'],
       validate: {
-        validator: function(entries) {
-          return entries && entries.length >= 2;
+        validator: function (entries) {
+          return Array.isArray(entries) && entries.length >= 2;
         },
-        message: "Journal entry must have at least 2 line items",
+        message: 'Journal entry must have at least 2 line items',
       },
     },
     totalDebit: {
       type: Number,
       default: 0,
       get: (v) => v / 100,
-      set: (v) => Math.round(v * 100),
+      set: (v) => Math.round((v || 0) * 100),
     },
     totalCredit: {
       type: Number,
       default: 0,
       get: (v) => v / 100,
-      set: (v) => Math.round(v * 100),
+      set: (v) => Math.round((v || 0) * 100),
     },
     isBalanced: {
       type: Boolean,
@@ -83,10 +135,12 @@ const journalEntrySchema = new mongoose.Schema(
     description: {
       type: String,
       trim: true,
+      default: '',
     },
     referenceNumber: {
       type: String,
       trim: true,
+      default: '',
     },
     approvalStatus: {
       type: String,
@@ -105,19 +159,27 @@ const journalEntrySchema = new mongoose.Schema(
     reversalOf: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'JournalEntry',
+      default: null,
     },
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      default: null,
     },
-    approvalDate: Date,
-    rejectionReason: String,
+    approvalDate: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: [true, 'Created by is required'],
     },
-    // ✅ FIX #14: Add soft-delete fields
     deletedAt: {
       type: Date,
       default: null,
@@ -125,26 +187,53 @@ const journalEntrySchema = new mongoose.Schema(
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      default: null,
     },
-    attachments: [String],
+    attachments: {
+      type: [String],
+      default: [],
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true },
+  }
 );
 
-// ✅ FIX #3: Validate balance before saving
-journalEntrySchema.pre('save', function(next) {
-  if (this.bookEntries && this.bookEntries.length > 0) {
-    if (this.bookEntries.length < 2) {
-      return next(new Error("Journal entry must have at least 2 line items"));
+// Auto-generate voucher number if missing
+journalEntrySchema.pre('validate', async function (next) {
+  try {
+    if (!this.voucherNumber) {
+      const JournalEntry = mongoose.model('JournalEntry');
+      const count = await JournalEntry.countDocuments();
+      this.voucherNumber = `JV-${String(count + 1).padStart(5, '0')}`;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Validate totals and final journal state before save
+journalEntrySchema.pre('save', function (next) {
+  try {
+    if (!this.bookEntries || this.bookEntries.length < 2) {
+      return next(new Error('Journal entry must have at least 2 line items'));
     }
 
-    const totalD = this.bookEntries.reduce((sum, e) => sum + (e.debit || 0), 0);
-    const totalC = this.bookEntries.reduce((sum, e) => sum + (e.credit || 0), 0);
+    const totalD = this.bookEntries.reduce(
+      (sum, entry) => sum + (entry.debit || 0),
+      0
+    );
+    const totalC = this.bookEntries.reduce(
+      (sum, entry) => sum + (entry.credit || 0),
+      0
+    );
 
     this.totalDebit = totalD;
     this.totalCredit = totalC;
-    // ✅ FIX #12: Use 1 cent tolerance when working with cents
-    this.isBalanced = Math.abs(totalD - totalC) < 1;
+    this.isBalanced = Math.abs(totalD - totalC) <= 1;
 
     if (!this.isBalanced) {
       return next(
@@ -153,32 +242,74 @@ journalEntrySchema.pre('save', function(next) {
         )
       );
     }
+
+    if (this.status === 'posted' && this.approvalStatus !== 'approved') {
+      return next(new Error('Cannot post a journal entry without approval'));
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Prevent editing finalized entries
+journalEntrySchema.pre('findOneAndUpdate', async function (next) {
+  try {
+    const doc = await this.model.findOne(this.getFilter());
+
+    if (
+      doc &&
+      (doc.isLocked || doc.status === 'posted' || doc.status === 'deleted')
+    ) {
+      return next(new Error('Cannot edit finalized journal entry'));
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+journalEntrySchema.pre('findByIdAndUpdate', async function (next) {
+  try {
+    const doc = await this.model.findById(this.getFilter()._id);
+
+    if (
+      doc &&
+      (doc.isLocked || doc.status === 'posted' || doc.status === 'deleted')
+    ) {
+      return next(new Error('Cannot edit finalized journal entry'));
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Hide soft-deleted entries by default
+function excludeDeleted(next) {
+  if (!this.getQuery().includeDeleted) {
+    this.where({ deletedAt: null });
+  } else {
+    const query = this.getQuery();
+    delete query.includeDeleted;
+    this.setQuery(query);
   }
   next();
-});
+}
 
-// ✅ FIX #3: Prevent editing if locked
-journalEntrySchema.pre('findByIdAndUpdate', function(next) {
-  const update = this.getUpdate();
-  if (update && Object.keys(update).length > 0) {
-    this.model.findById(this.getFilter()._id).then((doc) => {
-      if (doc && doc.isLocked) {
-        next(new Error("Cannot edit a locked journal entry"));
-      } else {
-        next();
-      }
-    }).catch(next);
-  } else {
-    next();
-  }
-});
+journalEntrySchema.pre('find', excludeDeleted);
+journalEntrySchema.pre('findOne', excludeDeleted);
+journalEntrySchema.pre('countDocuments', excludeDeleted);
 
-// Add indexes (removed inline index: true to prevent duplicates)
-journalEntrySchema.index({ voucherNumber: 1 });
+// Indexes
+journalEntrySchema.index({ voucherNumber: 1 }, { unique: true });
 journalEntrySchema.index({ voucherDate: -1 });
 journalEntrySchema.index({ createdBy: 1, voucherDate: -1 });
 journalEntrySchema.index({ approvalStatus: 1, status: 1 });
+journalEntrySchema.index({ status: 1, deletedAt: 1 });
 journalEntrySchema.index({ 'bookEntries.account': 1 });
-journalEntrySchema.index({ status: 1 }); // ✅ FIX #14: Index for soft-delete queries
 
 module.exports = mongoose.model('JournalEntry', journalEntrySchema);

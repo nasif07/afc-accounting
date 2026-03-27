@@ -197,7 +197,7 @@ export default function Expenses() {
                   <tr key={expense._id} className="border-b border-gray-100 hover:bg-gray-50 transition">
                     <td className="py-3 px-4 font-medium text-gray-900">{expense.description}</td>
                     <td className="py-3 px-4 text-gray-600 capitalize">{expense.category}</td>
-                    <td className="py-3 px-4 font-semibold text-gray-900">₹{expense.amount}</td>
+                    <td className="py-3 px-4 font-semibold text-gray-900">৳{expense.amount}</td>
                     <td className="py-3 px-4 text-gray-600">{expense.vendor?.vendorName || 'N/A'}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(expense.approvalStatus)}`}>

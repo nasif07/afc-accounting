@@ -67,8 +67,8 @@ export const SALARY_TYPES = {
 
 // Currency
 export const CURRENCY = {
-  SYMBOL: '₹',
-  CODE: 'INR',
+  SYMBOL: '৳',
+  CODE: 'BDT',
   DECIMAL_PLACES: 2
 };
 

@@ -319,13 +319,13 @@ const TransactionForm = React.forwardRef(
                   <div>
                     <p className="text-xs text-neutral-600 mb-1">Total Debit</p>
                     <p className="text-lg font-semibold text-neutral-900">
-                      ₹{(totals.totalDebit / 100).toFixed(2)}
+                      ৳{(totals.totalDebit / 100).toFixed(2)}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-neutral-600 mb-1">Total Credit</p>
                     <p className="text-lg font-semibold text-neutral-900">
-                      ₹{(totals.totalCredit / 100).toFixed(2)}
+                      ৳{(totals.totalCredit / 100).toFixed(2)}
                     </p>
                   </div>
                   <div>

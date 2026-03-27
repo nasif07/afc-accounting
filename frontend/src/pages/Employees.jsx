@@ -178,7 +178,7 @@ export default function Employees() {
                     <td className="py-3 px-4 text-gray-600 capitalize">{employee.designation?.replace('_', ' ')}</td>
                     <td className="py-3 px-4 text-gray-600">{employee.email}</td>
                     <td className="py-3 px-4 text-gray-600">{employee.phone}</td>
-                    <td className="py-3 px-4 font-semibold text-gray-900">₹{employee.salary}</td>
+                    <td className="py-3 px-4 font-semibold text-gray-900">৳{employee.salary}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <button

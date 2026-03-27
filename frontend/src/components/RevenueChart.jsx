@@ -51,7 +51,7 @@ const RevenueChart = React.forwardRef(
               <YAxis
                 stroke="#9CA3AF"
                 style={{ fontSize: '12px' }}
-                tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`}
+                tickFormatter={(value) => `৳${(value / 100000).toFixed(0)}L`}
               />
               <Tooltip
                 contentStyle={{

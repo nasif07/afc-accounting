@@ -144,13 +144,13 @@ Every transaction must have:
 
 **Example Transaction:**
 ```
-Receipt of ₹10,000 tuition fee:
-  Debit:  Bank Account    ₹10,000
-  Credit: Tuition Income  ₹10,000
+Receipt of ৳10,000 tuition fee:
+  Debit:  Bank Account    ৳10,000
+  Credit: Tuition Income  ৳10,000
   
-Payment of ₹5,000 salary:
-  Debit:  Salary Expense  ₹5,000
-  Credit: Bank Account    ₹5,000
+Payment of ৳5,000 salary:
+  Debit:  Salary Expense  ৳5,000
+  Credit: Bank Account    ৳5,000
 ```
 
 ---
@@ -169,7 +169,7 @@ Payment of ₹5,000 salary:
 ```
 
 **Approval Limits:**
-- Accountant can create transactions up to limit (e.g., ₹50,000)
+- Accountant can create transactions up to limit (e.g., ৳50,000)
 - Director approves all transactions
 - Configurable in Settings
 
@@ -486,56 +486,56 @@ Payment of ₹5,000 salary:
 **1. Income Statement (P&L)**
 ```
 Revenue:
-  - Tuition Fees: ₹X
-  - Exam Fees: ₹Y
-  - Total Revenue: ₹Z
+  - Tuition Fees: ৳X
+  - Exam Fees: ৳Y
+  - Total Revenue: ৳Z
 
 Expenses:
-  - Salary: ₹A
-  - Utilities: ₹B
-  - Total Expenses: ₹C
+  - Salary: ৳A
+  - Utilities: ৳B
+  - Total Expenses: ৳C
 
-Net Income: ₹Z - ₹C
+Net Income: ৳Z - ৳C
 ```
 
 **2. Balance Sheet**
 ```
 Assets:
-  - Bank Balance: ₹X
-  - Receivables: ₹Y
-  Total Assets: ₹A
+  - Bank Balance: ৳X
+  - Receivables: ৳Y
+  Total Assets: ৳A
 
 Liabilities:
-  - Payables: ₹L
-  Total Liabilities: ₹L
+  - Payables: ৳L
+  Total Liabilities: ৳L
 
 Equity:
-  - Opening Balance: ₹E
-  Total Equity: ₹E
+  - Opening Balance: ৳E
+  Total Equity: ৳E
 
-Total Liabilities + Equity: ₹L + ₹E
+Total Liabilities + Equity: ৳L + ৳E
 (Should equal Total Assets)
 ```
 
 **3. Cash Flow Statement**
 ```
-Opening Cash: ₹X
-+ Cash Inflows (Receipts): ₹I
-- Cash Outflows (Expenses): ₹O
-= Closing Cash: ₹X + ₹I - ₹O
+Opening Cash: ৳X
++ Cash Inflows (Receipts): ৳I
+- Cash Outflows (Expenses): ৳O
+= Closing Cash: ৳X + ৳I - ৳O
 ```
 
 **4. Receipt & Payment Summary**
 ```
 Receipts by Type:
-  - Tuition: ₹X
-  - Exam: ₹Y
-  Total Receipts: ₹Z
+  - Tuition: ৳X
+  - Exam: ৳Y
+  Total Receipts: ৳Z
 
 Payments by Category:
-  - Salary: ₹A
-  - Utilities: ₹B
-  Total Payments: ₹C
+  - Salary: ৳A
+  - Utilities: ৳B
+  Total Payments: ৳C
 ```
 
 **5. Head-wise Income Report**
@@ -567,7 +567,7 @@ Validates: Total Debits = Total Credits
    - January-December (Calendar year)
 
 2. **Approval Limits**
-   - Accountant approval limit (e.g., ₹50,000)
+   - Accountant approval limit (e.g., ৳50,000)
    - Director approval limit (Unlimited)
 
 3. **Voucher Numbering**
@@ -577,7 +577,7 @@ Validates: Total Debits = Total Credits
    - Journal prefix (e.g., JNL)
 
 4. **Currency Format**
-   - Indian Rupee (₹)
+   - Bangladeshi Taka (৳)
    - Other currencies
 
 5. **Organization Details**

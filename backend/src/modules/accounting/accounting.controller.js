@@ -1,41 +1,55 @@
-const { StatusCodes } = require('http-status-codes');
 const AccountingService = require('./accounting.service');
 const ApiResponse = require('../../utils/apiResponse');
 
 class AccountingController {
   static async createJournalEntry(req, res, next) {
     try {
-      // ✅ FIX #1 & #2: Changed referenceNumber → voucherNumber, added voucherDate validation
-      const { voucherNumber, voucherDate, transactionType, description, bookEntries } = req.body;
+      const {
+        voucherNumber,
+        voucherDate,
+        transactionType,
+        description,
+        referenceNumber,
+        bookEntries,
+        attachments,
+      } = req.body;
 
-      // ✅ FIX #2: Added voucherDate validation
-      if (!voucherNumber || !voucherDate || !transactionType || !bookEntries || bookEntries.length === 0) {
+      if (!voucherDate || !transactionType || !bookEntries || bookEntries.length === 0) {
         return ApiResponse.badRequest(
           res,
-          'Voucher number, date, transaction type, and book entries are required'
+          'Voucher date, transaction type, and book entries are required'
         );
       }
 
-      // ✅ FIX #8: Validate minimum 2 line items
-      if (bookEntries.length < 2) {
+      if (!Array.isArray(bookEntries) || bookEntries.length < 2) {
         return ApiResponse.badRequest(
           res,
           'Journal entry must have at least 2 line items'
         );
       }
 
-      // ✅ FIX #1: Changed referenceNumber → voucherNumber, added voucherDate
       const entryData = {
-        voucherNumber,
         voucherDate,
         transactionType,
         description,
+        referenceNumber,
         bookEntries,
-        createdBy: req.user.userId
+        attachments: Array.isArray(attachments) ? attachments : [],
+        createdBy: req.user.userId,
       };
 
+      // Optional manual voucher number support, if you still want it
+      if (voucherNumber) {
+        entryData.voucherNumber = voucherNumber;
+      }
+
       const entry = await AccountingService.createJournalEntry(entryData);
-      return ApiResponse.created(res, entry, 'Journal entry created successfully');
+
+      return ApiResponse.created(
+        res,
+        entry,
+        'Journal entry created successfully'
+      );
     } catch (error) {
       next(error);
     }
@@ -43,17 +57,24 @@ class AccountingController {
 
   static async getAllEntries(req, res, next) {
     try {
-      const { transactionType, approvalStatus, dateFrom, dateTo } = req.query;
+      const { transactionType, approvalStatus, status, dateFrom, dateTo } = req.query;
+
       const filters = {};
       if (transactionType) filters.transactionType = transactionType;
       if (approvalStatus) filters.approvalStatus = approvalStatus;
+      if (status) filters.status = status;
       if (dateFrom || dateTo) {
         filters.dateFrom = dateFrom;
         filters.dateTo = dateTo;
       }
 
       const entries = await AccountingService.getAllEntries(filters);
-      return ApiResponse.success(res, entries, 'Journal entries retrieved successfully');
+
+      return ApiResponse.success(
+        res,
+        entries,
+        'Journal entries retrieved successfully'
+      );
     } catch (error) {
       next(error);
     }
@@ -68,7 +89,11 @@ class AccountingController {
         return ApiResponse.notFound(res, 'Journal entry not found');
       }
 
-      return ApiResponse.success(res, entry, 'Journal entry retrieved successfully');
+      return ApiResponse.success(
+        res,
+        entry,
+        'Journal entry retrieved successfully'
+      );
     } catch (error) {
       next(error);
     }
@@ -77,7 +102,47 @@ class AccountingController {
   static async updateEntry(req, res, next) {
     try {
       const { id } = req.params;
-      const updateData = req.body;
+
+      const forbiddenFields = [
+        'createdBy',
+        'approvedBy',
+        'approvalDate',
+        'approvalStatus',
+        'deletedAt',
+        'deletedBy',
+        'isBalanced',
+        'isLocked',
+        'reversalOf',
+        'status',
+        'totalDebit',
+        'totalCredit',
+      ];
+
+      for (const field of forbiddenFields) {
+        if (req.body[field] !== undefined) {
+          return ApiResponse.badRequest(
+            res,
+            `${field} cannot be updated directly`
+          );
+        }
+      }
+
+      const allowedFields = [
+        'voucherNumber',
+        'voucherDate',
+        'transactionType',
+        'description',
+        'referenceNumber',
+        'bookEntries',
+        'attachments',
+      ];
+
+      const updateData = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      }
 
       const entry = await AccountingService.updateEntry(id, updateData);
 
@@ -85,7 +150,11 @@ class AccountingController {
         return ApiResponse.notFound(res, 'Journal entry not found');
       }
 
-      return ApiResponse.success(res, entry, 'Journal entry updated successfully');
+      return ApiResponse.success(
+        res,
+        entry,
+        'Journal entry updated successfully'
+      );
     } catch (error) {
       next(error);
     }
@@ -100,7 +169,11 @@ class AccountingController {
         return ApiResponse.notFound(res, 'Journal entry not found');
       }
 
-      return ApiResponse.success(res, null, 'Journal entry deleted successfully');
+      return ApiResponse.success(
+        res,
+        entry,
+        'Journal entry deleted successfully'
+      );
     } catch (error) {
       next(error);
     }
@@ -115,7 +188,11 @@ class AccountingController {
         return ApiResponse.notFound(res, 'Journal entry not found');
       }
 
-      return ApiResponse.success(res, entry, 'Journal entry approved successfully');
+      return ApiResponse.success(
+        res,
+        entry,
+        'Journal entry approved successfully'
+      );
     } catch (error) {
       next(error);
     }
@@ -126,17 +203,69 @@ class AccountingController {
       const { id } = req.params;
       const { rejectionReason } = req.body;
 
-      if (!rejectionReason) {
+      if (!rejectionReason || !String(rejectionReason).trim()) {
         return ApiResponse.badRequest(res, 'Rejection reason is required');
       }
 
-      const entry = await AccountingService.rejectEntry(id, req.user.userId, rejectionReason);
+      const entry = await AccountingService.rejectEntry(
+        id,
+        req.user.userId,
+        String(rejectionReason).trim()
+      );
 
       if (!entry) {
         return ApiResponse.notFound(res, 'Journal entry not found');
       }
 
-      return ApiResponse.success(res, entry, 'Journal entry rejected successfully');
+      return ApiResponse.success(
+        res,
+        entry,
+        'Journal entry rejected successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getPendingApprovals(req, res, next) {
+    try {
+      const entries = await AccountingService.getPendingApprovals();
+
+      return ApiResponse.success(
+        res,
+        entries,
+        'Pending journal entries retrieved successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getEntriesByAccount(req, res, next) {
+    try {
+      const { accountId } = req.params;
+
+      const entries = await AccountingService.getEntriesByAccount(accountId);
+
+      return ApiResponse.success(
+        res,
+        entries,
+        'Journal entries by account retrieved successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getTrialBalance(req, res, next) {
+    try {
+      const trialBalance = await AccountingService.getTrialBalance();
+
+      return ApiResponse.success(
+        res,
+        trialBalance,
+        'Trial balance retrieved successfully'
+      );
     } catch (error) {
       next(error);
     }

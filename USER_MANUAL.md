@@ -664,14 +664,14 @@ Left sidebar with menu items:
 
 6. Click **Submit for Approval**
 
-#### Example: Receipt of ₹10,000 Tuition Fee
+#### Example: Receipt of ৳10,000 Tuition Fee
 
 ```
-Line 1: Bank Account (Debit) ₹10,000
-Line 2: Tuition Income (Credit) ₹10,000
+Line 1: Bank Account (Debit) ৳10,000
+Line 2: Tuition Income (Credit) ৳10,000
 
-Total Debits: ₹10,000
-Total Credits: ₹10,000
+Total Debits: ৳10,000
+Total Credits: ৳10,000
 ✓ Balanced
 ```
 
@@ -931,7 +931,7 @@ Total Credits: ₹10,000
 1. Click **Settings**
 2. Click **Approval Limits** tab
 3. Set:
-   - **Accountant Approval Limit** (e.g., ₹50,000)
+   - **Accountant Approval Limit** (e.g., ৳50,000)
    - Transactions above this need Director approval
 4. Click **Save**
 
@@ -969,7 +969,7 @@ Total Credits: ₹10,000
 
 1. Click **Settings**
 2. Click **Currency** tab
-3. Select currency (₹ for Indian Rupee)
+3. Select currency (৳ for Bangladeshi Taka)
 4. Click **Save**
 5. Used in all reports and documents
 

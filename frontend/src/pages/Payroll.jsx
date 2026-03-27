@@ -211,11 +211,11 @@ export default function Payroll() {
                     <td className="py-3 px-4 text-gray-600">
                       {MONTHS[payroll.month - 1]} {payroll.year}
                     </td>
-                    <td className="py-3 px-4 text-gray-600">₹{payroll.baseSalary}</td>
-                    <td className="py-3 px-4 text-gray-600">₹{payroll.allowances}</td>
-                    <td className="py-3 px-4 text-gray-600">₹{payroll.deductions}</td>
+                    <td className="py-3 px-4 text-gray-600">৳{payroll.baseSalary}</td>
+                    <td className="py-3 px-4 text-gray-600">৳{payroll.allowances}</td>
+                    <td className="py-3 px-4 text-gray-600">৳{payroll.deductions}</td>
                     <td className="py-3 px-4 font-semibold text-gray-900">
-                      ₹{calculateNetSalary(payroll.baseSalary, payroll.allowances, payroll.deductions)}
+                      ৳{calculateNetSalary(payroll.baseSalary, payroll.allowances, payroll.deductions)}
                     </td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(payroll.approvalStatus)}`}>

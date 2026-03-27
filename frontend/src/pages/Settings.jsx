@@ -22,7 +22,7 @@ export default function Settings() {
     city: "",
     state: "",
     pincode: "",
-    currency: "INR",
+    currency: "BDT",
     fiscalYearStart: "04",
     fiscalYearEnd: "03",
     taxRate: 0,
@@ -185,7 +185,7 @@ export default function Settings() {
                   value={formData.currency}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                  <option value="INR">Indian Rupee (INR)</option>
+                  <option value="BDT">Bangladeshi Taka (BDT)</option>
                   <option value="USD">US Dollar (USD)</option>
                   <option value="EUR">Euro (EUR)</option>
                 </select>

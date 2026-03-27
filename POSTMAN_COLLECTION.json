@@ -1259,7 +1259,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Alliance School\",\n  \"address\": \"123 Education Street\",\n  \"financialYear\": \"july-june\",\n  \"currency\": \"INR\"\n}"
+              "raw": "{\n  \"schoolName\": \"Alliance School\",\n  \"address\": \"123 Education Street\",\n  \"financialYear\": \"july-june\",\n  \"currency\": \"BDT\"\n}"
             },
             "url": {
               "raw": "{{BASE_URL}}/api/settings",
