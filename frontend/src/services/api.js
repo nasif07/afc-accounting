@@ -18,9 +18,18 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      // Only redirect if not already on auth pages
+      // Don't redirect for auth check endpoint (getCurrentUser)
+      // This endpoint returns 401 if no session exists, which is normal
+      const isAuthCheckEndpoint = error.config?.url?.includes('/auth/me');
+      
+      // Only redirect if not already on auth pages AND not checking auth status
       const pathname = window.location.pathname;
-      if (pathname !== '/login' && pathname !== '/register' && pathname !== '/') {
+      if (
+        !isAuthCheckEndpoint &&
+        pathname !== '/login' &&
+        pathname !== '/register' &&
+        pathname !== '/'
+      ) {
         window.location.href = '/login';
       }
     }

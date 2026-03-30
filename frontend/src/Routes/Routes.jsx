@@ -65,6 +65,20 @@ function DirectorLayoutWrapper() {
 }
 
 /**
+ * Placeholder component for pages not yet implemented
+ */
+function ComingSoon() {
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">Coming Soon</h2>
+        <p className="text-slate-600">This feature is under development</p>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Router configuration using createBrowserRouter
  * 
  * Structure:
@@ -128,8 +142,24 @@ const router = createBrowserRouter([
         element: <JournalEntries />,
       },
       {
+        path: "ledger",
+        element: <ComingSoon />,
+      },
+      {
+        path: "bank-cash",
+        element: <ComingSoon />,
+      },
+      {
         path: "reports",
         element: <Reports />,
+      },
+      {
+        path: "users",
+        element: <ComingSoon />,
+      },
+      {
+        path: "audit-log",
+        element: <ComingSoon />,
       },
       {
         path: "settings",

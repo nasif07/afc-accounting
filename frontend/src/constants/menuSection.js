@@ -78,6 +78,18 @@ export const menuSections = [
         roles: ["director", "accountant", "sub-accountant"],
       },
       {
+        title: "Ledger",
+        path: "/dashboard/ledger",
+        icon: BookOpen,
+        roles: ["director", "accountant"],
+      },
+      {
+        title: "Bank / Cash",
+        path: "/dashboard/bank-cash",
+        icon: Landmark,
+        roles: ["director", "accountant"],
+      },
+      {
         title: "Reports",
         path: "/dashboard/reports",
         icon: BarChart3,
@@ -94,6 +106,18 @@ export const menuSections = [
   {
     title: "Control",
     items: [
+      {
+        title: "User Management",
+        path: "/dashboard/users",
+        icon: ShieldCheck,
+        roles: ["director"],
+      },
+      {
+        title: "Audit Log",
+        path: "/dashboard/audit-log",
+        icon: ClipboardList,
+        roles: ["director"],
+      },
       {
         title: "Settings",
         path: "/dashboard/settings",
