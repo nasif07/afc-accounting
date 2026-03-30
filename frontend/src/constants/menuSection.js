@@ -16,6 +16,11 @@ import {
   Settings,
 } from "lucide-react";
 
+/**
+ * Menu sections configuration
+ * Paths must match the routes defined in Routes.jsx
+ * Roles determine which users can see each menu item
+ */
 export const menuSections = [
   {
     title: "Main",
@@ -55,12 +60,6 @@ export const menuSections = [
         icon: Briefcase,
         roles: ["director", "accountant"],
       },
-      {
-        title: "Vendors",
-        path: "/dashboard/vendors",
-        icon: Users,
-        roles: ["director", "accountant"],
-      },
     ],
   },
   {
@@ -79,20 +78,14 @@ export const menuSections = [
         roles: ["director", "accountant", "sub-accountant"],
       },
       {
-        title: "Ledger",
-        path: "/dashboard/ledger",
-        icon: BookOpen,
-        roles: ["director", "accountant"],
-      },
-      {
-        title: "Bank / Cash",
-        path: "/dashboard/bank-cash",
-        icon: Landmark,
+        title: "Reports",
+        path: "/dashboard/reports",
+        icon: BarChart3,
         roles: ["director", "accountant"],
       },
       {
         title: "Approvals",
-        path: "/dashboard/approvals",
+        path: "/director/approvals",
         icon: CheckCircle2,
         roles: ["director"],
       },
@@ -101,24 +94,6 @@ export const menuSections = [
   {
     title: "Control",
     items: [
-      {
-        title: "Reports",
-        path: "/dashboard/reports",
-        icon: BarChart3,
-        roles: ["director", "accountant"],
-      },
-      {
-        title: "User Management",
-        path: "/dashboard/users",
-        icon: ShieldCheck,
-        roles: ["director"],
-      },
-      {
-        title: "Audit Log",
-        path: "/dashboard/audit-log",
-        icon: ClipboardList,
-        roles: ["director"],
-      },
       {
         title: "Settings",
         path: "/dashboard/settings",

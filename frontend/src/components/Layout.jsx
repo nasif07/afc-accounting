@@ -1,28 +1,12 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Menu } from "lucide-react";
-import { useDispatch,useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import Sidebar from "../components/Sidebar";
-import { getCurrentUser } from "../store/slices/authSlice";
-import { useEffect } from "react";
-// import { getCurrentUser } from "./store/slices/authSlice";
-// import { useDispatch, useSelector } from "react-redux";
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { user } = useSelector((state) => state.auth);
-  // const dispatch = useDispatch();
-  // // Destructure 'loading' (or 'status') from your Redux state
-  // const { isAuthenticated, loading } = useSelector((state) => state.auth);
-
-  // useEffect(() => {
-  //   dispatch(getCurrentUser());
-  // }, [dispatch]);
-
-  // // 1. Prevent redirection while the check is in progress
-  // if (loading) {
-  //   return <div>Loading...</div>; // Or a nice Spinner component
-  // }
 
 
   return (

@@ -1,8 +1,9 @@
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
-import ProtectedRoute from "../components/ProtectedRoute";
 import { useSelector } from "react-redux";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Layout from "../components/Layout";
+import LoadingSpinner from "../components/LoadingSpinner";
+import ProtectedRoute from "../components/ProtectedRoute";
 
 import Login from "../pages/Login";
 import Register from "../pages/Register";
@@ -18,11 +19,16 @@ import Reports from "../pages/Reports";
 import Settings from "../pages/Settings";
 import DirectorApprovals from "../pages/DirectorApprovals";
 
+/**
+ * RootRedirect: Handles root path redirection based on auth state
+ * - Authenticated users → /dashboard
+ * - Unauthenticated users → /login
+ */
 function RootRedirect() {
   const { isAuthenticated, loading } = useSelector((state) => state.auth);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <LoadingSpinner message="Verifying authentication..." />;
   }
 
   return (
@@ -30,15 +36,25 @@ function RootRedirect() {
   );
 }
 
-function ProtectedLayout() {
+/**
+ * ProtectedLayoutWrapper: Wraps Layout with ProtectedRoute for all protected pages
+ * Uses Outlet to render child routes inside Layout
+ */
+function ProtectedLayoutWrapper() {
   return (
     <ProtectedRoute>
-      <Layout />
+      <Layout>
+        <Outlet />
+      </Layout>
     </ProtectedRoute>
   );
 }
 
-function DirectorLayout() {
+/**
+ * DirectorLayoutWrapper: Wraps Layout with director-only ProtectedRoute
+ * Used for director-specific pages like approvals
+ */
+function DirectorLayoutWrapper() {
   return (
     <ProtectedRoute requiredRole="director">
       <Layout>
@@ -48,6 +64,15 @@ function DirectorLayout() {
   );
 }
 
+/**
+ * Router configuration using createBrowserRouter
+ * 
+ * Structure:
+ * - Root redirect (/)
+ * - Public routes (/login, /register)
+ * - Protected routes under /dashboard with nested children
+ * - Director-only routes under /director with nested children
+ */
 const router = createBrowserRouter([
   {
     path: "/",
@@ -65,12 +90,13 @@ const router = createBrowserRouter([
     errorElement: <ErrorBoundary />,
   },
   {
-    path: "/",
-    element: <ProtectedLayout />,
+    // Protected routes - all authenticated users
+    path: "/dashboard",
+    element: <ProtectedLayoutWrapper />,
     errorElement: <ErrorBoundary />,
     children: [
       {
-        path: "dashboard",
+        index: true, // Default route for /dashboard
         element: <Dashboard />,
       },
       {
@@ -112,15 +138,34 @@ const router = createBrowserRouter([
     ],
   },
   {
-    path: "/approvals",
-    element: (
-      <ProtectedRoute requiredRole="director">
-        <Layout>
-          <DirectorApprovals />
-        </Layout>
-      </ProtectedRoute>
-    ),
+    // Director-only routes
+    path: "/director",
+    element: <DirectorLayoutWrapper />,
     errorElement: <ErrorBoundary />,
+    children: [
+      {
+        path: "approvals",
+        element: <DirectorApprovals />,
+      },
+    ],
+  },
+  {
+    // Catch-all for undefined routes
+    path: "*",
+    element: (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-slate-900 mb-4">404</h1>
+          <p className="text-lg text-slate-600 mb-8">Page not found</p>
+          <a
+            href="/dashboard"
+            className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            Go to Dashboard
+          </a>
+        </div>
+      </div>
+    ),
   },
 ]);
 
