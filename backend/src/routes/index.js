@@ -13,6 +13,9 @@ const accountingRoutes = require('../modules/accounting/accounting.routes');
 const coaRoutes = require('../modules/chartOfAccounts/coa.routes');
 const bankRoutes = require('../modules/bank/bank.routes');
 const reportRoutes = require('../modules/reports/report.routes');
+const auditRoutes = require('../modules/audit/audit.routes');
+const vendorInvoiceRoutes = require('../modules/vendor/vendorInvoice.routes');
+const vendorPaymentRoutes = require('../modules/vendor/vendorPayment.routes');
 const settingsRoutes = require('../modules/settings/settings.routes');
 const searchRoutes = require('../modules/search/search.routes');
 
@@ -29,6 +32,9 @@ router.use('/accounts', coaRoutes);
 router.use('/bank', bankRoutes);
 router.use('/reports', reportRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/audit', auditRoutes);
+router.use('/vendor-invoices', vendorInvoiceRoutes);
+router.use('/vendor-payments', vendorPaymentRoutes);
 router.use('/search', searchRoutes);
 
 module.exports = router;

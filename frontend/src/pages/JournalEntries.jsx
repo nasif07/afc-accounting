@@ -51,9 +51,18 @@ export default function JournalEntries() {
   const leafAccounts = useMemo(() => {
     if (!Array.isArray(accounts)) return [];
 
+    // The backend now provides a leaf-nodes endpoint, but for local filtering:
+    // We check if an account is a parent by looking at other accounts' parentAccount field
+    const parentIds = new Set(
+      accounts
+        .map((acc) => acc.parentAccount?._id || acc.parentAccount)
+        .filter(Boolean)
+        .map((id) => id.toString())
+    );
+
     return accounts.filter(
       (acc) =>
-        !acc.hasChildren &&
+        !parentIds.has(acc._id.toString()) &&
         acc.status === "active" &&
         acc.isActive !== false &&
         !acc.deletedAt,
@@ -256,236 +265,20 @@ export default function JournalEntries() {
 
       {showForm && (
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">
-            Create Journal Entry
-          </h2>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date *
-                </label>
-                <input
-                  type="date"
-                  value={formData.voucherDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, voucherDate: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Voucher #
-                </label>
-                <input
-                  type="text"
-                  placeholder="Optional - auto generated if empty"
-                  value={formData.voucherNumber}
-                  onChange={(e) =>
-                    setFormData({ ...formData, voucherNumber: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Type
-                </label>
-                <select
-                  value={formData.transactionType}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      transactionType: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="receipt">Receipt</option>
-                  <option value="payment">Payment</option>
-                  <option value="journal-entry">Journal Entry</option>
-                  <option value="transfer">Transfer</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description *
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Enter transaction description"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows="3"
-                required
-              />
-            </div>
-
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-900">Entry Lines</h3>
-                <span className="text-xs text-gray-600">
-                  {formData.bookEntries.length}/10 items
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {formData.bookEntries.map((entry, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end bg-gray-50 p-3 rounded-lg">
-                    <div>
-                      <label className="text-xs text-gray-600 font-medium">
-                        Account *
-                      </label>
-                      <select
-                        value={entry.account}
-                        onChange={(e) =>
-                          handleEntryChange(index, "account", e.target.value)
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                        required>
-                        <option value="">Select Account</option>
-                        {leafAccounts.length > 0 ? (
-                          leafAccounts.map((acc) => (
-                            <option key={acc._id} value={acc._id}>
-                              {acc.accountCode} - {acc.accountName}
-                            </option>
-                          ))
-                        ) : (
-                          <option disabled>No accounts available</option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-gray-600 font-medium">
-                        Debit
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={entry.debit}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            index,
-                            "debit",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                        placeholder="0.00"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-gray-600 font-medium">
-                        Credit
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={entry.credit}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            index,
-                            "credit",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                        placeholder="0.00"
-                      />
-                    </div>
-
-                    <div></div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveEntry(index)}
-                      disabled={formData.bookEntries.length <= 2}
-                      className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 disabled:bg-gray-200 disabled:text-gray-400 transition text-sm font-medium">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAddEntry}
-                disabled={formData.bookEntries.length >= 10}
-                className="mt-3 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 disabled:border-gray-300 disabled:text-gray-400 transition text-sm font-medium flex items-center gap-2">
-                <Plus size={16} /> Add Line
-              </button>
-            </div>
-
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-lg border border-gray-200">
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    Total Debit
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    ৳{totalDebit.toFixed(2)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    Total Credit
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    ৳{totalCredit.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`p-3 rounded-lg text-sm font-medium flex items-center gap-2 ${
-                  isBalanced
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-800"
-                }`}>
-                {isBalanced ? (
-                  <>
-                    <CheckCircle size={18} />
-                    Entry is balanced
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle size={18} />
-                    Entry is not balanced (Difference: ৳
-                    {Math.abs(totalDebit - totalCredit).toFixed(2)})
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!canSubmit || isLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition font-medium">
-                {isLoading ? "Creating..." : "Create Entry"}
-              </button>
-            </div>
-          </form>
+          <DynamicJournalForm 
+            onSubmit={async (payload) => {
+              const result = await dispatch(createJournalEntry(payload));
+              if (result?.error) {
+                toast.error(result.payload || "Failed to create journal entry");
+                return;
+              }
+              toast.success("Journal entry created successfully");
+              setShowForm(false);
+              dispatch(fetchJournalEntries());
+            }}
+            onCancel={() => setShowForm(false)}
+            isLoading={isLoading}
+          />
         </div>
       )}
 

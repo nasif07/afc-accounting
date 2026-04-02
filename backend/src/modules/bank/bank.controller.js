@@ -74,7 +74,7 @@ class BankController {
   static async deleteBankAccount(req, res, next) {
     try {
       const { id } = req.params;
-      const account = await BankService.deleteBankAccount(id);
+      const account = await BankService.deleteBankAccount(id, req.user.userId);
 
       if (!account) {
         return ApiResponse.notFound(res, 'Bank account not found');
