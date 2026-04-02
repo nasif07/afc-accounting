@@ -1,1 +1,32 @@
-const express = require('express');\nconst VendorInvoice = require('./vendorInvoice.model');\nconst auth = require('../../middleware/auth');\nconst { accountantOrDirector } = require('../../middleware/roleCheck');\nconst ApiResponse = require('../../utils/apiResponse');\n\nconst router = express.Router();\n\nrouter.use(auth);\n\nrouter.post('/', accountantOrDirector, async (req, res, next) => {\n  try {\n    const invoiceData = { ...req.body, createdBy: req.user.userId };\n    const invoice = await VendorInvoice.create(invoiceData);\n    return ApiResponse.created(res, invoice, 'Vendor invoice created successfully');\n  } catch (error) {\n    next(error);\n  }\n});\n\nrouter.get('/', async (req, res, next) => {\n  try {\n    const invoices = await VendorInvoice.find({ deletedAt: null })\n      .populate('vendor', 'vendorName vendorCode')\n      .sort({ createdAt: -1 });\n    return ApiResponse.success(res, invoices, 'Vendor invoices retrieved successfully');\n  } catch (error) {\n    next(error);\n  }\n});\n\nmodule.exports = router;\n
+const express = require("express");
+const VendorInvoice = require("./vendorInvoice.model");
+const auth = require("../../middleware/auth");
+const { accountantOrDirector } = require("../../middleware/roleCheck");
+const ApiResponse = require("../../utils/apiResponse");
+
+const router = express.Router();
+
+router.use(auth);
+
+router.post("/", accountantOrDirector, async (req, res, next) => {
+  try {
+    const invoiceData = { ...req.body, createdBy: req.user.userId };
+    const invoice = await VendorInvoice.create(invoiceData);
+    return ApiResponse.created(res, invoice, "Vendor invoice created successfully");
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/", async (req, res, next) => {
+  try {
+    const invoices = await VendorInvoice.find({ deletedAt: null })
+      .populate("vendor", "vendorName vendorCode")
+      .sort({ createdAt: -1 });
+    return ApiResponse.success(res, invoices, "Vendor invoices retrieved successfully");
+  } catch (error) {
+    next(error);
+  }
+});
+
+module.exports = router;

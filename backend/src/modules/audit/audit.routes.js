@@ -1,1 +1,38 @@
-const express = require('express');\nconst AuditLog = require('./auditLog.model');\nconst auth = require('../../middleware/auth');\nconst { directorOnly } = require('../../middleware/roleCheck');\nconst ApiResponse = require('../../utils/apiResponse');\n\nconst router = express.Router();\n\nrouter.use(auth);\n\nrouter.get('/', directorOnly, async (req, res, next) => {\n  try {\n    const { userId, action, entityType, startDate, endDate, limit, skip } = req.query;\n    const query = {};\n\n    if (userId) query.userId = userId;\n    if (action) query.action = action;\n    if (entityType) query.entityType = entityType;\n\n    if (startDate || endDate) {\n      query.timestamp = {};\n      if (startDate) query.timestamp.$gte = new Date(startDate);\n      if (endDate) query.timestamp.$lte = new Date(endDate);\n    }\n\n    const logs = await AuditLog.find(query)\n      .populate('userId', 'name email')\n      .sort({ timestamp: -1 })\n      .limit(parseInt(limit) || 100)\n      .skip(parseInt(skip) || 0);\n\n    return ApiResponse.success(res, logs, 'Audit logs retrieved successfully');\n  } catch (error) {\n    next(error);\n  }\n});\n\nmodule.exports = router;\n
+const express = require("express");
+const AuditLog = require("./auditLog.model");
+const auth = require("../../middleware/auth");
+const { directorOnly } = require("../../middleware/roleCheck");
+const ApiResponse = require("../../utils/apiResponse");
+
+const router = express.Router();
+
+router.use(auth);
+
+router.get("/", directorOnly, async (req, res, next) => {
+  try {
+    const { userId, action, entityType, startDate, endDate, limit, skip } = req.query;
+    const query = {};
+
+    if (userId) query.userId = userId;
+    if (action) query.action = action;
+    if (entityType) query.entityType = entityType;
+
+    if (startDate || endDate) {
+      query.timestamp = {};
+      if (startDate) query.timestamp.$gte = new Date(startDate);
+      if (endDate) query.timestamp.$lte = new Date(endDate);
+    }
+
+    const logs = await AuditLog.find(query)
+      .populate("userId", "name email")
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit) || 100)
+      .skip(parseInt(skip) || 0);
+
+    return ApiResponse.success(res, logs, "Audit logs retrieved successfully");
+  } catch (error) {
+    next(error);
+  }
+});
+
+module.exports = router;

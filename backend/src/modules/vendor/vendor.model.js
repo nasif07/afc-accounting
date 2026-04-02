@@ -1,1 +1,69 @@
-const mongoose = require('mongoose');\n\nconst vendorSchema = new mongoose.Schema(\n  {\n    vendorCode: {\n      type: String,\n      required: true,\n      unique: true,\n      trim: true,\n    },\n    vendorName: {\n      type: String,\n      required: true,\n      trim: true,\n    },\n    contactPerson: {\n      type: String,\n      trim: true,\n    },\n    email: {\n      type: String,\n      trim: true,\n      lowercase: true,\n    },\n    phone: {\n      type: String,\n      trim: true,\n    },\n    address: {\n      type: String,\n      trim: true,\n    },\n    paymentTerms: {\n      type: String,\n      enum: ['net-15', 'net-30', 'net-60', 'due-on-receipt', 'custom'],\n      default: 'net-30',\n    },\n    taxId: {\n      type: String,\n      trim: true,\n    },\n    isActive: {\n      type: Boolean,\n      default: true,\n    },\n    createdBy: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'User',\n      required: true,\n    },\n    deletedAt: {\n      type: Date,\n      default: null,\n    },\n    deletedBy: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'User',\n      default: null,\n    },\n  },\n  { timestamps: true }\n);\n\nvendorSchema.index({ vendorCode: 1 }, { unique: true });\nvendorSchema.index({ vendorName: 1, isActive: 1 });\nvendorSchema.index({ createdBy: 1 });\nvendorSchema.index({ deletedAt: 1 });\n\nmodule.exports = mongoose.model('Vendor', vendorSchema);\n
+const mongoose = require("mongoose");
+
+const vendorSchema = new mongoose.Schema(
+  {
+    vendorCode: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    vendorName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    contactPerson: {
+      type: String,
+      trim: true,
+    },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    address: {
+      type: String,
+      trim: true,
+    },
+    paymentTerms: {
+      type: String,
+      enum: ["net-15", "net-30", "net-60", "due-on-receipt", "custom"],
+      default: "net-30",
+    },
+    taxId: {
+      type: String,
+      trim: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+  },
+  { timestamps: true }
+);
+
+vendorSchema.index({ vendorCode: 1 }, { unique: true });
+vendorSchema.index({ vendorName: 1, isActive: 1 });
+vendorSchema.index({ createdBy: 1 });
+vendorSchema.index({ deletedAt: 1 });
+
+module.exports = mongoose.model("Vendor", vendorSchema);

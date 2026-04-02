@@ -1,1 +1,100 @@
-const Bank = require('./bank.model');\nconst AccountingService = require('../accounting/accounting.service');\nconst ChartOfAccounts = require('../chartOfAccounts/coa.model');\n\nclass BankService {\n  static async createBankAccount(bankData) {\n    const bank = new Bank(bankData);\n    await bank.save();\n    return bank;\n  }\n\n  static async getAllBankAccounts() {\n    const banks = await Bank.find()\n      .populate('createdBy', 'name email')\n      .sort({ createdAt: -1 })\n      .lean();\n\n    // Dynamically calculate balance for each bank account\n    for (const bank of banks) {\n      bank.currentBalance = await this.calculateBankBalance(bank._id);\n    }\n\n    return banks;\n  }\n\n  static async getBankAccountById(bankId) {\n    const bank = await Bank.findById(bankId)\n      .populate('createdBy', 'name email')\n      .lean();\n\n    if (bank) {\n      bank.currentBalance = await this.calculateBankBalance(bankId);\n    }\n\n    return bank;\n  }\n\n  static async updateBankAccount(bankId, updateData) {\n    return await Bank.findByIdAndUpdate(\n      bankId,\n      updateData,\n      { new: true, runValidators: true }\n    );\n  }\n\n  static async deleteBankAccount(bankId, userId) {\n    return await Bank.findByIdAndUpdate(\n      bankId,\n      {\n        isActive: false,\n        deletedAt: new Date(),\n        deletedBy: userId,\n      },\n      { new: true }\n    );\n  }\n\n  static async calculateBankBalance(bankId, asOfDate = new Date()) {\n    const bank = await Bank.findById(bankId);\n    if (!bank) return 0;\n\n    // In a real system, bank accounts should be linked to a COA account\n    // If not linked, we'd need a separate BankTransaction model\n    // For now, we'll look for journal entries that might be related to this bank\n    // Ideally, the Bank model should have a 'coaAccount' field.\n    \n    if (bank.coaAccount) {\n      const balanceData = await AccountingService.calculateAccountBalance(bank.coaAccount, asOfDate);\n      return balanceData.balance;\n    }\n\n    return bank.openingBalance || 0;\n  }\n\n  static async getTotalBankBalance() {\n    const banks = await this.getAllBankAccounts();\n    const totalBalance = banks.reduce((sum, bank) => sum + (bank.currentBalance || 0), 0);\n\n    return {\n      totalBalance,\n      accountCount: banks.length\n    };\n  }\n\n  static async reconcileBankAccount(bankId, reconciledBalance, reconciledDate) {\n    const bank = await Bank.findById(bankId);\n    if (!bank) throw new Error('Bank account not found');\n\n    const currentBalance = await this.calculateBankBalance(bankId);\n\n    bank.lastReconciledDate = reconciledDate;\n    bank.lastReconciledBalance = reconciledBalance;\n    bank.reconciliationDifference = Math.abs(currentBalance - reconciledBalance);\n\n    await bank.save();\n    return bank;\n  }\n}\n\nmodule.exports = BankService;\n
+const Bank = require("./bank.model");
+const AccountingService = require("../accounting/accounting.service");
+const ChartOfAccounts = require("../chartOfAccounts/coa.model");
+
+class BankService {
+  static async createBankAccount(bankData) {
+    const bank = new Bank(bankData);
+    await bank.save();
+    return bank;
+  }
+
+  static async getAllBankAccounts() {
+    const banks = await Bank.find()
+      .populate("createdBy", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Dynamically calculate balance for each bank account
+    for (const bank of banks) {
+      bank.currentBalance = await this.calculateBankBalance(bank._id);
+    }
+
+    return banks;
+  }
+
+  static async getBankAccountById(bankId) {
+    const bank = await Bank.findById(bankId)
+      .populate("createdBy", "name email")
+      .lean();
+
+    if (bank) {
+      bank.currentBalance = await this.calculateBankBalance(bankId);
+    }
+
+    return bank;
+  }
+
+  static async updateBankAccount(bankId, updateData) {
+    return await Bank.findByIdAndUpdate(
+      bankId,
+      updateData,
+      { new: true, runValidators: true }
+    );
+  }
+
+  static async deleteBankAccount(bankId, userId) {
+    return await Bank.findByIdAndUpdate(
+      bankId,
+      {
+        isActive: false,
+        deletedAt: new Date(),
+        deletedBy: userId,
+      },
+      { new: true }
+    );
+  }
+
+  static async calculateBankBalance(bankId, asOfDate = new Date()) {
+    const bank = await Bank.findById(bankId);
+    if (!bank) return 0;
+
+    // In a real system, bank accounts should be linked to a COA account
+    // If not linked, we'd need a separate BankTransaction model
+    // For now, we'll look for journal entries that might be related to this bank
+    // Ideally, the Bank model should have a 'coaAccount' field.
+    
+    if (bank.coaAccount) {
+      const balanceData = await AccountingService.calculateAccountBalance(bank.coaAccount, asOfDate);
+      return balanceData.balance;
+    }
+
+    return bank.openingBalance || 0;
+  }
+
+  static async getTotalBankBalance() {
+    const banks = await this.getAllBankAccounts();
+    const totalBalance = banks.reduce((sum, bank) => sum + (bank.currentBalance || 0), 0);
+
+    return {
+      totalBalance,
+      accountCount: banks.length
+    };
+  }
+
+  static async reconcileBankAccount(bankId, reconciledBalance, reconciledDate) {
+    const bank = await Bank.findById(bankId);
+    if (!bank) throw new Error("Bank account not found");
+
+    const currentBalance = await this.calculateBankBalance(bankId);
+
+    bank.lastReconciledDate = reconciledDate;
+    bank.lastReconciledBalance = reconciledBalance;
+    bank.reconciliationDifference = Math.abs(currentBalance - reconciledBalance);
+
+    await bank.save();
+    return bank;
+  }
+}
+
+module.exports = BankService;

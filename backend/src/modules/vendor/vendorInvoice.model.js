@@ -1,1 +1,71 @@
-const mongoose = require('mongoose');\n\nconst vendorInvoiceSchema = new mongoose.Schema(\n  {\n    vendor: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'Vendor',\n      required: true,\n    },\n    invoiceNumber: {\n      type: String,\n      required: true,\n      trim: true,\n    },\n    invoiceDate: {\n      type: Date,\n      required: true,\n    },\n    dueDate: {\n      type: Date,\n      required: true,\n    },\n    amount: {\n      type: Number,\n      required: true,\n      min: 0,\n    },\n    paidAmount: {\n      type: Number,\n      default: 0,\n      min: 0,\n    },\n    description: {\n      type: String,\n      trim: true,\n    },\n    status: {\n      type: String,\n      enum: ['pending', 'partial', 'paid', 'overdue'],\n      default: 'pending',\n    },\n    relatedJournalEntry: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'JournalEntry',\n    },\n    attachments: [String],\n    createdBy: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'User',\n      required: true,\n    },\n    deletedAt: {\n      type: Date,\n      default: null,\n    },\n    deletedBy: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'User',\n      default: null,\n    },\n  },\n  { timestamps: true }\n);\n\nvendorInvoiceSchema.index({ vendor: 1, status: 1 });\nvendorInvoiceSchema.index({ invoiceNumber: 1 });\nvendorInvoiceSchema.index({ dueDate: 1 });\nvendorInvoiceSchema.index({ createdBy: 1 });\nvendorInvoiceSchema.index({ deletedAt: 1 });\n\nmodule.exports = mongoose.model('VendorInvoice', vendorInvoiceSchema);\n
+const mongoose = require("mongoose");
+
+const vendorInvoiceSchema = new mongoose.Schema(
+  {
+    vendor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
+      required: true,
+    },
+    invoiceNumber: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    invoiceDate: {
+      type: Date,
+      required: true,
+    },
+    dueDate: {
+      type: Date,
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    paidAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "partial", "paid", "overdue"],
+      default: "pending",
+    },
+    relatedJournalEntry: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "JournalEntry",
+    },
+    attachments: [String],
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+  },
+  { timestamps: true }
+);
+
+vendorInvoiceSchema.index({ vendor: 1, status: 1 });
+vendorInvoiceSchema.index({ invoiceNumber: 1 });
+vendorInvoiceSchema.index({ dueDate: 1 });
+vendorInvoiceSchema.index({ createdBy: 1 });
+vendorInvoiceSchema.index({ deletedAt: 1 });
+
+module.exports = mongoose.model("VendorInvoice", vendorInvoiceSchema);

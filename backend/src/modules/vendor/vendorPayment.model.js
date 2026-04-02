@@ -1,1 +1,67 @@
-const mongoose = require('mongoose');\n\nconst vendorPaymentSchema = new mongoose.Schema(\n  {\n    vendor: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'Vendor',\n      required: true,\n    },\n    invoices: [{\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'VendorInvoice',\n    }],\n    paymentAmount: {\n      type: Number,\n      required: true,\n      min: 0,\n    },\n    paymentDate: {\n      type: Date,\n      required: true,\n    },\n    paymentMethod: {\n      type: String,\n      enum: ['bank-transfer', 'cheque', 'cash', 'credit-card'],\n      required: true,\n    },\n    referenceNumber: {\n      type: String,\n      trim: true,\n    },\n    description: {\n      type: String,\n      trim: true,\n    },\n    relatedJournalEntry: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'JournalEntry',\n    },\n    relatedBankTransaction: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'BankTransaction',\n    },\n    createdBy: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'User',\n      required: true,\n    },\n    deletedAt: {\n      type: Date,\n      default: null,\n    },\n    deletedBy: {\n      type: mongoose.Schema.Types.ObjectId,\n      ref: 'User',\n      default: null,\n    },\n  },\n  { timestamps: true }\n);\n\nvendorPaymentSchema.index({ vendor: 1, paymentDate: 1 });\nvendorPaymentSchema.index({ paymentDate: 1 });\nvendorPaymentSchema.index({ createdBy: 1 });\nvendorPaymentSchema.index({ deletedAt: 1 });\n\nmodule.exports = mongoose.model('VendorPayment', vendorPaymentSchema);\n
+const mongoose = require("mongoose");
+
+const vendorPaymentSchema = new mongoose.Schema(
+  {
+    vendor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
+      required: true,
+    },
+    invoices: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "VendorInvoice",
+    }],
+    paymentAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    paymentDate: {
+      type: Date,
+      required: true,
+    },
+    paymentMethod: {
+      type: String,
+      enum: ["bank-transfer", "cheque", "cash", "credit-card"],
+      required: true,
+    },
+    referenceNumber: {
+      type: String,
+      trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    relatedJournalEntry: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "JournalEntry",
+    },
+    relatedBankTransaction: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BankTransaction",
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+  },
+  { timestamps: true }
+);
+
+vendorPaymentSchema.index({ vendor: 1, paymentDate: 1 });
+vendorPaymentSchema.index({ paymentDate: 1 });
+vendorPaymentSchema.index({ createdBy: 1 });
+vendorPaymentSchema.index({ deletedAt: 1 });
+
+module.exports = mongoose.model("VendorPayment", vendorPaymentSchema);
