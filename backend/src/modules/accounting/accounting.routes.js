@@ -27,7 +27,27 @@ router.get(
 router.get(
   "/journal-entries/trial-balance",
   accountantOrDirector,
-  AccountingController.getTrialBalance,
+  AccountingController.getTrialBalanceReport,
+);
+router.get(
+  "/journal-entries/income-statement",
+  accountantOrDirector,
+  AccountingController.getIncomeStatementReport,
+);
+router.get(
+  "/journal-entries/balance-sheet",
+  accountantOrDirector,
+  AccountingController.getBalanceSheetReport,
+);
+router.get(
+  "/journal-entries/ledger/:accountId",
+  accountantOrDirector,
+  AccountingController.getGeneralLedger,
+);
+router.get(
+  "/journal-entries/balance/:accountId",
+  accountantOrDirector,
+  AccountingController.getAccountBalance,
 );
 router.get(
   "/journal-entries/account/:accountId",

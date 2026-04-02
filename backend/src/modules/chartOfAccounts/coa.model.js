@@ -41,10 +41,7 @@ const coaSchema = new mongoose.Schema(
       ref: "ChartOfAccounts",
       default: null,
     },
-    hasChildren: {
-      type: Boolean,
-      default: false,
-    },
+    // hasChildren is now calculated dynamically to ensure reliability
     hasTransactions: {
       type: Boolean,
       default: false,
@@ -181,7 +178,7 @@ coaSchema.index({ accountCode: 1 }, { unique: true });
 coaSchema.index({ accountName: 1, accountType: 1 });
 coaSchema.index({ status: 1, accountType: 1 });
 coaSchema.index({ parentAccount: 1, status: 1 });
-coaSchema.index({ hasChildren: 1 });
+// coaSchema.index({ hasChildren: 1 });
 coaSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model("ChartOfAccounts", coaSchema);

@@ -1,19 +1,7 @@
 const ChartOfAccounts = require("./coa.model");
 
 class COAService {
-  static async refreshParentHasChildren(parentId) {
-    if (!parentId) return;
-
-    const hasChildren = await ChartOfAccounts.exists({
-      parentAccount: parentId,
-      deletedAt: null,
-      status: { $ne: "archived" },
-    });
-
-    await ChartOfAccounts.findByIdAndUpdate(parentId, {
-      hasChildren: !!hasChildren,
-    });
-  }
+  // refreshParentHasChildren is no longer needed as hasChildren is calculated dynamically
 
   static async hasRealChildren(accountId) {
     return !!(await ChartOfAccounts.exists({
@@ -38,7 +26,7 @@ class COAService {
     await account.save();
 
     if (account.parentAccount) {
-      await this.refreshParentHasChildren(account.parentAccount);
+      // No need to refresh hasChildren
     }
 
     return account;
@@ -161,13 +149,7 @@ class COAService {
       ? updatedAccount.parentAccount.toString()
       : null;
 
-    if (oldParentId && oldParentId !== normalizedNewParentId) {
-      await this.refreshParentHasChildren(oldParentId);
-    }
-
-    if (normalizedNewParentId) {
-      await this.refreshParentHasChildren(normalizedNewParentId);
-    }
+    // No need to refresh hasChildren
 
     return updatedAccount;
   }
@@ -202,7 +184,7 @@ class COAService {
     );
 
     if (account.parentAccount) {
-      await this.refreshParentHasChildren(account.parentAccount);
+      // No need to refresh hasChildren
     }
 
     return updated;
@@ -217,33 +199,10 @@ class COAService {
     });
   }
 
-  static async getAccountBalance(accountId) {
-    const account = await ChartOfAccounts.findOne({
-      _id: accountId,
-      deletedAt: null,
-    });
-
-    if (!account) throw new Error("Account not found");
-
-    let balance = account.openingBalance || 0;
-
-    const JournalEntry = require("../accounting/accounting.model");
-    const entries = await JournalEntry.find({
-      "bookEntries.account": accountId,
-      status: "posted",
-      deletedAt: null,
-    }).lean();
-
-    for (const entry of entries) {
-      for (const line of entry.bookEntries) {
-        if (line.account.toString() === accountId.toString()) {
-          balance += line.debit || 0;
-          balance -= line.credit || 0;
-        }
-      }
-    }
-
-    return balance;
+  static async getAccountBalance(accountId, asOfDate = new Date()) {
+    const AccountingService = require("../accounting/accounting.service");
+    const balanceData = await AccountingService.calculateAccountBalance(accountId, asOfDate);
+    return balanceData.balance;
   }
 
   static async isLeafNode(accountId) {
@@ -336,9 +295,7 @@ class COAService {
       { new: true },
     );
 
-    if (restored.parentAccount) {
-      await this.refreshParentHasChildren(restored.parentAccount);
-    }
+    // No need to refresh hasChildren
 
     return restored;
   }

@@ -2,6 +2,86 @@ const AccountingService = require('./accounting.service');
 const ApiResponse = require('../../utils/apiResponse');
 
 class AccountingController {
+  static async getTrialBalanceReport(req, res, next) {
+    try {
+      const { asOfDate } = req.query;
+      const report = await AccountingService.generateTrialBalance(
+        asOfDate ? new Date(asOfDate) : new Date()
+      );
+      return ApiResponse.success(res, report, "Trial Balance retrieved successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getIncomeStatementReport(req, res, next) {
+    try {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) {
+        return ApiResponse.badRequest(res, "Start date and end date are required");
+      }
+      const report = await AccountingService.generateIncomeStatement(startDate, endDate);
+      return ApiResponse.success(res, report, "Income Statement retrieved successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getBalanceSheetReport(req, res, next) {
+    try {
+      const { asOfDate } = req.query;
+      const report = await AccountingService.generateBalanceSheet(
+        asOfDate ? new Date(asOfDate) : new Date()
+      );
+      return ApiResponse.success(res, report, "Balance Sheet retrieved successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+
+  static async getGeneralLedger(req, res, next) {
+    try {
+      const { accountId } = req.params;
+      const { startDate, endDate } = req.query;
+
+      const ledger = await AccountingService.getGeneralLedgerForAccount(
+        accountId,
+        startDate,
+        endDate
+      );
+
+      return ApiResponse.success(
+        res,
+        ledger,
+        "General Ledger retrieved successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getAccountBalance(req, res, next) {
+    try {
+      const { accountId } = req.params;
+      const { asOfDate } = req.query;
+
+      const balanceData = await AccountingService.calculateAccountBalance(
+        accountId,
+        asOfDate ? new Date(asOfDate) : new Date()
+      );
+
+      return ApiResponse.success(
+        res,
+        balanceData,
+        "Account balance calculated successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+
   static async createJournalEntry(req, res, next) {
     try {
       const {

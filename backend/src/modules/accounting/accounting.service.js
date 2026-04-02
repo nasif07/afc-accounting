@@ -3,6 +3,253 @@ const ChartOfAccounts = require('../chartOfAccounts/coa.model');
 const mongoose = require('mongoose');
 
 class AccountingService {
+  static async generateTrialBalance(asOfDate = new Date()) {
+    const accounts = await ChartOfAccounts.find({
+      deletedAt: null,
+      status: "active",
+    }).lean();
+
+    const balances = [];
+    let totalDebits = 0;
+    let totalCredits = 0;
+
+    for (const account of accounts) {
+      const balanceData = await this.calculateAccountBalance(account._id, asOfDate);
+      const balance = balanceData.balance;
+
+      if (balance === 0) continue;
+
+      const isDebit = account.accountType === "Asset" || account.accountType === "Expense";
+      
+      if (isDebit) {
+        balances.push({
+          accountCode: account.accountCode,
+          accountName: account.accountName,
+          debit: balance > 0 ? balance : 0,
+          credit: balance < 0 ? Math.abs(balance) : 0,
+        });
+        if (balance > 0) totalDebits += balance;
+        else totalCredits += Math.abs(balance);
+      } else {
+        balances.push({
+          accountCode: account.accountCode,
+          accountName: account.accountName,
+          debit: balance < 0 ? Math.abs(balance) : 0,
+          credit: balance > 0 ? balance : 0,
+        });
+        if (balance > 0) totalCredits += balance;
+        else totalDebits += Math.abs(balance);
+      }
+    }
+
+    return {
+      balances,
+      totalDebits,
+      totalCredits,
+      isBalanced: Math.abs(totalDebits - totalCredits) < 1,
+    };
+  }
+
+  static async generateIncomeStatement(startDate, endDate) {
+    const revenues = await ChartOfAccounts.find({
+      accountType: "Revenue",
+      deletedAt: null,
+      status: "active",
+    }).lean();
+
+    const expenses = await ChartOfAccounts.find({
+      accountType: "Expense",
+      deletedAt: null,
+      status: "active",
+    }).lean();
+
+    const revenueList = [];
+    let totalRevenue = 0;
+    for (const account of revenues) {
+      const balanceData = await this.calculateAccountBalance(account._id, new Date(endDate));
+      const startBalanceData = await this.calculateAccountBalance(account._id, new Date(startDate));
+      const periodBalance = balanceData.balance - startBalanceData.balance;
+      
+      if (periodBalance !== 0) {
+        revenueList.push({
+          accountName: account.accountName,
+          amount: periodBalance,
+        });
+        totalRevenue += periodBalance;
+      }
+    }
+
+    const expenseList = [];
+    let totalExpenses = 0;
+    for (const account of expenses) {
+      const balanceData = await this.calculateAccountBalance(account._id, new Date(endDate));
+      const startBalanceData = await this.calculateAccountBalance(account._id, new Date(startDate));
+      const periodBalance = balanceData.balance - startBalanceData.balance;
+
+      if (periodBalance !== 0) {
+        expenseList.push({
+          accountName: account.accountName,
+          amount: periodBalance,
+        });
+        totalExpenses += periodBalance;
+      }
+    }
+
+    return {
+      revenues: revenueList,
+      totalRevenue,
+      expenses: expenseList,
+      totalExpenses,
+      netIncome: totalRevenue - totalExpenses,
+    };
+  }
+
+  static async generateBalanceSheet(asOfDate = new Date()) {
+    const assets = await ChartOfAccounts.find({
+      accountType: "Asset",
+      deletedAt: null,
+      status: "active",
+    }).lean();
+
+    const liabilities = await ChartOfAccounts.find({
+      accountType: "Liability",
+      deletedAt: null,
+      status: "active",
+    }).lean();
+
+    const equity = await ChartOfAccounts.find({
+      accountType: "Equity",
+      deletedAt: null,
+      status: "active",
+    }).lean();
+
+    const assetList = [];
+    let totalAssets = 0;
+    for (const account of assets) {
+      const balanceData = await this.calculateAccountBalance(account._id, asOfDate);
+      if (balanceData.balance !== 0) {
+        assetList.push({ accountName: account.accountName, amount: balanceData.balance });
+        totalAssets += balanceData.balance;
+      }
+    }
+
+    const liabilityList = [];
+    let totalLiabilities = 0;
+    for (const account of liabilities) {
+      const balanceData = await this.calculateAccountBalance(account._id, asOfDate);
+      if (balanceData.balance !== 0) {
+        liabilityList.push({ accountName: account.accountName, amount: balanceData.balance });
+        totalLiabilities += balanceData.balance;
+      }
+    }
+
+    const equityList = [];
+    let totalEquity = 0;
+    for (const account of equity) {
+      const balanceData = await this.calculateAccountBalance(account._id, asOfDate);
+      if (balanceData.balance !== 0) {
+        equityList.push({ accountName: account.accountName, amount: balanceData.balance });
+        totalEquity += balanceData.balance;
+      }
+    }
+
+    // Simplified: Net Income should be added to Equity as Retained Earnings
+    // For a real system, we'd need to define the start of the fiscal year.
+    // Assuming Jan 1st for now.
+    const fiscalYearStart = new Date(asOfDate.getFullYear(), 0, 1);
+    const incomeStatement = await this.generateIncomeStatement(fiscalYearStart, asOfDate);
+    const retainedEarnings = incomeStatement.netIncome;
+    
+    equityList.push({ accountName: "Retained Earnings (Current Period)", amount: retainedEarnings });
+    totalEquity += retainedEarnings;
+
+    return {
+      assets: assetList,
+      totalAssets,
+      liabilities: liabilityList,
+      totalLiabilities,
+      equity: equityList,
+      totalEquity,
+      isBalanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1,
+    };
+  }
+
+
+  static async getGeneralLedgerForAccount(accountId, startDate, endDate) {
+    const query = {
+      "bookEntries.account": accountId,
+      status: "posted",
+      deletedAt: null,
+    };
+
+    if (startDate || endDate) {
+      query.voucherDate = {};
+      if (startDate) query.voucherDate.$gte = new Date(startDate);
+      if (endDate) query.voucherDate.$lte = new Date(endDate);
+    }
+
+    const entries = await JournalEntry.find(query)
+      .populate("createdBy", "name email")
+      .populate("approvedBy", "name email")
+      .populate("bookEntries.account", "accountName accountCode accountType")
+      .sort({ voucherDate: 1, createdAt: 1 })
+      .lean();
+
+    return entries.map((entry) => {
+      const relevantBookEntry = entry.bookEntries.find(
+        (be) => be.account._id.toString() === accountId.toString()
+      );
+      return {
+        voucherNumber: entry.voucherNumber,
+        voucherDate: entry.voucherDate,
+        transactionType: entry.transactionType,
+        description: relevantBookEntry.description || entry.description,
+        debit: relevantBookEntry.debit,
+        credit: relevantBookEntry.credit,
+        journalEntryId: entry._id,
+      };
+    });
+  }
+
+  static async calculateAccountBalance(accountId, asOfDate = new Date()) {
+    const account = await ChartOfAccounts.findOne({
+      _id: accountId,
+      deletedAt: null,
+    });
+
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    let balance = account.openingBalance || 0;
+
+    const entries = await JournalEntry.find({
+      "bookEntries.account": accountId,
+      status: "posted",
+      deletedAt: null,
+      voucherDate: { $lte: asOfDate },
+    }).lean();
+
+    for (const entry of entries) {
+      for (const line of entry.bookEntries) {
+        if (line.account.toString() === accountId.toString()) {
+          balance += line.debit || 0;
+          balance -= line.credit || 0;
+        }
+      }
+    }
+
+    return {
+      accountId: account._id,
+      accountCode: account.accountCode,
+      accountName: account.accountName,
+      accountType: account.accountType,
+      balance: balance,
+      naturalBalanceType: account.accountType === "Asset" || account.accountType === "Expense" ? "debit" : "credit",
+    };
+  }
+
+
   static async createJournalEntry(entryData) {
     if (!entryData?.bookEntries || !Array.isArray(entryData.bookEntries)) {
       throw new Error('Book entries are required');
@@ -154,7 +401,7 @@ class AccountingService {
 
       if (parentSet.has(accountId)) {
         errors.push(
-          `Account ${account.accountCode} (${account.accountName}) is a parent account and cannot be used in transactions`
+          `Account ${account.accountCode} (${account.accountName}) is a parent account and cannot be used in transactions. Only leaf accounts are allowed.`
         );
       }
     }
