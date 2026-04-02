@@ -82,6 +82,7 @@ export default function Reports() {
 
       const result = await response.json();
       setReportData(result.data);
+      toast.success('Report generated successfully');
     } catch (err) {
       setError(err.message || 'Failed to generate report');
       toast.error(err.message || 'Failed to generate report');
@@ -118,9 +119,15 @@ export default function Reports() {
   const handlePrint = () => {
     if (!printRef.current) return;
     const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write('<html><head><title>Print Report</title>');
+    printWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">');
+    printWindow.document.write('</head><body>');
     printWindow.document.write(printRef.current.innerHTML);
+    printWindow.document.write('</body></html>');
     printWindow.document.close();
-    printWindow.print();
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
   };
 
   // Download as PDF
@@ -233,11 +240,26 @@ export default function Reports() {
   const kpis = getKPIs();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-12">
       {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-neutral-900">Financial Reports</h1>
-        <p className="text-neutral-600 mt-2">Generate and analyze comprehensive financial statements</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-4xl font-bold text-neutral-900">Financial Reports</h1>
+          <p className="text-neutral-600 mt-2">Generate and analyze comprehensive financial statements</p>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            variant="primary"
+            onClick={fetchReport}
+            isLoading={loading}
+            disabled={loading}
+            size="md"
+            className="shadow-lg"
+          >
+            <BarChart3 size={18} className="mr-2" />
+            Generate Report
+          </Button>
+        </div>
       </div>
 
       {/* Report Filters */}
@@ -249,20 +271,6 @@ export default function Reports() {
         onReset={handleReset}
         loading={loading}
       />
-
-      {/* Generate Button */}
-      <div className="flex justify-center">
-        <Button
-          variant="primary"
-          onClick={fetchReport}
-          isLoading={loading}
-          disabled={loading}
-          size="lg"
-        >
-          <BarChart3 size={18} className="mr-2" />
-          Generate Report
-        </Button>
-      </div>
 
       {/* Error State */}
       {error && (
@@ -318,47 +326,51 @@ export default function Reports() {
           </div>
 
           {/* Report Display */}
-          <Card>
+          <Card className="shadow-xl border-t-4 border-mahogany-700">
             <CardContent className="pt-8" ref={printRef}>
               {/* Report Header */}
               <div className="text-center mb-8 pb-6 border-b-2 border-neutral-900">
-                <h1 className="text-2xl font-bold text-neutral-900">Alliance Française</h1>
-                <p className="text-neutral-600 mt-1">Financial Management System</p>
-                <h2 className="text-xl font-semibold text-neutral-900 mt-4">
+                <h1 className="text-2xl font-bold text-neutral-900 uppercase tracking-wider">Alliance Française</h1>
+                <p className="text-neutral-600 mt-1 font-medium">Financial Management System</p>
+                <div className="mt-6 inline-block px-4 py-1 bg-neutral-900 text-white rounded-full text-sm font-bold uppercase tracking-widest">
                   {reportType === 'trial-balance' && 'Trial Balance'}
                   {reportType === 'income-statement' && 'Profit & Loss Statement'}
                   {reportType === 'balance-sheet' && 'Balance Sheet'}
                   {reportType === 'cash-flow' && 'Cash Flow Statement'}
                   {reportType === 'general-ledger' && 'General Ledger'}
-                </h2>
-                {(filters.startDate || filters.endDate) && (
-                  <p className="text-sm text-neutral-600 mt-2">
-                    For the period: {filters.startDate ? new Date(filters.startDate).toLocaleDateString() : 'N/A'} to {filters.endDate ? new Date(filters.endDate).toLocaleDateString() : 'N/A'}
-                  </p>
-                )}
-                {filters.asOfDate && (
-                  <p className="text-sm text-neutral-600 mt-2">
-                    As of: {new Date(filters.asOfDate).toLocaleDateString()}
-                  </p>
-                )}
+                </div>
+                <div className="mt-4 flex flex-col items-center gap-1">
+                  {(filters.startDate || filters.endDate) && (
+                    <p className="text-sm text-neutral-600">
+                      <span className="font-semibold">Period:</span> {filters.startDate ? new Date(filters.startDate).toLocaleDateString() : 'N/A'} to {filters.endDate ? new Date(filters.endDate).toLocaleDateString() : 'N/A'}
+                    </p>
+                  )}
+                  {filters.asOfDate && (
+                    <p className="text-sm text-neutral-600">
+                      <span className="font-semibold">As of:</span> {new Date(filters.asOfDate).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Report Content */}
-              {reportType === 'trial-balance' && (
-                <TrialBalanceReport data={reportData} asOfDate={filters.asOfDate} />
-              )}
-              {reportType === 'income-statement' && (
-                <IncomeStatementReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
-              )}
-              {reportType === 'balance-sheet' && (
-                <BalanceSheetReport data={reportData} asOfDate={filters.asOfDate} />
-              )}
-              {reportType === 'cash-flow' && (
-                <CashFlowReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
-              )}
+              <div className="min-h-[400px]">
+                {reportType === 'trial-balance' && (
+                  <TrialBalanceReport data={reportData} asOfDate={filters.asOfDate} />
+                )}
+                {reportType === 'income-statement' && (
+                  <IncomeStatementReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
+                )}
+                {reportType === 'balance-sheet' && (
+                  <BalanceSheetReport data={reportData} asOfDate={filters.asOfDate} />
+                )}
+                {reportType === 'cash-flow' && (
+                  <CashFlowReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
+                )}
+              </div>
 
               {/* Report Footer */}
-              <div className="mt-12 pt-6 border-t-2 border-neutral-900 text-center text-xs text-neutral-600">
+              <div className="mt-12 pt-6 border-t border-neutral-200 text-center text-xs text-neutral-500 italic">
                 <p>Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</p>
                 <p>This is a computer-generated report and does not require a signature.</p>
               </div>
@@ -369,10 +381,23 @@ export default function Reports() {
 
       {/* Empty State */}
       {!reportData && !loading && !error && (
-        <Card>
-          <CardContent className="pt-12 text-center">
-            <BarChart3 size={48} className="mx-auto text-neutral-300 mb-4" />
-            <p className="text-neutral-600">Select filters and click "Generate Report" to view financial statements</p>
+        <Card className="border-dashed border-2 border-neutral-200 bg-neutral-50">
+          <CardContent className="py-20 text-center">
+            <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+              <BarChart3 size={40} className="text-neutral-300" />
+            </div>
+            <h3 className="text-xl font-bold text-neutral-900 mb-2">No Report Generated</h3>
+            <p className="text-neutral-600 max-w-md mx-auto mb-8">
+              Select your report type and date filters above, then click the "Generate Report" button to view your financial statements.
+            </p>
+            <Button
+              variant="primary"
+              onClick={fetchReport}
+              size="lg"
+            >
+              <BarChart3 size={18} className="mr-2" />
+              Generate Report Now
+            </Button>
           </CardContent>
         </Card>
       )}
