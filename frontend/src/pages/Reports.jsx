@@ -12,6 +12,7 @@ import CashFlowReport from '../components/reports/CashFlowReport';
 import GeneralLedgerReport from '../components/reports/GeneralLedgerReport';
 import { formatCurrency } from '../utils/currency';
 import { toast } from 'sonner';
+import api from '../services/api'; // Use the configured axios instance
 
 export default function Reports() {
   const dispatch = useDispatch();
@@ -29,7 +30,6 @@ export default function Reports() {
   const [error, setError] = useState(null);
 
   const user = useSelector(state => state.auth.user);
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Fetch report data
   const fetchReport = async () => {
@@ -38,54 +38,41 @@ export default function Reports() {
     setReportData(null);
 
     try {
-      const token = localStorage.getItem('token');
-      let url = `${apiBaseUrl}/accounting/journal-entries`;
-      let params = new URLSearchParams();
+      let endpoint = '/accounting/journal-entries';
+      let params = {};
 
       switch (reportType) {
         case 'trial-balance':
-          url += '/trial-balance';
-          if (filters.asOfDate) params.append('asOfDate', filters.asOfDate);
+          endpoint += '/trial-balance';
+          if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
         case 'income-statement':
-          url += '/income-statement';
-          if (filters.startDate) params.append('startDate', filters.startDate);
-          if (filters.endDate) params.append('endDate', filters.endDate);
+          endpoint += '/income-statement';
+          if (filters.startDate) params.startDate = filters.startDate;
+          if (filters.endDate) params.endDate = filters.endDate;
           break;
         case 'balance-sheet':
-          url += '/balance-sheet';
-          if (filters.asOfDate) params.append('asOfDate', filters.asOfDate);
+          endpoint += '/balance-sheet';
+          if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
         case 'cash-flow':
-          url += '/cash-flow';
-          if (filters.startDate) params.append('startDate', filters.startDate);
-          if (filters.endDate) params.append('endDate', filters.endDate);
+          endpoint += '/cash-flow';
+          if (filters.startDate) params.startDate = filters.startDate;
+          if (filters.endDate) params.endDate = filters.endDate;
           break;
         default:
           throw new Error('Invalid report type');
       }
 
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch report');
-      }
-
-      const result = await response.json();
-      setReportData(result.data);
+      // Use the axios instance which handles withCredentials (cookies) automatically
+      const response = await api.get(endpoint, { params });
+      
+      setReportData(response.data.data);
       toast.success('Report generated successfully');
     } catch (err) {
-      setError(err.message || 'Failed to generate report');
-      toast.error(err.message || 'Failed to generate report');
+      const message = err.response?.data?.message || err.message || 'Failed to generate report';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
