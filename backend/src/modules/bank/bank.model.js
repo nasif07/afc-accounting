@@ -29,7 +29,6 @@ const bankSchema = new mongoose.Schema(
       enum: ["savings", "current", "checking", "money-market"],
       required: true,
     },
-
     isActive: {
       type: Boolean,
       default: true,
@@ -66,17 +65,7 @@ function excludeDeleted(next) {
 bankSchema.pre("find", excludeDeleted);
 bankSchema.pre("findOne", excludeDeleted);
 bankSchema.pre("findOneAndUpdate", excludeDeleted);
-bankSchema.pre("countDocuments", excludeDeleted);te,
-      default: null,
-    },
-    deletedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-  },
-  { timestamps: true },
-);
+bankSchema.pre("countDocuments", excludeDeleted);
 
 bankSchema.index({ accountNumber: 1 }, { unique: true });
 bankSchema.index({ bankName: 1, isActive: 1 });
