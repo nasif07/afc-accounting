@@ -5,21 +5,21 @@ const ApiResponse = require('../../utils/apiResponse');
 class BankController {
   static async createBankAccount(req, res, next) {
     try {
-      const { bankName, accountNumber, accountHolder, ifscCode, branchName, accountType, openingBalance } = req.body;
+      const { bankName, accountNumber, accountHolderName, ifscCode, branchName, accountType, openingBalance } = req.body;
 
-      if (!bankName || !accountNumber || !accountHolder || !ifscCode) {
-        return ApiResponse.badRequest(res, 'Bank name, account number, account holder, and IFSC code are required');
+      // Frontend sends accountHolderName, backend was checking accountHolder
+      if (!bankName || !accountNumber || !accountHolderName || !ifscCode) {
+        return ApiResponse.badRequest(res, 'Bank name, account number, account holder name, and IFSC code are required');
       }
 
       const bankData = {
         bankName,
         accountNumber,
-        accountHolder,
+        accountHolderName, // Fixed field name
         ifscCode,
         branchName,
         accountType,
         openingBalance: openingBalance || 0,
-        currentBalance: openingBalance || 0,
         createdBy: req.user.userId
       };
 
@@ -100,7 +100,7 @@ class BankController {
       const { id } = req.params;
       const { reconciledBalance, reconciledDate } = req.body;
 
-      if (!reconciledBalance || !reconciledDate) {
+      if (reconciledBalance === undefined || !reconciledDate) {
         return ApiResponse.badRequest(res, 'Reconciled balance and date are required');
       }
 
