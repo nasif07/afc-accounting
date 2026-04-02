@@ -15,6 +15,8 @@ import Payroll from "../pages/Payroll";
 import Accounting from "../pages/Accounting";
 import Accounts from "../pages/Accounts";
 import JournalEntries from "../pages/JournalEntries";
+import Ledger from "../pages/Ledger";
+import BankCash from "../pages/BankCash";
 import Reports from "../pages/Reports";
 import Settings from "../pages/Settings";
 import DirectorApprovals from "../pages/DirectorApprovals";
@@ -143,11 +145,11 @@ const router = createBrowserRouter([
       },
       {
         path: "ledger",
-        element: <ComingSoon />,
+        element: <Ledger />,
       },
       {
         path: "bank-cash",
-        element: <ComingSoon />,
+        element: <BankCash />,
       },
       {
         path: "reports",

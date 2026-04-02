@@ -79,24 +79,28 @@ export const payrollAPI = {
 
 // ==================== ACCOUNTING (JOURNAL ENTRIES) ====================
 export const accountingAPI = {
-  getAll: (params) => api.get('/accounting', { params }),
-  getById: (id) => api.get(`/accounting/${id}`),
-  create: (data) => api.post('/accounting', data),
-  update: (id, data) => api.put(`/accounting/${id}`, data),
-  delete: (id) => api.delete(`/accounting/${id}`),
-  approve: (id) => api.post(`/accounting/${id}/approve`),
-  reject: (id, data) => api.post(`/accounting/${id}/reject`, data),
-  search: (query) => api.get('/accounting/search', { params: { query } }),
+  getAll: (params) => api.get('/accounting/journal-entries', { params }),
+  getById: (id) => api.get(`/accounting/journal-entries/${id}`),
+  create: (data) => api.post('/accounting/journal-entries', data),
+  update: (id, data) => api.put(`/accounting/journal-entries/${id}`, data),
+  delete: (id) => api.delete(`/accounting/journal-entries/${id}`),
+  approve: (id) => api.patch(`/accounting/journal-entries/${id}/approve`),
+  reject: (id, data) => api.patch(`/accounting/journal-entries/${id}/reject`, data),
+  getPendingApprovals: () => api.get('/accounting/journal-entries/pending-approvals'),
+  getLedger: (accountId, params) => api.get(`/accounting/journal-entries/ledger/${accountId}`, { params }),
+  getAccountBalance: (accountId) => api.get(`/accounting/journal-entries/balance/${accountId}`),
+  getEntriesByAccount: (accountId) => api.get(`/accounting/journal-entries/account/${accountId}`),
 };
 
 // ==================== CHART OF ACCOUNTS ====================
 export const coaAPI = {
-  getAll: (params) => api.get('/chart-of-accounts', { params }),
-  getById: (id) => api.get(`/chart-of-accounts/${id}`),
-  create: (data) => api.post('/chart-of-accounts', data),
-  update: (id, data) => api.put(`/chart-of-accounts/${id}`, data),
-  delete: (id) => api.delete(`/chart-of-accounts/${id}`),
-  getBalance: (id) => api.get(`/chart-of-accounts/${id}/balance`),
+  getAll: (params) => api.get('/accounts', { params }),
+  getTree: () => api.get('/accounts/tree'),
+  getLeafNodes: () => api.get('/accounts/leaf-nodes'),
+  getById: (id) => api.get(`/accounts/${id}`),
+  create: (data) => api.post('/accounts', data),
+  update: (id, data) => api.put(`/accounts/${id}`, data),
+  delete: (id) => api.delete(`/accounts/${id}`),
 };
 
 // ==================== BANK ====================
@@ -106,18 +110,22 @@ export const bankAPI = {
   create: (data) => api.post('/bank', data),
   update: (id, data) => api.put(`/bank/${id}`, data),
   delete: (id) => api.delete(`/bank/${id}`),
-  reconcile: (id, data) => api.post(`/bank/${id}/reconcile`, data),
+  reconcile: (id, data) => api.put(`/bank/${id}/reconcile`, data),
+  getTotalBalance: () => api.get('/bank/report/total-balance'),
 };
 
 // ==================== REPORTS ====================
 export const reportAPI = {
-  incomeStatement: (params) => api.get('/reports/income-statement', { params }),
-  balanceSheet: (params) => api.get('/reports/balance-sheet', { params }),
-  cashFlow: (params) => api.get('/reports/cash-flow', { params }),
-  trialBalance: (params) => api.get('/reports/trial-balance', { params }),
-  receiptPayment: (params) => api.get('/reports/receipt-payment', { params }),
+  incomeStatement: (params) => api.get('/accounting/journal-entries/income-statement', { params }),
+  balanceSheet: (params) => api.get('/accounting/journal-entries/balance-sheet', { params }),
+  trialBalance: (params) => api.get('/accounting/journal-entries/trial-balance', { params }),
   exportPDF: (reportType, params) => api.get(`/reports/${reportType}/export-pdf`, { params, responseType: 'blob' }),
   exportExcel: (reportType, params) => api.get(`/reports/${reportType}/export-excel`, { params, responseType: 'blob' }),
+};
+
+// ==================== AUDIT LOGS ====================
+export const auditAPI = {
+  getAll: (params) => api.get('/audit', { params }),
 };
 
 // ==================== SEARCH ====================
