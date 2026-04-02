@@ -1,1 +1,64 @@
-import React from 'react';\nimport { CheckCircle, AlertCircle } from 'lucide-react';\n\nconst BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {\n  const difference = Math.abs(totalDebit - totalCredit);\n\n  return (\n    <div className=\"bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4\">\n      <h3 className=\"text-sm font-semibold text-gray-900 mb-3\">Balance Summary</h3>\n      \n      <div className=\"grid grid-cols-3 gap-4\">\n        {/* Total Debits */}\n        <div className=\"bg-white border border-gray-200 rounded-lg p-3\">\n          <p className=\"text-xs text-gray-600 mb-1\">Total Debits</p>\n          <p className=\"text-lg font-bold text-gray-900\">{totalDebit.toFixed(2)}</p>\n        </div>\n\n        {/* Total Credits */}\n        <div className=\"bg-white border border-gray-200 rounded-lg p-3\">\n          <p className=\"text-xs text-gray-600 mb-1\">Total Credits</p>\n          <p className=\"text-lg font-bold text-gray-900\">{totalCredit.toFixed(2)}</p>\n        </div>\n\n        {/* Balance Status */}\n        <div className={`rounded-lg p-3 flex items-center gap-2 ${\n          isBalanced \n            ? 'bg-green-50 border border-green-200' \n            : 'bg-red-50 border border-red-200'\n        }`}>\n          {isBalanced ? (\n            <>\n              <CheckCircle size={20} className=\"text-green-600\" />\n              <div>\n                <p className=\"text-xs text-green-700\">Balanced</p>\n                <p className=\"text-sm font-semibold text-green-900\">Difference: 0.00</p>\n              </div>\n            </>\n          ) : (\n            <>\n              <AlertCircle size={20} className=\"text-red-600\" />\n              <div>\n                <p className=\"text-xs text-red-700\">Not Balanced</p>\n                <p className=\"text-sm font-semibold text-red-900\">Difference: {difference.toFixed(2)}</p>\n              </div>\n            </>\n          )}\n        </div>\n      </div>\n\n      {!isBalanced && (\n        <div className=\"mt-3 p-2 bg-red-100 border border-red-300 rounded text-sm text-red-800\">\n          Journal entry must be balanced (Debits = Credits) before submission.\n        </div>\n      )}\n    </div>\n  );\n};\n\nexport default BalanceSummary;\n
+import React from 'react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
+
+const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
+  const difference = Math.abs(totalDebit - totalCredit);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Balance Summary</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Total Debit */}
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+          <p className="text-sm text-blue-700 font-medium mb-1">Total Debit</p>
+          <p className="text-2xl font-bold text-blue-900">
+            ৳{totalDebit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </p>
+        </div>
+
+        {/* Total Credit */}
+        <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
+          <p className="text-sm text-purple-700 font-medium mb-1">Total Credit</p>
+          <p className="text-2xl font-bold text-purple-900">
+            ৳{totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </p>
+        </div>
+
+        {/* Balance Status */}
+        <div className={`rounded-lg p-4 border ${
+          isBalanced 
+            ? 'bg-green-50 border-green-100' 
+            : 'bg-red-50 border-red-100'
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            {isBalanced ? (
+              <CheckCircle size={18} className="text-green-600" />
+            ) : (
+              <AlertCircle size={18} className="text-red-600" />
+            )}
+            <p className={`text-sm font-medium ${
+              isBalanced ? 'text-green-700' : 'text-red-700'
+            }`}>
+              {isBalanced ? 'Balanced' : 'Unbalanced'}
+            </p>
+          </div>
+          <p className={`text-2xl font-bold ${
+            isBalanced ? 'text-green-900' : 'text-red-900'
+          }`}>
+            {isBalanced ? '৳0.00' : `৳${difference.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          </p>
+        </div>
+      </div>
+
+      {!isBalanced && totalDebit > 0 && (
+        <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-md flex items-center gap-2 text-red-800 text-sm">
+          <AlertCircle size={16} />
+          <span>The journal entry must be balanced (Total Debit = Total Credit) before it can be submitted.</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default BalanceSummary;

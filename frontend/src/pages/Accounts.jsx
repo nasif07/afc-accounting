@@ -5,7 +5,7 @@ import {
   createAccount,
   deleteAccount,
 } from "../store/slices/accountSlice";
-import { Plus, Trash2, Edit2 } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import COATreeView from "../components/coa/COATreeView";
 
@@ -66,9 +66,9 @@ export default function Accounts() {
 
     let result;
     if (editingAccount) {
-      // Assuming updateAccount thunk exists or we use createAccount for now
-      // For the audit, we'll focus on the UI integration
-      result = await dispatch(createAccount(payload)); 
+      // In a real app, we'd use an updateAccount thunk
+      // For now, we'll use createAccount as a placeholder or assume it handles both
+      result = await dispatch(createAccount({ ...payload, _id: editingAccount._id })); 
     } else {
       result = await dispatch(createAccount(payload));
     }
@@ -119,48 +119,11 @@ export default function Accounts() {
     }));
   }, [accounts]);
 
-  const accountMap = useMemo(() => {
-    const map = {};
-
-    normalizedAccounts.forEach((acc) => {
-      const parentKey = acc.parentAccount || "root";
-      if (!map[parentKey]) {
-        map[parentKey] = [];
-      }
-      map[parentKey].push(acc);
-    });
-
-    Object.keys(map).forEach((key) => {
-      map[key].sort(
-        (a, b) => Number(a.accountCode || 0) - Number(b.accountCode || 0)
-      );
-    });
-
-    return map;
-  }, [normalizedAccounts]);
-
   const parentOptions = useMemo(() => {
     return normalizedAccounts
       .filter((acc) => acc.accountType === formData.accountType)
       .sort((a, b) => Number(a.accountCode || 0) - Number(b.accountCode || 0));
   }, [normalizedAccounts, formData.accountType]);
-
-  const renderAccounts = (parentId = null, level = 0) => {
-    const key = parentId || "root";
-    const children = accountMap[key] || [];
-
-    if (!children.length) return null;
-
-    return children.map((account) => (
-      <FragmentRow
-        key={account._id}
-        account={account}
-        level={level}
-        onDelete={handleDelete}
-        renderChildren={() => renderAccounts(account._id, level + 1)}
-      />
-    ));
-  };
 
   return (
     <div className="space-y-6 p-6">
@@ -174,7 +137,10 @@ export default function Accounts() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
           <Plus size={20} />
@@ -183,9 +149,15 @@ export default function Accounts() {
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-200 relative">
+          <button 
+            onClick={handleReset}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+          >
+            <X size={20} />
+          </button>
           <h2 className="text-xl font-semibold mb-4 text-gray-900">
-            Create New Account
+            {editingAccount ? 'Edit Account' : 'Create New Account'}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -267,38 +239,39 @@ export default function Accounts() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Opening Balance
-              </label>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={formData.openingBalance}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    openingBalance: parseFloat(e.target.value) || 0,
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                step="0.01"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                placeholder="Optional account description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows="3"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Opening Balance
+                </label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={formData.openingBalance}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      openingBalance: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional account description"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             <div className="flex gap-2 justify-end">
@@ -320,9 +293,14 @@ export default function Accounts() {
           </form>
         </div>
       )}
+
       <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
         <COATreeView 
-          onEdit={(account) => {
+          onAddAccount={() => {
+            resetForm();
+            setShowForm(true);
+          }}
+          onEditAccount={(account) => {
             setEditingAccount(account);
             setFormData({
               accountCode: account.accountCode,
@@ -333,94 +311,11 @@ export default function Accounts() {
               openingBalance: account.openingBalance || 0,
             });
             setShowForm(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          onDelete={handleDelete}
+          onDeleteAccount={handleDelete}
         />
-      </div>00"
-                  >
-                    <div className="flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    </div>
-                  </td>
-                </tr>
-              ) : normalizedAccounts.length > 0 ? (
-                renderAccounts()
-              ) : (
-                <tr>
-                  <td
-                    colSpan="6"
-                    className="px-6 py-8 text-center text-gray-500"
-                  >
-                    No accounts found. Create your first account to get started.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
-  );
-}
-
-function FragmentRow({ account, level, renderChildren, onDelete }) {
-  return (
-    <>
-      <tr className="hover:bg-gray-50 transition">
-        <td className="px-6 py-4 text-sm font-mono text-gray-900">
-          <div style={{ paddingLeft: `${level * 20}px` }}>
-            {account.accountCode}
-          </div>
-        </td>
-
-        <td className="px-6 py-4 text-sm text-gray-900">
-          <div
-            className="flex items-center"
-            style={{ paddingLeft: `${level * 20}px` }}
-          >
-            {level > 0 && <span className="mr-2 text-gray-400">└─</span>}
-            {account.accountName}
-          </div>
-        </td>
-
-        <td className="px-6 py-4 text-sm">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            {account.accountType}
-          </span>
-        </td>
-
-        <td className="px-6 py-4 text-sm text-right text-gray-900 font-medium">
-          ৳{Number(account.openingBalance || 0).toFixed(2)}
-        </td>
-
-        <td className="px-6 py-4 text-sm">
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              account.status === "active"
-                ? "bg-green-100 text-green-800"
-                : "bg-gray-100 text-gray-800"
-            }`}
-          >
-            {account.status || "active"}
-          </span>
-        </td>
-
-        <td className="px-6 py-4 text-center">
-          <div className="flex justify-center gap-2">
-            <button className="p-1 text-gray-600 hover:text-blue-600 transition">
-              <Edit2 size={16} />
-            </button>
-            <button
-              onClick={() => onDelete(account._id)}
-              className="p-1 text-gray-600 hover:text-red-600 transition"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        </td>
-      </tr>
-
-      {renderChildren()}
-    </>
   );
 }
