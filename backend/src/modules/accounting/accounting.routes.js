@@ -40,6 +40,11 @@ router.get(
   AccountingController.getBalanceSheetReport,
 );
 router.get(
+  "/journal-entries/cash-flow",
+  accountantOrDirector,
+  AccountingController.getCashFlowReport,
+);
+router.get(
   "/journal-entries/ledger/:accountId",
   accountantOrDirector,
   AccountingController.getGeneralLedger,

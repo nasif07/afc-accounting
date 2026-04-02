@@ -39,6 +39,18 @@ class AccountingController {
     }
   }
 
+  static async getCashFlowReport(req, res, next) {
+    try {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) {
+        return ApiResponse.badRequest(res, "Start date and end date are required");
+      }
+      const report = await AccountingService.generateCashFlowStatement(startDate, endDate);
+      return ApiResponse.success(res, report, "Cash Flow Statement retrieved successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
 
   static async getGeneralLedger(req, res, next) {
     try {
@@ -118,7 +130,6 @@ class AccountingController {
         createdBy: req.user.userId,
       };
 
-      // Optional manual voucher number support, if you still want it
       if (voucherNumber) {
         entryData.voucherNumber = voucherNumber;
       }

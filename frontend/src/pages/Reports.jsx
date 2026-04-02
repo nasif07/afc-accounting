@@ -1,229 +1,381 @@
-import { useState } from 'react';
-import { FileText, BarChart3 } from 'lucide-react';
-import ReportRenderer from '../components/ReportRenderer';
+import React, { useState, useEffect, useRef } from 'react';
+import { Download, Printer, BarChart3, AlertCircle, Loader } from 'lucide-react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import FormField from '../components/ui/FormField';
+import KPICard from '../components/reports/KPICard';
+import ReportFilters from '../components/reports/ReportFilters';
+import TrialBalanceReport from '../components/reports/TrialBalanceReport';
+import IncomeStatementReport from '../components/reports/IncomeStatementReport';
+import BalanceSheetReport from '../components/reports/BalanceSheetReport';
+import CashFlowReport from '../components/reports/CashFlowReport';
+import GeneralLedgerReport from '../components/reports/GeneralLedgerReport';
+import { formatCurrency } from '../utils/currency';
+import { toast } from 'sonner';
 
 export default function Reports() {
-  const [reportType, setReportType] = useState('pl');
-  const [period, setPeriod] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const dispatch = useDispatch();
+  const printRef = useRef();
+
+  const [reportType, setReportType] = useState('trial-balance');
+  const [filters, setFilters] = useState({
+    startDate: '',
+    endDate: '',
+    asOfDate: new Date().toISOString().split('T')[0],
+    viewType: 'detailed',
+  });
   const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [error, setError] = useState(null);
 
-  // Sample data for P&L
-  const plData = {
-    revenue: {
-      items: [
-        { name: 'Tuition Fees', amount: 500000000 },
-        { name: 'Exam Fees', amount: 50000000 },
-        { name: 'Registration Fees', amount: 30000000 },
-      ],
-      total: 580000000,
-    },
-    expenses: {
-      items: [
-        { name: 'Salaries & Wages', amount: 200000000 },
-        { name: 'Rent & Utilities', amount: 50000000 },
-        { name: 'Teaching Materials', amount: 30000000 },
-        { name: 'Maintenance', amount: 20000000 },
-      ],
-      total: 300000000,
-    },
-  };
+  const user = useSelector(state => state.auth.user);
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-  // Sample data for Balance Sheet
-  const bsData = {
-    assets: {
-      current: {
-        items: [
-          { name: 'Cash in Hand', amount: 100000000 },
-          { name: 'Bank Accounts', amount: 150000000 },
-          { name: 'Accounts Receivable', amount: 80000000 },
-        ],
-        total: 330000000,
-      },
-      fixed: {
-        items: [
-          { name: 'Buildings', amount: 500000000 },
-          { name: 'Equipment', amount: 100000000 },
-          { name: 'Furniture', amount: 50000000 },
-        ],
-        total: 650000000,
-      },
-    },
-    liabilities: {
-      current: {
-        items: [
-          { name: 'Accounts Payable', amount: 50000000 },
-          { name: 'Short-term Loans', amount: 100000000 },
-        ],
-        total: 150000000,
-      },
-    },
-    equity: {
-      items: [
-        { name: 'Capital', amount: 500000000 },
-        { name: 'Retained Earnings', amount: 330000000 },
-      ],
-      total: 830000000,
-    },
-  };
-
-  const handleGenerateReport = async () => {
+  // Fetch report data
+  const fetchReport = async () => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    setError(null);
+    setReportData(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      let url = `${apiBaseUrl}/accounting/journal-entries`;
+      let params = new URLSearchParams();
+
+      switch (reportType) {
+        case 'trial-balance':
+          url += '/trial-balance';
+          if (filters.asOfDate) params.append('asOfDate', filters.asOfDate);
+          break;
+        case 'income-statement':
+          url += '/income-statement';
+          if (filters.startDate) params.append('startDate', filters.startDate);
+          if (filters.endDate) params.append('endDate', filters.endDate);
+          break;
+        case 'balance-sheet':
+          url += '/balance-sheet';
+          if (filters.asOfDate) params.append('asOfDate', filters.asOfDate);
+          break;
+        case 'cash-flow':
+          url += '/cash-flow';
+          if (filters.startDate) params.append('startDate', filters.startDate);
+          if (filters.endDate) params.append('endDate', filters.endDate);
+          break;
+        default:
+          throw new Error('Invalid report type');
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch report');
+      }
+
+      const result = await response.json();
+      setReportData(result.data);
+    } catch (err) {
+      setError(err.message || 'Failed to generate report');
+      toast.error(err.message || 'Failed to generate report');
+    } finally {
       setLoading(false);
-      setPeriod(`${startDate} to ${endDate}`);
-    }, 1000);
+    }
   };
+
+  // Handle filter changes
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Handle report type change
+  const handleReportTypeChange = (type) => {
+    setReportType(type);
+    setReportData(null);
+    setError(null);
+  };
+
+  // Reset filters
+  const handleReset = () => {
+    setFilters({
+      startDate: '',
+      endDate: '',
+      asOfDate: new Date().toISOString().split('T')[0],
+      viewType: 'detailed',
+    });
+    setReportData(null);
+    setError(null);
+  };
+
+  // Print report
+  const handlePrint = () => {
+    if (!printRef.current) return;
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write(printRef.current.innerHTML);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  // Download as PDF
+  const handleDownloadPDF = async () => {
+    try {
+      const element = printRef.current;
+      if (!element) return;
+
+      // Dynamic import of html2pdf
+      const html2pdf = (await import('html2pdf.js')).default;
+      
+      const opt = {
+        margin: 10,
+        filename: `${reportType}-${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+      };
+
+      html2pdf().set(opt).from(element).save();
+      toast.success('Report downloaded successfully');
+    } catch (err) {
+      toast.error('Failed to download PDF. Please try again.');
+    }
+  };
+
+  // Calculate KPIs based on report data
+  const getKPIs = () => {
+    if (!reportData) return [];
+
+    switch (reportType) {
+      case 'income-statement':
+        return [
+          {
+            title: 'Total Revenue',
+            value: reportData.totalRevenue || 0,
+            color: 'green',
+          },
+          {
+            title: 'Total Expenses',
+            value: reportData.totalExpenses || 0,
+            color: 'red',
+          },
+          {
+            title: 'Net Income',
+            value: reportData.netIncome || 0,
+            color: reportData.netIncome >= 0 ? 'green' : 'red',
+          },
+        ];
+      case 'balance-sheet':
+        return [
+          {
+            title: 'Total Assets',
+            value: reportData.totalAssets || 0,
+            color: 'blue',
+          },
+          {
+            title: 'Total Liabilities',
+            value: reportData.totalLiabilities || 0,
+            color: 'amber',
+          },
+          {
+            title: 'Total Equity',
+            value: reportData.totalEquity || 0,
+            color: 'purple',
+          },
+        ];
+      case 'cash-flow':
+        return [
+          {
+            title: 'Total Inflows',
+            value: reportData.totalInflow || 0,
+            color: 'green',
+          },
+          {
+            title: 'Total Outflows',
+            value: reportData.totalOutflow || 0,
+            color: 'red',
+          },
+          {
+            title: 'Net Cash Flow',
+            value: reportData.netCashFlow || 0,
+            color: reportData.netCashFlow >= 0 ? 'green' : 'red',
+          },
+        ];
+      case 'trial-balance':
+        return [
+          {
+            title: 'Total Debits',
+            value: reportData.totalDebits || 0,
+            color: 'blue',
+          },
+          {
+            title: 'Total Credits',
+            value: reportData.totalCredits || 0,
+            color: 'blue',
+          },
+          {
+            title: 'Status',
+            value: reportData.isBalanced ? 'Balanced' : 'Unbalanced',
+            color: reportData.isBalanced ? 'green' : 'red',
+            format: 'text',
+          },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const kpis = getKPIs();
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-4xl font-bold text-neutral-900">Financial Reports</h1>
-        <p className="text-neutral-600 mt-2">Generate and view financial statements</p>
+        <p className="text-neutral-600 mt-2">Generate and analyze comprehensive financial statements</p>
       </div>
 
-      {/* Report Generator */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Generate Report</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <FormField label="Report Type">
-              <select
-                value={reportType}
-                onChange={(e) => setReportType(e.target.value)}
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-mahogany-700"
-              >
-                <option value="pl">Profit & Loss Statement</option>
-                <option value="bs">Balance Sheet</option>
-              </select>
-            </FormField>
+      {/* Report Filters */}
+      <ReportFilters
+        reportType={reportType}
+        onReportTypeChange={handleReportTypeChange}
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        onReset={handleReset}
+        loading={loading}
+      />
 
-            <FormField label="Start Date">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </FormField>
+      {/* Generate Button */}
+      <div className="flex justify-center">
+        <Button
+          variant="primary"
+          onClick={fetchReport}
+          isLoading={loading}
+          disabled={loading}
+          size="lg"
+        >
+          <BarChart3 size={18} className="mr-2" />
+          Generate Report
+        </Button>
+      </div>
 
-            <FormField label="End Date">
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </FormField>
-          </div>
+      {/* Error State */}
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6 flex items-center gap-3">
+            <AlertCircle size={20} className="text-red-600" />
+            <div>
+              <p className="font-semibold text-red-900">Error</p>
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          <Button
-            variant="primary"
-            onClick={handleGenerateReport}
-            isLoading={loading}
-            fullWidth
-          >
-            <BarChart3 size={18} />
-            Generate Report
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Loading State */}
+      {loading && (
+        <Card>
+          <CardContent className="pt-12 text-center">
+            <Loader size={48} className="mx-auto text-neutral-400 mb-4 animate-spin" />
+            <p className="text-neutral-600">Generating report...</p>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Report Tabs */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Quick Reports */}
-        <div className="lg:col-span-1 space-y-3">
-          <h3 className="font-semibold text-neutral-900">Quick Reports</h3>
-          <Button
-            variant="outline"
-            fullWidth
-            onClick={() => {
-              setReportType('pl');
-              const today = new Date();
-              const startOfYear = new Date(today.getFullYear(), 0, 1);
-              setStartDate(startOfYear.toISOString().split('T')[0]);
-              setEndDate(today.toISOString().split('T')[0]);
-              setPeriod(`${startOfYear.toISOString().split('T')[0]} to ${today.toISOString().split('T')[0]}`);
-            }}
-          >
-            <FileText size={16} />
-            YTD P&L
-          </Button>
-          <Button
-            variant="outline"
-            fullWidth
-            onClick={() => {
-              setReportType('bs');
-              const today = new Date();
-              setStartDate(today.toISOString().split('T')[0]);
-              setEndDate(today.toISOString().split('T')[0]);
-              setPeriod(`As of ${today.toISOString().split('T')[0]}`);
-            }}
-          >
-            <FileText size={16} />
-            Current Balance Sheet
-          </Button>
-        </div>
-
-        {/* Report Display */}
-        <div className="lg:col-span-3">
-          {period ? (
-            <ReportRenderer
-              title={reportType === 'pl' ? 'Profit & Loss Statement' : 'Balance Sheet'}
-              reportType={reportType}
-              data={reportType === 'pl' ? plData : bsData}
-              period={period}
-              loading={loading}
-            />
-          ) : (
-            <Card>
-              <CardContent className="pt-12 text-center">
-                <BarChart3 size={48} className="mx-auto text-neutral-300 mb-4" />
-                <p className="text-neutral-600">Select dates and generate a report to view it here</p>
-              </CardContent>
-            </Card>
+      {/* Report Content */}
+      {reportData && !loading && (
+        <>
+          {/* KPI Cards */}
+          {kpis.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {kpis.map((kpi, idx) => (
+                <KPICard
+                  key={idx}
+                  title={kpi.title}
+                  value={kpi.value}
+                  color={kpi.color}
+                  format={kpi.format || 'currency'}
+                />
+              ))}
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* Report History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Reports</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {[
-              { name: 'Profit & Loss - Jan 2026', date: '2026-01-31', type: 'P&L' },
-              { name: 'Balance Sheet - Dec 2025', date: '2025-12-31', type: 'BS' },
-              { name: 'Profit & Loss - Dec 2025', date: '2025-12-31', type: 'P&L' },
-            ].map((report, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <FileText size={20} className="text-mahogany-700" />
-                  <div>
-                    <p className="font-medium text-neutral-900">{report.name}</p>
-                    <p className="text-xs text-neutral-600">{report.date}</p>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm">
-                  View
-                </Button>
-              </div>
-            ))}
+          {/* Report Actions */}
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={handlePrint}>
+              <Printer size={16} className="mr-2" />
+              Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+              <Download size={16} className="mr-2" />
+              Download PDF
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Report Display */}
+          <Card>
+            <CardContent className="pt-8" ref={printRef}>
+              {/* Report Header */}
+              <div className="text-center mb-8 pb-6 border-b-2 border-neutral-900">
+                <h1 className="text-2xl font-bold text-neutral-900">Alliance Française</h1>
+                <p className="text-neutral-600 mt-1">Financial Management System</p>
+                <h2 className="text-xl font-semibold text-neutral-900 mt-4">
+                  {reportType === 'trial-balance' && 'Trial Balance'}
+                  {reportType === 'income-statement' && 'Profit & Loss Statement'}
+                  {reportType === 'balance-sheet' && 'Balance Sheet'}
+                  {reportType === 'cash-flow' && 'Cash Flow Statement'}
+                  {reportType === 'general-ledger' && 'General Ledger'}
+                </h2>
+                {(filters.startDate || filters.endDate) && (
+                  <p className="text-sm text-neutral-600 mt-2">
+                    For the period: {filters.startDate ? new Date(filters.startDate).toLocaleDateString() : 'N/A'} to {filters.endDate ? new Date(filters.endDate).toLocaleDateString() : 'N/A'}
+                  </p>
+                )}
+                {filters.asOfDate && (
+                  <p className="text-sm text-neutral-600 mt-2">
+                    As of: {new Date(filters.asOfDate).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+
+              {/* Report Content */}
+              {reportType === 'trial-balance' && (
+                <TrialBalanceReport data={reportData} asOfDate={filters.asOfDate} />
+              )}
+              {reportType === 'income-statement' && (
+                <IncomeStatementReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
+              )}
+              {reportType === 'balance-sheet' && (
+                <BalanceSheetReport data={reportData} asOfDate={filters.asOfDate} />
+              )}
+              {reportType === 'cash-flow' && (
+                <CashFlowReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
+              )}
+
+              {/* Report Footer */}
+              <div className="mt-12 pt-6 border-t-2 border-neutral-900 text-center text-xs text-neutral-600">
+                <p>Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</p>
+                <p>This is a computer-generated report and does not require a signature.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Empty State */}
+      {!reportData && !loading && !error && (
+        <Card>
+          <CardContent className="pt-12 text-center">
+            <BarChart3 size={48} className="mx-auto text-neutral-300 mb-4" />
+            <p className="text-neutral-600">Select filters and click "Generate Report" to view financial statements</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

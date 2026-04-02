@@ -70,12 +70,16 @@ class AccountingService {
       const startBalanceData = await this.calculateAccountBalance(account._id, new Date(startDate));
       const periodBalance = balanceData.balance - startBalanceData.balance;
       
-      if (periodBalance !== 0) {
+      // Revenue accounts have natural credit balance. In our calculation, credit is negative.
+      // So we negate it for display.
+      const displayAmount = -periodBalance;
+      
+      if (displayAmount !== 0) {
         revenueList.push({
           accountName: account.accountName,
-          amount: periodBalance,
+          amount: displayAmount,
         });
-        totalRevenue += periodBalance;
+        totalRevenue += displayAmount;
       }
     }
 
@@ -86,6 +90,7 @@ class AccountingService {
       const startBalanceData = await this.calculateAccountBalance(account._id, new Date(startDate));
       const periodBalance = balanceData.balance - startBalanceData.balance;
 
+      // Expense accounts have natural debit balance (positive).
       if (periodBalance !== 0) {
         expenseList.push({
           accountName: account.accountName,
@@ -137,9 +142,11 @@ class AccountingService {
     let totalLiabilities = 0;
     for (const account of liabilities) {
       const balanceData = await this.calculateAccountBalance(account._id, asOfDate);
-      if (balanceData.balance !== 0) {
-        liabilityList.push({ accountName: account.accountName, amount: balanceData.balance });
-        totalLiabilities += balanceData.balance;
+      // Liabilities are natural credit (negative). Negate for display.
+      const displayAmount = -balanceData.balance;
+      if (displayAmount !== 0) {
+        liabilityList.push({ accountName: account.accountName, amount: displayAmount });
+        totalLiabilities += displayAmount;
       }
     }
 
@@ -147,9 +154,11 @@ class AccountingService {
     let totalEquity = 0;
     for (const account of equity) {
       const balanceData = await this.calculateAccountBalance(account._id, asOfDate);
-      if (balanceData.balance !== 0) {
-        equityList.push({ accountName: account.accountName, amount: balanceData.balance });
-        totalEquity += balanceData.balance;
+      // Equity is natural credit (negative). Negate for display.
+      const displayAmount = -balanceData.balance;
+      if (displayAmount !== 0) {
+        equityList.push({ accountName: account.accountName, amount: displayAmount });
+        totalEquity += displayAmount;
       }
     }
 
@@ -168,6 +177,62 @@ class AccountingService {
       equity: equityList,
       totalEquity,
       isBalanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1,
+    };
+  }
+
+  static async generateCashFlowStatement(startDate, endDate) {
+    // Simplified Cash Flow (Direct Method)
+    // In a real system, we'd categorize accounts into Operating, Investing, Financing
+    const cashAccounts = await ChartOfAccounts.find({
+      accountName: { $regex: /cash|bank/i },
+      deletedAt: null,
+    }).lean();
+    
+    const cashAccountIds = cashAccounts.map(a => a._id);
+    
+    const startBalance = await Promise.all(cashAccountIds.map(id => this.calculateAccountBalance(id, new Date(new Date(startDate).getTime() - 1))));
+    const endBalance = await Promise.all(cashAccountIds.map(id => this.calculateAccountBalance(id, new Date(endDate))));
+    
+    const totalStart = startBalance.reduce((sum, b) => sum + b.balance, 0);
+    const totalEnd = endBalance.reduce((sum, b) => sum + b.balance, 0);
+    
+    // Get all transactions affecting cash in this period
+    const entries = await JournalEntry.find({
+      "bookEntries.account": { $in: cashAccountIds },
+      status: "posted",
+      deletedAt: null,
+      voucherDate: { $gte: new Date(startDate), $lte: new Date(endDate) }
+    }).populate("bookEntries.account").lean();
+    
+    const inflows = [];
+    const outflows = [];
+    let totalInflow = 0;
+    let totalOutflow = 0;
+    
+    for (const entry of entries) {
+      const cashLines = entry.bookEntries.filter(be => cashAccountIds.some(id => id.equals(be.account._id)));
+      const otherLines = entry.bookEntries.filter(be => !cashAccountIds.some(id => id.equals(be.account._id)));
+      
+      for (const cl of cashLines) {
+        if (cl.debit > 0) {
+          totalInflow += cl.debit;
+          inflows.push({ date: entry.voucherDate, description: entry.description, amount: cl.debit });
+        }
+        if (cl.credit > 0) {
+          totalOutflow += cl.credit;
+          outflows.push({ date: entry.voucherDate, description: entry.description, amount: cl.credit });
+        }
+      }
+    }
+    
+    return {
+      openingBalance: totalStart,
+      inflows,
+      totalInflow,
+      outflows,
+      totalOutflow,
+      netCashFlow: totalInflow - totalOutflow,
+      closingBalance: totalEnd
     };
   }
 
