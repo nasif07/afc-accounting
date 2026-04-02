@@ -26,14 +26,10 @@ const bankSchema = new mongoose.Schema(
     branchName: String,
     accountType: {
       type: String,
-      enum: ["savings", "current"],
+      enum: ["savings", "current", "checking", "money-market"],
       required: true,
     },
     openingBalance: {
-      type: Number,
-      default: 0,
-    },
-    currentBalance: {
       type: Number,
       default: 0,
     },
@@ -45,8 +41,22 @@ const bankSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   { timestamps: true },
 );
+
+bankSchema.index({ accountNumber: 1 }, { unique: true });
+bankSchema.index({ bankName: 1, isActive: 1 });
+bankSchema.index({ createdBy: 1 });
+bankSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model("Bank", bankSchema);
