@@ -16,6 +16,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import DynamicJournalForm from "../components/journal/DynamicJournalForm";
 
 export default function JournalEntries() {
   const dispatch = useDispatch();

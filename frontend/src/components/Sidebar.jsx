@@ -1,74 +1,98 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
+import { useMemo } from "react";
 import { menuSections } from "../constants/menuSection";
 
 export default function Sidebar({ user, isOpen = true }) {
+  const location = useLocation();
   const role = user?.role || "sub-accountant";
+
+  // Filter menu items based on role
+  const authorizedSections = useMemo(() => {
+    return menuSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => item.roles.includes(role)),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [role]);
 
   return (
     <aside
-      className={`bg-white border-r border-gray-200 min-h-screen transition-all duration-300 ${
-        isOpen ? "w-72" : "w-20"
+      className={`bg-white border-r border-gray-100 h-screen sticky top-0 transition-all duration-200 ${
+        isOpen ? "w-64" : "w-20"
       }`}
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }} // Force a clean font
     >
-      <div className="px-4 py-6 border-b border-gray-200">
-        <h1
-          className={`text-xl font-bold text-gray-900 transition-all ${
-            isOpen ? "block" : "hidden"
-          }`}
-        >
-          Accounting ERP
-        </h1>
-        {!isOpen && (
-          <div className="text-center text-lg font-bold text-blue-600">A</div>
-        )}
-        {isOpen && (
-          <p className="text-sm text-gray-500 mt-1">Financial management system</p>
-        )}
+      {/* 1. Simple Header: Just the Brand */}
+      <div className="h-16 flex items-center px-6 border-b border-gray-50">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-[#DA002E] rounded flex items-center justify-center shrink-0">
+            <span className="text-white font-bold text-sm">af</span>
+          </div>
+          {isOpen && (
+            <span className="font-bold text-gray-800 tracking-tight text-sm uppercase">
+              Accounting <span className="text-gray-400 font-medium text-[10px] align-top ml-1">v1.0</span>
+            </span>
+          )}
+        </div>
       </div>
 
-      <nav className="p-4 space-y-6">
-        {menuSections.map((section) => {
-          const filteredItems = section.items.filter((item) =>
-            item.roles.includes(role)
-          );
+      {/* 2. Navigation: High Contrast & Simple */}
+      <nav className="p-3 space-y-6 overflow-y-auto max-h-[calc(100vh-120px)]">
+        {authorizedSections.map((section) => (
+          <div key={section.title}>
+            {isOpen && (
+              <p className="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                {section.title}
+              </p>
+            )}
 
-          if (filteredItems.length === 0) return null;
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const isActive = location.pathname === item.path;
+                const Icon = item.icon;
 
-          return (
-            <div key={section.title}>
-              {isOpen && (
-                <h2 className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
-                  {section.title}
-                </h2>
-              )}
-
-              <div className="space-y-1">
-                {filteredItems.map((item) => {
-                  const Icon = item.icon;
-
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                          isActive
-                            ? "bg-blue-50 text-blue-700"
-                            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                        } ${!isOpen ? "justify-center" : ""}`
-                      }
-                      title={!isOpen ? item.title : ""}
-                    >
-                      <Icon size={18} />
-                      {isOpen && <span>{item.title}</span>}
-                    </NavLink>
-                  );
-                })}
-              </div>
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+                      isActive
+                        ? "bg-gray-100 text-gray-900"
+                        : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                    } ${!isOpen ? "justify-center" : ""}`}
+                  >
+                    <Icon 
+                      size={18} 
+                      className={isActive ? "text-[#DA002E]" : "text-gray-400"} 
+                    />
+                    {isOpen && (
+                      <span className={`text-[13px] ${isActive ? "font-semibold" : "font-medium"}`}>
+                        {item.title}
+                      </span>
+                    )}
+                  </NavLink>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </nav>
+
+      {/* 3. Footer: Basic Identity */}
+      <div className="absolute bottom-0 w-full p-4 border-t border-gray-50">
+        <div className={`flex items-center gap-3 ${!isOpen ? "justify-center" : ""}`}>
+          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 uppercase">
+            {user?.name?.[0] || 'A'}
+          </div>
+          {isOpen && (
+            <div className="leading-tight">
+              <p className="text-[12px] font-bold text-gray-800 truncate">{user?.name || "Accountant"}</p>
+              <p className="text-[10px] text-gray-400 uppercase font-semibold">{role}</p>
+            </div>
+          )}
+        </div>
+      </div>
     </aside>
   );
 }
