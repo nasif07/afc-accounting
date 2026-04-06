@@ -120,7 +120,7 @@ coaSchema.pre("save", async function (next) {
       return next(new Error("Archived account cannot be used as parent"));
     }
 
-    if (!parent.isActive || parent.status === "inactive") {
+    if (parent.status === "inactive") {
       return next(new Error("Inactive account cannot be used as parent"));
     }
 
@@ -160,12 +160,16 @@ coaSchema.pre("save", async function (next) {
 
 // Helpful query middleware to hide soft-deleted records by default
 function excludeDeleted(next) {
-  if (!this.getQuery().includeDeleted) {
-    this.where({ deletedAt: null });
+  const query = this.getQuery();
+  
+  if (query.includeDeleted) {
+    // If includeDeleted is true, remove it from query and don't filter by deletedAt
+    const newQuery = { ...query };
+    delete newQuery.includeDeleted;
+    this.setQuery(newQuery);
   } else {
-    const query = this.getQuery();
-    delete query.includeDeleted;
-    this.setQuery(query);
+    // Default behavior: only show non-deleted records
+    this.where({ deletedAt: null });
   }
   next();
 }
@@ -180,7 +184,6 @@ coaSchema.index({ accountCode: 1 }, { unique: true });
 coaSchema.index({ accountName: 1, accountType: 1 });
 coaSchema.index({ status: 1, accountType: 1 });
 coaSchema.index({ parentAccount: 1, status: 1 });
-// coaSchema.index({ hasChildren: 1 });
 coaSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model("ChartOfAccounts", coaSchema);

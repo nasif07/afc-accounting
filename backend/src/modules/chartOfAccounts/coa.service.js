@@ -19,8 +19,8 @@ class COAService {
   static async getAllAccounts(filters = {}) {
     const query = {};
 
-    if (!filters.includeDeleted) {
-      query.deletedAt = null;
+    if (filters.includeDeleted) {
+      query.includeDeleted = true;
     }
 
     if (filters.status && filters.status !== "all") {
@@ -128,7 +128,8 @@ class COAService {
   }
 
   static async restoreAccount(accountId, userId) {
-    const account = await ChartOfAccounts.findOne({ _id: accountId, status: "archived" });
+    // We need to use includeDeleted: true to find the archived account
+    const account = await ChartOfAccounts.findOne({ _id: accountId, status: "archived", includeDeleted: true });
     if (!account) throw new Error("Archived account not found");
 
     if (account.parentAccount) {
@@ -153,8 +154,8 @@ class COAService {
   static async buildAccountTree(filters = {}) {
     const query = {};
 
-    if (!filters.includeDeleted) {
-      query.deletedAt = null;
+    if (filters.includeDeleted) {
+      query.includeDeleted = true;
     }
 
     if (filters.status && filters.status !== "all") {
