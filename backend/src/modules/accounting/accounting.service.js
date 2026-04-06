@@ -52,7 +52,7 @@ class AccountingService {
 
   static async generateIncomeStatement(startDate, endDate) {
     const revenues = await ChartOfAccounts.find({
-      accountType: "Revenue",
+      accountType: "Income",
       deletedAt: null,
       status: "active",
     }).lean();

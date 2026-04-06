@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Download, Printer, BarChart3, AlertCircle, Loader } from 'lucide-react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import KPICard from '../components/reports/KPICard';
 import ReportFilters from '../components/reports/ReportFilters';
@@ -9,14 +8,11 @@ import TrialBalanceReport from '../components/reports/TrialBalanceReport';
 import IncomeStatementReport from '../components/reports/IncomeStatementReport';
 import BalanceSheetReport from '../components/reports/BalanceSheetReport';
 import CashFlowReport from '../components/reports/CashFlowReport';
-import GeneralLedgerReport from '../components/reports/GeneralLedgerReport';
-import { formatCurrency } from '../utils/currency';
 import { toast } from 'sonner';
-import api from '../services/api'; // Use the configured axios instance
+import api from '../services/api';
 
 export default function Reports() {
-  const dispatch = useDispatch();
-  const printRef = useRef();
+  const printRef = useRef(null);
 
   const [reportType, setReportType] = useState('trial-balance');
   const [filters, setFilters] = useState({
@@ -25,13 +21,11 @@ export default function Reports() {
     asOfDate: new Date().toISOString().split('T')[0],
     viewType: 'detailed',
   });
+
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
 
-  const user = useSelector(state => state.auth.user);
-
-  // Fetch report data
   const fetchReport = async () => {
     setLoading(true);
     setError(null);
@@ -39,38 +33,43 @@ export default function Reports() {
 
     try {
       let endpoint = '/accounting/journal-entries';
-      let params = {};
+      const params = {};
 
       switch (reportType) {
         case 'trial-balance':
           endpoint += '/trial-balance';
           if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
+
         case 'income-statement':
           endpoint += '/income-statement';
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
+
         case 'balance-sheet':
           endpoint += '/balance-sheet';
           if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
+
         case 'cash-flow':
           endpoint += '/cash-flow';
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
+
         default:
-          throw new Error('Invalid report type');
+          throw new Error('Invalid report type selected');
       }
 
-      // Use the axios instance which handles withCredentials (cookies) automatically
       const response = await api.get(endpoint, { params });
-      
-      setReportData(response.data.data);
+      setReportData(response?.data?.data || null);
       toast.success('Report generated successfully');
     } catch (err) {
-      const message = err.response?.data?.message || err.message || 'Failed to generate report';
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to generate report';
       setError(message);
       toast.error(message);
     } finally {
@@ -78,19 +77,19 @@ export default function Reports() {
     }
   };
 
-  // Handle filter changes
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
-  // Handle report type change
   const handleReportTypeChange = (type) => {
     setReportType(type);
     setReportData(null);
     setError(null);
   };
 
-  // Reset filters
   const handleReset = () => {
     setFilters({
       startDate: '',
@@ -102,46 +101,138 @@ export default function Reports() {
     setError(null);
   };
 
-  // Print report
   const handlePrint = () => {
     if (!printRef.current) return;
-    const printWindow = window.open('', '', 'height=600,width=800');
-    printWindow.document.write('<html><head><title>Print Report</title>');
-    printWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">');
-    printWindow.document.write('</head><body>');
-    printWindow.document.write(printRef.current.innerHTML);
-    printWindow.document.write('</body></html>');
+
+    const printWindow = window.open('', '', 'height=700,width=1000');
+    if (!printWindow) {
+      toast.error('Unable to open print window');
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Report</title>
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+          <style>
+            body {
+              padding: 24px;
+              font-family: Arial, sans-serif;
+              color: #111827;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            th, td {
+              padding: 8px;
+              border: 1px solid #e5e7eb;
+              text-align: left;
+            }
+          </style>
+        </head>
+        <body>
+          ${printRef.current.innerHTML}
+        </body>
+      </html>
+    `);
+
     printWindow.document.close();
+
     setTimeout(() => {
+      printWindow.focus();
       printWindow.print();
     }, 500);
   };
 
-  // Download as PDF
-  const handleDownloadPDF = async () => {
-    try {
-      const element = printRef.current;
-      if (!element) return;
-
-      // Dynamic import of html2pdf
-      const html2pdf = (await import('html2pdf.js')).default;
-      
-      const opt = {
-        margin: 10,
-        filename: `${reportType}-${new Date().toISOString().split('T')[0]}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-      };
-
-      html2pdf().set(opt).from(element).save();
-      toast.success('Report downloaded successfully');
-    } catch (err) {
-      toast.error('Failed to download PDF. Please try again.');
+const handleDownloadPDF = async () => {
+  try {
+    const source = printRef.current;
+    if (!source) {
+      toast.error('No report content found to export');
+      return;
     }
-  };
 
-  // Calculate KPIs based on report data
+    const html2pdfModule = await import('html2pdf.js');
+    const html2pdf = html2pdfModule.default || html2pdfModule;
+
+    // Create a clean export container
+    const exportWrapper = document.createElement('div');
+    exportWrapper.style.position = 'fixed';
+    exportWrapper.style.left = '0';
+    exportWrapper.style.top = '0';
+    exportWrapper.style.width = '794px'; // A4-ish content width in px
+    exportWrapper.style.background = '#ffffff';
+    exportWrapper.style.color = '#111827';
+    exportWrapper.style.padding = '24px';
+    exportWrapper.style.zIndex = '-1';
+    exportWrapper.style.opacity = '1';
+    exportWrapper.style.pointerEvents = 'none';
+
+    // Clone the report content
+    const clone = source.cloneNode(true);
+    exportWrapper.appendChild(clone);
+    document.body.appendChild(exportWrapper);
+
+    // Force plain export-safe styling
+    const all = exportWrapper.querySelectorAll('*');
+    all.forEach((node) => {
+      if (!(node instanceof HTMLElement)) return;
+
+      node.style.boxShadow = 'none';
+      node.style.textShadow = 'none';
+      node.style.filter = 'none';
+      node.style.backdropFilter = 'none';
+      node.style.borderColor = '#d1d5db';
+
+      const text = window.getComputedStyle(node).color;
+      const bg = window.getComputedStyle(node).backgroundColor;
+
+      if (text && text.includes('oklch')) {
+        node.style.color = '#111827';
+      }
+
+      if (bg && bg.includes('oklch')) {
+        node.style.backgroundColor = '#ffffff';
+      }
+    });
+
+    // Give the browser a moment to render the clone
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const options = {
+      margin: 10,
+      filename: `${reportType}-${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      },
+      jsPDF: {
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+      },
+      pagebreak: { mode: ['css', 'legacy'] },
+    };
+
+    await html2pdf().set(options).from(exportWrapper).save();
+
+    document.body.removeChild(exportWrapper);
+    toast.success('Report downloaded successfully');
+  } catch (err) {
+    console.error('PDF export error:', err);
+    toast.error(
+      typeof err?.message === 'string'
+        ? err.message
+        : 'Failed to export PDF'
+    );
+  }
+};
+
   const getKPIs = () => {
     if (!reportData) return [];
 
@@ -164,6 +255,7 @@ export default function Reports() {
             color: reportData.netIncome >= 0 ? 'green' : 'red',
           },
         ];
+
       case 'balance-sheet':
         return [
           {
@@ -182,6 +274,7 @@ export default function Reports() {
             color: 'purple',
           },
         ];
+
       case 'cash-flow':
         return [
           {
@@ -200,6 +293,7 @@ export default function Reports() {
             color: reportData.netCashFlow >= 0 ? 'green' : 'red',
           },
         ];
+
       case 'trial-balance':
         return [
           {
@@ -219,6 +313,7 @@ export default function Reports() {
             format: 'text',
           },
         ];
+
       default:
         return [];
     }
@@ -228,12 +323,14 @@ export default function Reports() {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-4xl font-bold text-neutral-900">Financial Reports</h1>
-          <p className="text-neutral-600 mt-2">Generate and analyze comprehensive financial statements</p>
+          <p className="mt-2 text-neutral-600">
+            Generate and analyze comprehensive financial statements
+          </p>
         </div>
+
         <div className="flex gap-3">
           <Button
             variant="primary"
@@ -249,7 +346,6 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Report Filters */}
       <ReportFilters
         reportType={reportType}
         onReportTypeChange={handleReportTypeChange}
@@ -259,35 +355,31 @@ export default function Reports() {
         loading={loading}
       />
 
-      {/* Error State */}
       {error && (
         <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6 flex items-center gap-3">
+          <CardContent className="flex items-center gap-3 pt-6">
             <AlertCircle size={20} className="text-red-600" />
             <div>
               <p className="font-semibold text-red-900">Error</p>
-              <p className="text-red-700 text-sm">{error}</p>
+              <p className="text-sm text-red-700">{error}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Loading State */}
       {loading && (
         <Card>
           <CardContent className="pt-12 text-center">
-            <Loader size={48} className="mx-auto text-neutral-400 mb-4 animate-spin" />
+            <Loader size={48} className="mx-auto mb-4 animate-spin text-neutral-400" />
             <p className="text-neutral-600">Generating report...</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Report Content */}
       {reportData && !loading && (
         <>
-          {/* KPI Cards */}
           {kpis.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {kpis.map((kpi, idx) => (
                 <KPICard
                   key={idx}
@@ -300,8 +392,7 @@ export default function Reports() {
             </div>
           )}
 
-          {/* Report Actions */}
-          <div className="flex gap-2 justify-end">
+          <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={handlePrint}>
               <Printer size={16} className="mr-2" />
               Print
@@ -312,53 +403,79 @@ export default function Reports() {
             </Button>
           </div>
 
-          {/* Report Display */}
-          <Card className="shadow-xl border-t-4 border-mahogany-700">
+          <Card className="border-t-4 border-mahogany-700 shadow-xl">
             <CardContent className="pt-8" ref={printRef}>
-              {/* Report Header */}
-              <div className="text-center mb-8 pb-6 border-b-2 border-neutral-900">
-                <h1 className="text-2xl font-bold text-neutral-900 uppercase tracking-wider">Alliance Française</h1>
-                <p className="text-neutral-600 mt-1 font-medium">Financial Management System</p>
-                <div className="mt-6 inline-block px-4 py-1 bg-neutral-900 text-white rounded-full text-sm font-bold uppercase tracking-widest">
+              <div className="mb-8 border-b-2 border-neutral-900 pb-6 text-center">
+                <h1 className="text-2xl font-bold uppercase tracking-wider text-neutral-900">
+                  Alliance Française
+                </h1>
+                <p className="mt-1 font-medium text-neutral-600">
+                  Financial Management System
+                </p>
+
+                <div className="mt-6 inline-block rounded-full bg-neutral-900 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white">
                   {reportType === 'trial-balance' && 'Trial Balance'}
                   {reportType === 'income-statement' && 'Profit & Loss Statement'}
                   {reportType === 'balance-sheet' && 'Balance Sheet'}
                   {reportType === 'cash-flow' && 'Cash Flow Statement'}
-                  {reportType === 'general-ledger' && 'General Ledger'}
                 </div>
+
                 <div className="mt-4 flex flex-col items-center gap-1">
-                  {(filters.startDate || filters.endDate) && (
-                    <p className="text-sm text-neutral-600">
-                      <span className="font-semibold">Period:</span> {filters.startDate ? new Date(filters.startDate).toLocaleDateString() : 'N/A'} to {filters.endDate ? new Date(filters.endDate).toLocaleDateString() : 'N/A'}
-                    </p>
-                  )}
-                  {filters.asOfDate && (
-                    <p className="text-sm text-neutral-600">
-                      <span className="font-semibold">As of:</span> {new Date(filters.asOfDate).toLocaleDateString()}
-                    </p>
-                  )}
+                  {(filters.startDate || filters.endDate) &&
+                    (reportType === 'income-statement' || reportType === 'cash-flow') && (
+                      <p className="text-sm text-neutral-600">
+                        <span className="font-semibold">Period:</span>{' '}
+                        {filters.startDate
+                          ? new Date(filters.startDate).toLocaleDateString()
+                          : 'N/A'}{' '}
+                        to{' '}
+                        {filters.endDate
+                          ? new Date(filters.endDate).toLocaleDateString()
+                          : 'N/A'}
+                      </p>
+                    )}
+
+                  {filters.asOfDate &&
+                    (reportType === 'trial-balance' || reportType === 'balance-sheet') && (
+                      <p className="text-sm text-neutral-600">
+                        <span className="font-semibold">As of:</span>{' '}
+                        {new Date(filters.asOfDate).toLocaleDateString()}
+                      </p>
+                    )}
                 </div>
               </div>
 
-              {/* Report Content */}
               <div className="min-h-[400px]">
                 {reportType === 'trial-balance' && (
                   <TrialBalanceReport data={reportData} asOfDate={filters.asOfDate} />
                 )}
+
                 {reportType === 'income-statement' && (
-                  <IncomeStatementReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
+                  <IncomeStatementReport
+                    data={reportData}
+                    startDate={filters.startDate}
+                    endDate={filters.endDate}
+                  />
                 )}
+
                 {reportType === 'balance-sheet' && (
                   <BalanceSheetReport data={reportData} asOfDate={filters.asOfDate} />
                 )}
+
                 {reportType === 'cash-flow' && (
-                  <CashFlowReport data={reportData} startDate={filters.startDate} endDate={filters.endDate} />
+                  <CashFlowReport
+                    data={reportData}
+                    startDate={filters.startDate}
+                    endDate={filters.endDate}
+                  />
                 )}
               </div>
 
-              {/* Report Footer */}
-              <div className="mt-12 pt-6 border-t border-neutral-200 text-center text-xs text-neutral-500 italic">
-                <p>Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</p>
+              <div className="mt-12 border-t border-neutral-200 pt-6 text-center text-xs italic text-neutral-500">
+                <p>
+                  Generated on {new Date().toLocaleDateString()} at{' '}
+                  {new Date().toLocaleTimeString()}
+                </p>
                 <p>This is a computer-generated report and does not require a signature.</p>
               </div>
             </CardContent>
@@ -366,22 +483,18 @@ export default function Reports() {
         </>
       )}
 
-      {/* Empty State */}
       {!reportData && !loading && !error && (
-        <Card className="border-dashed border-2 border-neutral-200 bg-neutral-50">
+        <Card className="border-2 border-dashed border-neutral-200 bg-neutral-50">
           <CardContent className="py-20 text-center">
-            <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
               <BarChart3 size={40} className="text-neutral-300" />
             </div>
-            <h3 className="text-xl font-bold text-neutral-900 mb-2">No Report Generated</h3>
-            <p className="text-neutral-600 max-w-md mx-auto mb-8">
-              Select your report type and date filters above, then click the "Generate Report" button to view your financial statements.
+            <h3 className="mb-2 text-xl font-bold text-neutral-900">No Report Generated</h3>
+            <p className="mx-auto mb-8 max-w-md text-neutral-600">
+              Select your report type and date filters above, then click the
+              "Generate Report" button to view your financial statements.
             </p>
-            <Button
-              variant="primary"
-              onClick={fetchReport}
-              size="lg"
-            >
+            <Button variant="primary" onClick={fetchReport} size="lg">
               <BarChart3 size={18} className="mr-2" />
               Generate Report Now
             </Button>

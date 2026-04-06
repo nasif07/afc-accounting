@@ -1,8 +1,6 @@
 const ChartOfAccounts = require("./coa.model");
 
 class COAService {
-  // refreshParentHasChildren is no longer needed as hasChildren is calculated dynamically
-
   static async hasRealChildren(accountId) {
     return !!(await ChartOfAccounts.exists({
       parentAccount: accountId,
@@ -21,13 +19,72 @@ class COAService {
     }));
   }
 
+  static async validateParentAccount({
+    accountId = null,
+    parentAccountId,
+    accountType,
+  }) {
+    if (!parentAccountId) return null;
+
+    if (accountId && parentAccountId.toString() === accountId.toString()) {
+      throw new Error("Account cannot be its own parent");
+    }
+
+    const parent = await ChartOfAccounts.findOne({
+      _id: parentAccountId,
+      deletedAt: null,
+      status: { $ne: "archived" },
+    });
+
+    if (!parent) {
+      throw new Error("Parent account not found");
+    }
+
+    if (parent.status !== "active") {
+      throw new Error("Only active accounts can be used as parent");
+    }
+
+    if (parent.accountType !== accountType) {
+      throw new Error("Parent account type must match");
+    }
+
+    // circular parent protection
+    let current = parent;
+    const visited = new Set();
+
+    while (current) {
+      const currentId = current._id.toString();
+
+      if (visited.has(currentId)) {
+        throw new Error("Circular parent reference detected");
+      }
+
+      if (accountId && currentId === accountId.toString()) {
+        throw new Error("Circular parent reference detected");
+      }
+
+      visited.add(currentId);
+
+      if (!current.parentAccount) break;
+
+      current = await ChartOfAccounts.findOne({
+        _id: current.parentAccount,
+        deletedAt: null,
+        status: { $ne: "archived" },
+      });
+    }
+
+    return parent;
+  }
+
   static async createAccount(accountData) {
+    await this.validateParentAccount({
+      parentAccountId: accountData.parentAccount,
+      accountType: accountData.accountType,
+    });
+
     const account = new ChartOfAccounts(accountData);
     await account.save();
-
-    if (account.parentAccount) {
-      // No need to refresh hasChildren
-    }
 
     return account;
   }
@@ -38,25 +95,32 @@ class COAService {
       status: { $ne: "archived" },
     };
 
-    if (filters.accountType) query.accountType = filters.accountType;
-    if (filters.isActive !== undefined) query.isActive = filters.isActive;
+    if (filters.accountType) {
+      query.accountType = filters.accountType;
+    }
+
+    if (filters.status) {
+      query.status = filters.status;
+    }
 
     const accounts = await ChartOfAccounts.find(query)
       .populate("createdBy", "name email")
-      .sort({ createdAt: -1 });
+      .populate("parentAccount", "accountCode accountName accountType status")
+      .sort({ accountCode: 1 });
 
-    if (filters.leafNodesOnly) {
-      const leafAccounts = [];
-      for (const account of accounts) {
-        const hasChildren = await this.hasRealChildren(account._id);
-        if (!hasChildren) {
-          leafAccounts.push(account);
-        }
-      }
-      return leafAccounts;
+    if (!filters.leafNodesOnly) {
+      return accounts;
     }
 
-    return accounts;
+    const leafAccounts = [];
+    for (const account of accounts) {
+      const hasChildren = await this.hasRealChildren(account._id);
+      if (!hasChildren) {
+        leafAccounts.push(account);
+      }
+    }
+
+    return leafAccounts;
   }
 
   static async getAccountById(accountId) {
@@ -65,7 +129,8 @@ class COAService {
       deletedAt: null,
     })
       .populate("createdBy", "name email")
-      .populate("parentAccount");
+      .populate("deletedBy", "name email")
+      .populate("parentAccount", "accountCode accountName accountType status");
   }
 
   static async updateAccount(accountId, updateData) {
@@ -82,26 +147,22 @@ class COAService {
       throw new Error("Archived account cannot be updated");
     }
 
-    const oldParentId = existingAccount.parentAccount
-      ? existingAccount.parentAccount.toString()
-      : null;
+    const hasTransactions = await this.hasRealTransactions(accountId);
+    const hasChildren = await this.hasRealChildren(accountId);
 
+    // determine effective future values
+    const nextAccountType =
+      updateData.accountType || existingAccount.accountType;
     const nextParentId =
       updateData.parentAccount !== undefined
         ? updateData.parentAccount || null
-        : oldParentId;
+        : existingAccount.parentAccount || null;
 
-    if (nextParentId && nextParentId.toString() === accountId.toString()) {
-      throw new Error("Account cannot be its own parent");
-    }
-
+    // protect account type change
     if (
       updateData.accountType &&
       updateData.accountType !== existingAccount.accountType
     ) {
-      const hasTransactions = await this.hasRealTransactions(accountId);
-      const hasChildren = await this.hasRealChildren(accountId);
-
       if (hasTransactions) {
         throw new Error(
           "Cannot change account type of an account with transactions",
@@ -113,95 +174,169 @@ class COAService {
       }
     }
 
-    if (updateData.parentAccount) {
-      const newParent = await ChartOfAccounts.findOne({
-        _id: updateData.parentAccount,
-        deletedAt: null,
-      });
-
-      if (!newParent) {
-        throw new Error("Parent account not found");
-      }
-
-      if (newParent.status === "archived" || !newParent.isActive) {
-        throw new Error(
-          "Inactive or archived account cannot be used as parent",
-        );
-      }
-
-      const effectiveType =
-        updateData.accountType || existingAccount.accountType;
-      if (newParent.accountType !== effectiveType) {
-        throw new Error("Parent account type must match");
+    // protect parent change
+    if (
+      updateData.parentAccount !== undefined &&
+      String(nextParentId || "") !== String(existingAccount.parentAccount || "")
+    ) {
+      if (hasTransactions) {
+        throw new Error("Cannot change parent of an account with transactions");
       }
     }
 
-    const updatedAccount = await ChartOfAccounts.findByIdAndUpdate(
+    await this.validateParentAccount({
       accountId,
-      updateData,
-      {
-        new: true,
-        runValidators: true,
-      },
-    );
+      parentAccountId: nextParentId,
+      accountType: nextAccountType,
+    });
 
-    const normalizedNewParentId = updatedAccount.parentAccount
-      ? updatedAccount.parentAccount.toString()
-      : null;
+    // protect status changes
+    if (updateData.status) {
+      if (!["active", "inactive", "archived"].includes(updateData.status)) {
+        throw new Error("Invalid account status");
+      }
 
-    // No need to refresh hasChildren
+      if (updateData.status === "archived") {
+        throw new Error(
+          "Use archiveAccount() instead of directly setting archived status",
+        );
+      }
 
-    return updatedAccount;
+      if (updateData.status === "inactive" && hasChildren) {
+        throw new Error(
+          "Cannot inactivate a parent account with child accounts",
+        );
+      }
+    }
+
+    // keep document-based save so model hooks/validators are safer
+    Object.keys(updateData).forEach((key) => {
+      existingAccount[key] = updateData[key];
+    });
+
+    await existingAccount.save();
+
+    return await this.getAccountById(existingAccount._id);
   }
 
-  static async deleteAccount(accountId, userId) {
+  static async updateAccountStatus(accountId, status, userId = null) {
     const account = await ChartOfAccounts.findOne({
       _id: accountId,
       deletedAt: null,
     });
 
-    if (!account) throw new Error("Account not found");
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    if (!["active", "inactive", "archived"].includes(status)) {
+      throw new Error("Invalid account status");
+    }
+
+    if (status === "archived") {
+      return await this.archiveAccount(accountId, userId);
+    }
+
+    const hasChildren = await this.hasRealChildren(accountId);
+
+    if (status === "inactive" && hasChildren) {
+      throw new Error("Cannot inactivate a parent account with child accounts");
+    }
+
+    account.status = status;
+
+    if (userId) {
+      account.updatedBy = userId;
+    }
+
+    await account.save();
+
+    return await this.getAccountById(account._id);
+  }
+
+  static async archiveAccount(accountId, userId) {
+    const account = await ChartOfAccounts.findOne({
+      _id: accountId,
+      deletedAt: null,
+    });
+
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    if (account.status === "archived") {
+      return account;
+    }
 
     const hasTransactions = await this.hasRealTransactions(accountId);
-    if (hasTransactions || account.hasTransactions) {
-      throw new Error("Cannot delete account with existing transactions");
+    if (hasTransactions) {
+      throw new Error("Cannot archive account with existing transactions");
     }
 
     const hasChildren = await this.hasRealChildren(accountId);
     if (hasChildren) {
-      throw new Error("Cannot delete account with child accounts");
+      throw new Error("Cannot archive account with child accounts");
     }
 
-    const updated = await ChartOfAccounts.findByIdAndUpdate(
-      accountId,
-      {
-        status: "archived",
-        isActive: false,
-        deletedAt: new Date(),
-        deletedBy: userId,
-      },
-      { new: true },
-    );
+    account.status = "archived";
+    account.deletedAt = new Date();
+    account.deletedBy = userId || null;
+
+    await account.save();
+
+    return account;
+  }
+
+  static async restoreAccount(accountId) {
+    const account = await ChartOfAccounts.findById(accountId);
+
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    if (!account.deletedAt && account.status !== "archived") {
+      return account;
+    }
 
     if (account.parentAccount) {
-      // No need to refresh hasChildren
+      const parent = await ChartOfAccounts.findOne({
+        _id: account.parentAccount,
+        deletedAt: null,
+        status: "active",
+      });
+
+      if (!parent) {
+        throw new Error(
+          "Cannot restore account because parent is missing or inactive",
+        );
+      }
     }
 
-    return updated;
+    account.status = "active";
+    account.deletedAt = null;
+    account.deletedBy = null;
+
+    await account.save();
+
+    return await this.getAccountById(account._id);
   }
 
   static async getAccountsByType(accountType) {
     return await ChartOfAccounts.find({
       accountType,
-      isActive: true,
       status: "active",
       deletedAt: null,
-    });
+    }).sort({ accountCode: 1 });
   }
 
   static async getAccountBalance(accountId, asOfDate = new Date()) {
     const AccountingService = require("../accounting/accounting.service");
-    const balanceData = await AccountingService.calculateAccountBalance(accountId, asOfDate);
+
+    const balanceData = await AccountingService.calculateAccountBalance(
+      accountId,
+      asOfDate,
+    );
+
     return balanceData.balance;
   }
 
@@ -241,10 +376,13 @@ class COAService {
       status: "active",
     };
 
-    if (filters.accountType) query.accountType = filters.accountType;
+    if (filters.accountType) {
+      query.accountType = filters.accountType;
+    }
 
     const accounts = await ChartOfAccounts.find(query)
       .select("_id accountCode accountName accountType status parentAccount")
+      .sort({ accountCode: 1 })
       .lean();
 
     const leafNodes = [];
@@ -258,73 +396,40 @@ class COAService {
     return leafNodes;
   }
 
-  static async restoreAccount(accountId) {
-    const account = await ChartOfAccounts.findById(accountId);
+static async buildAccountTree({ includeDeleted = false, status = "all" } = {}) {
+  const query = {};
 
-    if (!account) {
-      throw new Error("Account not found");
-    }
-
-    if (!account.deletedAt && account.status !== "archived") {
-      return account;
-    }
-
-    if (account.parentAccount) {
-      const parent = await ChartOfAccounts.findOne({
-        _id: account.parentAccount,
-        deletedAt: null,
-        status: "active",
-        isActive: true,
-      });
-
-      if (!parent) {
-        throw new Error(
-          "Cannot restore account because parent is missing or inactive",
-        );
-      }
-    }
-
-    const restored = await ChartOfAccounts.findByIdAndUpdate(
-      accountId,
-      {
-        status: "active",
-        isActive: true,
-        deletedAt: null,
-        deletedBy: null,
-      },
-      { new: true },
-    );
-
-    // No need to refresh hasChildren
-
-    return restored;
+  if (!includeDeleted) {
+    query.deletedAt = null;
   }
 
-  static async buildAccountTree() {
-    const accounts = await ChartOfAccounts.find({
-      status: "active",
-      deletedAt: null,
-    }).lean();
-
-    const accountMap = {};
-    const roots = [];
-
-    accounts.forEach((acc) => {
-      accountMap[acc._id.toString()] = { ...acc, children: [] };
-    });
-
-    accounts.forEach((acc) => {
-      const parentId = acc.parentAccount ? acc.parentAccount.toString() : null;
-
-      if (parentId && accountMap[parentId]) {
-        accountMap[parentId].children.push(accountMap[acc._id.toString()]);
-      } else {
-        roots.push(accountMap[acc._id.toString()]);
-      }
-    });
-
-    return roots;
+  if (status !== "all") {
+    query.status = status;
   }
+
+  const accounts = await ChartOfAccounts.find(query)
+    .sort({ accountCode: 1 })
+    .lean();
+
+  const accountMap = {};
+  const roots = [];
+
+  accounts.forEach((acc) => {
+    accountMap[acc._id.toString()] = { ...acc, children: [] };
+  });
+
+  accounts.forEach((acc) => {
+    const parentId = acc.parentAccount ? acc.parentAccount.toString() : null;
+
+    if (parentId && accountMap[parentId]) {
+      accountMap[parentId].children.push(accountMap[acc._id.toString()]);
+    } else {
+      roots.push(accountMap[acc._id.toString()]);
+    }
+  });
+
+  return roots;
+}
 
   static async getTrialBalance() {
     const JournalEntry = require("../accounting/accounting.model");

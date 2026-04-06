@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { TRANSACTION_TYPES, APPROVAL_STATUS } = require('../../config/constants');
+const generateVoucherNumber = require('../../utils/generateVoucherNumber');
 
 const bookEntrySchema = new mongoose.Schema(
   {
@@ -92,6 +93,7 @@ bookEntrySchema.pre('validate', async function (next) {
 const journalEntrySchema = new mongoose.Schema(
   {
     voucherNumber: {
+      required: [true, 'Voucher number is required'],
       type: String,
       unique: true,
       trim: true,
@@ -205,9 +207,7 @@ const journalEntrySchema = new mongoose.Schema(
 journalEntrySchema.pre('validate', async function (next) {
   try {
     if (!this.voucherNumber) {
-      const JournalEntry = mongoose.model('JournalEntry');
-      const count = await JournalEntry.countDocuments();
-      this.voucherNumber = `JV-${String(count + 1).padStart(5, '0')}`;
+      this.voucherNumber = await generateVoucherNumber('JV');
     }
     next();
   } catch (error) {

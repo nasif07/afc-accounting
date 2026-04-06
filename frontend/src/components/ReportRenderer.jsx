@@ -79,7 +79,7 @@ const ReportRenderer = React.forwardRef(
                 {/* Revenue Section */}
                 <div>
                   <h3 className="text-lg font-semibold text-neutral-900 mb-4 pb-2 border-b-2 border-neutral-300">
-                    Revenue
+                    Income
                   </h3>
                   <table className="w-full text-sm mb-4">
                     <tbody>
@@ -94,7 +94,7 @@ const ReportRenderer = React.forwardRef(
                     </tbody>
                   </table>
                   <div className="flex justify-between py-2 px-4 bg-neutral-100 rounded">
-                    <span className="font-semibold text-neutral-900">Total Revenue</span>
+                    <span className="font-semibold text-neutral-900">Total Income</span>
                     <span className="font-bold text-neutral-900">
                       {formatCurrency(data.revenue?.total || 0)}
                     </span>

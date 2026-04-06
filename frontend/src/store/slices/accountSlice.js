@@ -1,15 +1,17 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import api from "../../services/api";
 
+// ================= FETCH =================
+
 export const fetchAccounts = createAsyncThunk(
   "accounts/fetchAccounts",
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get("/accounts", { params });
-      return response.data.data || response.data.accounts || response.data;
-    } catch (error) {
+      const res = await api.get("/accounts", { params });
+      return res.data.data;
+    } catch (err) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch accounts",
+        err.response?.data?.message || "Failed to fetch accounts",
       );
     }
   },
@@ -17,87 +19,121 @@ export const fetchAccounts = createAsyncThunk(
 
 export const fetchAccountTree = createAsyncThunk(
   "accounts/fetchAccountTree",
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get("/accounts/tree");
-      return response.data.data || response.data.accounts || response.data;
-    } catch (error) {
+      const { status = "all" } = params;
+
+      const res = await api.get("/accounts/tree", {
+        params: {
+          includeDeleted: true, // ✅ VERY IMPORTANT
+          status,               // active | inactive | archived | all
+        },
+      });
+
+      return res.data.data;
+    } catch (err) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch account tree",
+        err.response?.data?.message || "Failed to fetch tree"
       );
     }
-  },
+  }
 );
 
 export const fetchLeafAccounts = createAsyncThunk(
   "accounts/fetchLeafAccounts",
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get("/accounts/leaf-nodes", { params });
-      return response.data.data || response.data.accounts || response.data;
-    } catch (error) {
+      const res = await api.get("/accounts/leaf-nodes", { params });
+      return res.data.data;
+    } catch (err) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch leaf accounts",
+        err.response?.data?.message || "Failed to fetch leaf accounts",
       );
     }
   },
 );
 
+// ================= CREATE =================
+
 export const createAccount = createAsyncThunk(
   "accounts/createAccount",
-  async (accountData, { rejectWithValue }) => {
+  async (data, { rejectWithValue }) => {
     try {
-      const response = await api.post("/accounts", accountData);
-      return response.data.data || response.data.account || response.data;
-    } catch (error) {
+      const res = await api.post("/accounts", data);
+      return res.data.data;
+    } catch (err) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to create account",
+        err.response?.data?.message || "Failed to create account",
       );
     }
   },
 );
+
+// ================= UPDATE =================
 
 export const updateAccount = createAsyncThunk(
   "accounts/updateAccount",
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/accounts/${id}`, data);
-      return response.data.data || response.data.account || response.data;
-    } catch (error) {
+      const res = await api.patch(`/accounts/${id}`, data);
+      return res.data.data;
+    } catch (err) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to update account",
+        err.response?.data?.message || "Failed to update account",
       );
     }
   },
 );
 
-export const deleteAccount = createAsyncThunk(
-  "accounts/deleteAccount",
-  async (id, { rejectWithValue }) => {
+// ================= STATUS =================
+
+export const updateAccountStatus = createAsyncThunk(
+  "accounts/updateAccountStatus",
+  async ({ id, status }, { rejectWithValue }) => {
     try {
-      await api.delete(`/accounts/${id}`);
-      return id;
-    } catch (error) {
+      const res = await api.patch(`/accounts/${id}/status`, { status });
+      return res.data.data;
+    } catch (err) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to delete account",
+        err.response?.data?.message || "Failed to update status",
       );
     }
   },
 );
+
+// ================= ARCHIVE =================
+
+export const archiveAccount = createAsyncThunk(
+  "accounts/archiveAccount",
+  async (id, { rejectWithValue }) => {
+    try {
+      const res = await api.patch(`/accounts/${id}/archive`);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to archive account",
+      );
+    }
+  },
+);
+
+// ================= RESTORE =================
 
 export const restoreAccount = createAsyncThunk(
   "accounts/restoreAccount",
   async (id, { rejectWithValue }) => {
     try {
-      const response = await api.patch(`/accounts/${id}/restore`);
-      return response.data.data || response.data.account || response.data;
-    } catch (error) {
+      const res = await api.patch(`/accounts/${id}/restore`);
+      return res.data.data;
+    } catch (err) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to restore account",
+        err.response?.data?.message || "Failed to restore account",
       );
     }
   },
 );
+
+// ================= STATE =================
 
 const initialState = {
   accounts: [],
@@ -107,14 +143,16 @@ const initialState = {
   error: null,
 };
 
-const sortAccounts = (accounts) => {
-  return [...accounts].sort((a, b) =>
+// ================= UTILS =================
+
+const sortAccounts = (accounts) =>
+  [...accounts].sort((a, b) =>
     String(a.accountCode).localeCompare(String(b.accountCode), undefined, {
       numeric: true,
-      sensitivity: "base",
     }),
   );
-};
+
+// ================= SLICE =================
 
 const accountSlice = createSlice({
   name: "accounts",
@@ -123,144 +161,63 @@ const accountSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    clearAccountsState: (state) => {
-      state.accounts = [];
-      state.accountTree = [];
-      state.leafAccounts = [];
-      state.isLoading = false;
-      state.error = null;
-    },
   },
   extraReducers: (builder) => {
     builder
-      // fetchAccounts
-      .addCase(fetchAccounts.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
+
+      // FETCH
       .addCase(fetchAccounts.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.accounts = Array.isArray(action.payload)
-          ? sortAccounts(action.payload)
-          : [];
-      })
-      .addCase(fetchAccounts.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.accounts = sortAccounts(action.payload || []);
       })
 
-      // fetchAccountTree
-      .addCase(fetchAccountTree.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
       .addCase(fetchAccountTree.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.accountTree = Array.isArray(action.payload) ? action.payload : [];
-      })
-      .addCase(fetchAccountTree.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.accountTree = action.payload || [];
       })
 
-      // fetchLeafAccounts
-      .addCase(fetchLeafAccounts.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
       .addCase(fetchLeafAccounts.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.leafAccounts = Array.isArray(action.payload)
-          ? sortAccounts(action.payload)
-          : [];
-      })
-      .addCase(fetchLeafAccounts.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.leafAccounts = sortAccounts(action.payload || []);
       })
 
-      // createAccount
-      .addCase(createAccount.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
+      // CREATE
       .addCase(createAccount.fulfilled, (state, action) => {
-        state.isLoading = false;
-
-        if (action.payload?._id) {
-          state.accounts = sortAccounts([...state.accounts, action.payload]);
-        }
-      })
-      .addCase(createAccount.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.accounts = sortAccounts([...state.accounts, action.payload]);
       })
 
-      // updateAccount
-      .addCase(updateAccount.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
+      // UPDATE
       .addCase(updateAccount.fulfilled, (state, action) => {
-        state.isLoading = false;
-
-        const index = state.accounts.findIndex(
-          (acc) => acc._id === action.payload._id,
-        );
-
-        if (index !== -1) {
-          state.accounts[index] = action.payload;
-          state.accounts = sortAccounts(state.accounts);
-        }
-      })
-      .addCase(updateAccount.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
-      })
-
-      // deleteAccount
-      .addCase(deleteAccount.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(deleteAccount.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.accounts = state.accounts.filter(
-          (acc) => acc._id !== action.payload,
-        );
-        state.leafAccounts = state.leafAccounts.filter(
-          (acc) => acc._id !== action.payload,
+        state.accounts = sortAccounts(
+          state.accounts.map((acc) =>
+            acc._id === action.payload._id ? action.payload : acc,
+          ),
         );
       })
-      .addCase(deleteAccount.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+
+      // STATUS
+      .addCase(updateAccountStatus.fulfilled, (state, action) => {
+        state.accounts = sortAccounts(
+          state.accounts.map((acc) =>
+            acc._id === action.payload._id ? action.payload : acc,
+          ),
+        );
       })
 
-      // restoreAccount
-      .addCase(restoreAccount.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
+      // ARCHIVE (soft delete)
+      .addCase(archiveAccount.fulfilled, (state, action) => {
+        state.accounts = state.accounts.map((acc) =>
+          acc._id === action.payload._id ? action.payload : acc,
+        );
       })
+
+      // RESTORE
       .addCase(restoreAccount.fulfilled, (state, action) => {
-        state.isLoading = false;
-
-        if (action.payload?._id) {
-          const exists = state.accounts.some(
-            (acc) => acc._id === action.payload._id,
-          );
-
-          if (!exists) {
-            state.accounts = sortAccounts([...state.accounts, action.payload]);
-          }
-        }
-      })
-      .addCase(restoreAccount.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.accounts = sortAccounts(
+          state.accounts.map((acc) =>
+            acc._id === action.payload._id ? action.payload : acc,
+          ),
+        );
       });
   },
 });
 
-export const { clearError, clearAccountsState } = accountSlice.actions;
+export const { clearError } = accountSlice.actions;
 export default accountSlice.reducer;

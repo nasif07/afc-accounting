@@ -2,6 +2,9 @@ const COAService = require("./coa.service");
 const ApiResponse = require("../../utils/apiResponse");
 
 class COAController {
+  // =============================
+  // CREATE ACCOUNT
+  // =============================
   static async createAccount(req, res, next) {
     try {
       const {
@@ -10,6 +13,7 @@ class COAController {
         accountType,
         description,
         openingBalance,
+        openingBalanceType,
         parentAccount,
       } = req.body;
 
@@ -20,30 +24,42 @@ class COAController {
         );
       }
 
+      const normalizedType = accountType.toLowerCase();
+
       const accountData = {
         accountCode,
         accountName,
-        accountType,
+        accountType: normalizedType,
         description,
         openingBalance: openingBalance || 0,
+        openingBalanceType:
+          openingBalanceType ||
+          (["asset", "expense"].includes(normalizedType)
+            ? "debit"
+            : "credit"),
         parentAccount: parentAccount || null,
         createdBy: req.user.userId,
       };
 
       const account = await COAService.createAccount(accountData);
+
       return ApiResponse.created(res, account, "Account created successfully");
     } catch (error) {
       next(error);
     }
   }
 
+  // =============================
+  // GET ALL ACCOUNTS
+  // =============================
   static async getAllAccounts(req, res, next) {
     try {
-      const { accountType, isActive, leafNodesOnly } = req.query;
+      const { accountType, status, leafNodesOnly } = req.query;
+
       const filters = {};
 
-      if (accountType) filters.accountType = accountType;
-      if (isActive !== undefined) filters.isActive = isActive === "true";
+      if (accountType) filters.accountType = accountType.toLowerCase();
+      if (status) filters.status = status;
       if (leafNodesOnly === "true") filters.leafNodesOnly = true;
 
       const accounts = await COAService.getAllAccounts(filters);
@@ -58,9 +74,13 @@ class COAController {
     }
   }
 
+  // =============================
+  // GET SINGLE ACCOUNT
+  // =============================
   static async getAccountById(req, res, next) {
     try {
       const { id } = req.params;
+
       const account = await COAService.getAccountById(id);
 
       if (!account) {
@@ -77,6 +97,9 @@ class COAController {
     }
   }
 
+  // =============================
+  // UPDATE ACCOUNT
+  // =============================
   static async updateAccount(req, res, next) {
     try {
       const { id } = req.params;
@@ -105,17 +128,23 @@ class COAController {
         "accountType",
         "description",
         "openingBalance",
-        "isActive",
+        "openingBalanceType",
         "status",
         "parentAccount",
       ];
 
       const updateData = {};
+
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
-          updateData[field] = req.body[field];
+          updateData[field] =
+            field === "accountType"
+              ? req.body[field].toLowerCase()
+              : req.body[field];
         }
       }
+
+      updateData.updatedBy = req.user.userId;
 
       const account = await COAService.updateAccount(id, updateData);
 
@@ -129,28 +158,83 @@ class COAController {
     }
   }
 
-  static async deleteAccount(req, res, next) {
+  // =============================
+  // UPDATE STATUS
+  // =============================
+  static async updateAccountStatus(req, res, next) {
     try {
       const { id } = req.params;
-      const account = await COAService.deleteAccount(id, req.user.userId);
+      const { status } = req.body;
+
+      const validStatuses = ["active", "inactive", "archived"];
+
+      if (!validStatuses.includes(status)) {
+        return ApiResponse.badRequest(res, "Invalid status value");
+      }
+
+      const account = await COAService.updateAccount(id, {
+        status,
+        updatedBy: req.user.userId,
+      });
 
       if (!account) {
         return ApiResponse.notFound(res, "Account not found");
       }
 
-      return ApiResponse.success(
-        res,
-        account,
-        "Account deleted successfully"
-      );
+      return ApiResponse.success(res, account, "Status updated successfully");
     } catch (error) {
       next(error);
     }
   }
 
+  // =============================
+  // ARCHIVE (SOFT DELETE)
+  // =============================
+  static async archiveAccount(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const account = await COAService.archiveAccount(
+        id,
+        req.user.userId
+      );
+
+      if (!account) {
+        return ApiResponse.notFound(res, "Account not found");
+      }
+
+      return ApiResponse.success(res, account, "Account archived successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // =============================
+  // RESTORE
+  // =============================
+  static async restoreAccount(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const account = await COAService.restoreAccount(id);
+
+      if (!account) {
+        return ApiResponse.notFound(res, "Account not found");
+      }
+
+      return ApiResponse.success(res, account, "Account restored successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // =============================
+  // GET BALANCE
+  // =============================
   static async getAccountBalance(req, res, next) {
     try {
       const { id } = req.params;
+
       const balance = await COAService.getAccountBalance(id);
 
       return ApiResponse.success(
@@ -163,12 +247,16 @@ class COAController {
     }
   }
 
+  // =============================
+  // LEAF NODES
+  // =============================
   static async getLeafNodes(req, res, next) {
     try {
       const { accountType } = req.query;
+
       const filters = {};
 
-      if (accountType) filters.accountType = accountType;
+      if (accountType) filters.accountType = accountType.toLowerCase();
 
       const leafNodes = await COAService.getLeafNodes(filters);
 
@@ -182,38 +270,28 @@ class COAController {
     }
   }
 
-  static async getAccountTree(req, res, next) {
-    try {
-      const tree = await COAService.buildAccountTree();
+  // =============================
+  // TREE
+  // =============================
+static async getAccountTree(req, res, next) {
+  try {
+    const includeDeleted = req.query.includeDeleted === "true";
+    const status = req.query.status || "all";
 
-      return ApiResponse.success(
-        res,
-        tree,
-        "Account tree retrieved successfully"
-      );
-    } catch (error) {
-      next(error);
-    }
+    const tree = await COAService.buildAccountTree({
+      includeDeleted,
+      status,
+    });
+
+    return ApiResponse.success(
+      res,
+      tree,
+      "Account tree retrieved successfully"
+    );
+  } catch (error) {
+    next(error);
   }
-
-  static async restoreAccount(req, res, next) {
-    try {
-      const { id } = req.params;
-      const account = await COAService.restoreAccount(id);
-
-      if (!account) {
-        return ApiResponse.notFound(res, "Account not found");
-      }
-
-      return ApiResponse.success(
-        res,
-        account,
-        "Account restored successfully"
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
+}
 }
 
 module.exports = COAController;

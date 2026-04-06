@@ -32,9 +32,11 @@ const coaSchema = new mongoose.Schema(
       get: (v) => v / 100,
       set: (v) => Math.round((v || 0) * 100),
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    openingBalanceType: {
+      type: String,
+      enum: ["debit", "credit"],
+      default: "debit",
+      required: true,
     },
     parentAccount: {
       type: mongoose.Schema.Types.ObjectId,
@@ -70,7 +72,7 @@ const coaSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { getters: true },
     toObject: { getters: true },
-  }
+  },
 );
 
 // Normalize text fields

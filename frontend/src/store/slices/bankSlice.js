@@ -1,14 +1,20 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { bankAPI } from '../../services/apiMethods';
 
+const extractData = (payload) => payload?.data || payload;
+
+// ================= THUNKS =================
+
 export const fetchBank = createAsyncThunk(
   'bank/fetchBank',
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await bankAPI.getAll(params);
-      return response.data;
+      return extractData(response.data);
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch bank');
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to fetch bank'
+      );
     }
   }
 );
@@ -18,9 +24,11 @@ export const fetchBankById = createAsyncThunk(
   async (id, { rejectWithValue }) => {
     try {
       const response = await bankAPI.getById(id);
-      return response.data;
+      return extractData(response.data);
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch bank');
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to fetch bank'
+      );
     }
   }
 );
@@ -30,9 +38,11 @@ export const createBank = createAsyncThunk(
   async (data, { rejectWithValue }) => {
     try {
       const response = await bankAPI.create(data);
-      return response.data;
+      return extractData(response.data);
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create bank');
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to create bank'
+      );
     }
   }
 );
@@ -42,9 +52,11 @@ export const updateBank = createAsyncThunk(
   async ({ id, data }, { rejectWithValue }) => {
     try {
       const response = await bankAPI.update(id, data);
-      return response.data;
+      return extractData(response.data);
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update bank');
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to update bank'
+      );
     }
   }
 );
@@ -56,11 +68,14 @@ export const deleteBank = createAsyncThunk(
       await bankAPI.delete(id);
       return id;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete bank');
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to delete bank'
+      );
     }
   }
 );
 
+// ================= SLICE =================
 
 const initialState = {
   items: [],
@@ -86,30 +101,34 @@ const bankSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // FETCH ALL
       .addCase(fetchBank.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(fetchBank.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.data || action.payload;
+        state.items = action.payload || [];
       })
       .addCase(fetchBank.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
+      // FETCH ONE
       .addCase(fetchBankById.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(fetchBankById.fulfilled, (state, action) => {
         state.loading = false;
-        state.item = action.payload.data || action.payload;
+        state.item = action.payload;
       })
       .addCase(fetchBankById.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
+      // CREATE
       .addCase(createBank.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -117,42 +136,52 @@ const bankSlice = createSlice({
       .addCase(createBank.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        state.items.push(action.payload.data || action.payload);
+        if (action.payload) {
+          state.items.unshift(action.payload);
+        }
       })
       .addCase(createBank.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
+      // UPDATE
       .addCase(updateBank.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(updateBank.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        const index = state.items.findIndex(item => item._id === action.payload.data._id);
+
+        const updated = action.payload;
+        const index = state.items.findIndex(
+          (item) => item._id === updated?._id
+        );
+
         if (index !== -1) {
-          state.items[index] = action.payload.data;
+          state.items[index] = updated;
         }
       })
       .addCase(updateBank.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
+      // DELETE
       .addCase(deleteBank.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(deleteBank.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        state.items = state.items.filter(item => item._id !== action.payload);
+        state.items = state.items.filter(
+          (item) => item._id !== action.payload
+        );
       })
       .addCase(deleteBank.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      })
-      
+      });
   },
 });
 

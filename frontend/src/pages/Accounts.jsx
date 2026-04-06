@@ -1,31 +1,44 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   fetchAccounts,
   createAccount,
-  deleteAccount,
+  updateAccount,
+  archiveAccount,
+  restoreAccount,
+  updateAccountStatus,
 } from "../store/slices/accountSlice";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import COATreeView from "../components/coa/COATreeView";
 
+const getDefaultBalanceType = (accountType) => {
+  return ["asset", "expense"].includes(accountType) ? "debit" : "credit";
+};
+
 export default function Accounts() {
   const dispatch = useDispatch();
+  const queryClient = useQueryClient();
   const { accounts, isLoading, error } = useSelector((state) => state.accounts);
 
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("active");
+
   const [formData, setFormData] = useState({
     accountCode: "",
     accountName: "",
-    accountType: "Asset",
+    accountType: "asset",
     description: "",
     openingBalance: 0,
+    openingBalanceType: "debit",
     parentAccount: "",
+    status: "active",
   });
 
   useEffect(() => {
-    dispatch(fetchAccounts());
+    dispatch(fetchAccounts({ includeDeleted: true }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -39,11 +52,20 @@ export default function Accounts() {
     setFormData({
       accountCode: "",
       accountName: "",
-      accountType: "Asset",
+      accountType: "asset",
       description: "",
       openingBalance: 0,
+      openingBalanceType: "debit",
       parentAccount: "",
+      status: "active",
     });
+  };
+
+  const refreshAccountsUI = async () => {
+    await dispatch(fetchAccounts({ includeDeleted: true }));
+    await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
+    await queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    await queryClient.invalidateQueries({ queryKey: ["leafAccounts"] });
   };
 
   const handleSubmit = async (e) => {
@@ -59,29 +81,63 @@ export default function Accounts() {
       return;
     }
 
+    if (!["debit", "credit"].includes(formData.openingBalanceType)) {
+      toast.error("Opening balance type must be debit or credit");
+      return;
+    }
+
+    if (!["active", "inactive"].includes(formData.status)) {
+      toast.error("Invalid status");
+      return;
+    }
+
     const payload = {
-      ...formData,
+      accountCode: formData.accountCode.trim(),
+      accountName: formData.accountName.trim(),
+      accountType: formData.accountType,
+      description: formData.description.trim(),
+      openingBalance: Number(formData.openingBalance) || 0,
+      openingBalanceType:
+        Number(formData.openingBalance) === 0
+          ? getDefaultBalanceType(formData.accountType)
+          : formData.openingBalanceType,
       parentAccount: formData.parentAccount || null,
+      status: formData.status,
     };
 
     let result;
+
     if (editingAccount) {
-      // In a real app, we'd use an updateAccount thunk
-      // For now, we'll use createAccount as a placeholder or assume it handles both
-      result = await dispatch(createAccount({ ...payload, _id: editingAccount._id })); 
+      if (editingAccount.status === "archived") {
+        toast.error("Archived accounts cannot be edited");
+        return;
+      }
+
+      result = await dispatch(
+        updateAccount({
+          id: editingAccount._id,
+          data: payload,
+        })
+      );
     } else {
       result = await dispatch(createAccount(payload));
     }
 
     if (result?.error) {
-      toast.error(result.payload || `Failed to ${editingAccount ? 'update' : 'create'} account`);
+      toast.error(
+        result.payload ||
+          `Failed to ${editingAccount ? "update" : "create"} account`
+      );
       return;
     }
 
-    toast.success(`Account ${editingAccount ? 'updated' : 'created'} successfully`);
+    toast.success(
+      `Account ${editingAccount ? "updated" : "created"} successfully`
+    );
+
     resetForm();
     setShowForm(false);
-    dispatch(fetchAccounts());
+    await refreshAccountsUI();
   };
 
   const handleReset = () => {
@@ -89,21 +145,45 @@ export default function Accounts() {
     setShowForm(false);
   };
 
-  const handleDelete = async (id) => {
+  const handleArchive = async (id) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this account?"
+      "Are you sure you want to archive this account?"
     );
     if (!confirmed) return;
 
-    const result = await dispatch(deleteAccount(id));
+    const result = await dispatch(archiveAccount(id));
 
     if (result?.error) {
-      toast.error(result.payload || "Failed to delete account");
+      toast.error(result.payload || "Failed to archive account");
       return;
     }
 
-    toast.success("Account deleted successfully");
-    dispatch(fetchAccounts());
+    toast.success("Account archived successfully");
+    await refreshAccountsUI();
+  };
+
+  const handleRestore = async (id) => {
+    const result = await dispatch(restoreAccount(id));
+
+    if (result?.error) {
+      toast.error(result.payload || "Failed to restore account");
+      return;
+    }
+
+    toast.success("Account restored successfully");
+    await refreshAccountsUI();
+  };
+
+  const handleStatusChange = async (id, status) => {
+    const result = await dispatch(updateAccountStatus({ id, status }));
+
+    if (result?.error) {
+      toast.error(result.payload || "Failed to update status");
+      return;
+    }
+
+    toast.success(`Account marked as ${status}`);
+    await refreshAccountsUI();
   };
 
   const normalizedAccounts = useMemo(() => {
@@ -119,50 +199,86 @@ export default function Accounts() {
     }));
   }, [accounts]);
 
+  const visibleAccounts = useMemo(() => {
+    if (!Array.isArray(normalizedAccounts)) return [];
+
+    if (statusFilter === "all") return normalizedAccounts;
+
+    return normalizedAccounts.filter((acc) => acc.status === statusFilter);
+  }, [normalizedAccounts, statusFilter]);
+
   const parentOptions = useMemo(() => {
     return normalizedAccounts
       .filter((acc) => acc.accountType === formData.accountType)
-      .sort((a, b) => Number(a.accountCode || 0) - Number(b.accountCode || 0));
-  }, [normalizedAccounts, formData.accountType]);
+      .filter((acc) => acc.status === "active")
+      .filter((acc) => !editingAccount || acc._id !== editingAccount._id)
+      .sort((a, b) =>
+        String(a.accountCode).localeCompare(String(b.accountCode), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      );
+  }, [normalizedAccounts, formData.accountType, editingAccount]);
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
             Chart of Accounts
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="mt-1 text-gray-600">
             Manage your account hierarchy and create new accounts
           </p>
         </div>
+
         <button
           onClick={() => {
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700"
         >
           <Plus size={20} />
           New Account
         </button>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {["all", "active", "inactive", "archived"].map((status) => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatusFilter(status)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              statusFilter === status
+                ? "bg-blue-600 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+          >
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </button>
+        ))}
+      </div>
+
       {showForm && (
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200 relative">
-          <button 
+        <div className="relative rounded-lg border border-gray-200 bg-white p-6 shadow">
+          <button
             onClick={handleReset}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+            type="button"
           >
             <X size={20} />
           </button>
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">
-            {editingAccount ? 'Edit Account' : 'Create New Account'}
+
+          <h2 className="mb-4 text-xl font-semibold text-gray-900">
+            {editingAccount ? "Edit Account" : "Create New Account"}
           </h2>
+
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Account Code *
                 </label>
                 <input
@@ -172,13 +288,13 @@ export default function Accounts() {
                   onChange={(e) =>
                     setFormData({ ...formData, accountCode: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Account Name *
                 </label>
                 <input
@@ -188,38 +304,40 @@ export default function Accounts() {
                   onChange={(e) =>
                     setFormData({ ...formData, accountName: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Account Type *
                 </label>
                 <select
                   value={formData.accountType}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const selectedType = e.target.value;
                     setFormData({
                       ...formData,
-                      accountType: e.target.value,
+                      accountType: selectedType,
                       parentAccount: "",
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      openingBalanceType: getDefaultBalanceType(selectedType),
+                    });
+                  }}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="Asset">Asset</option>
-                  <option value="Liability">Liability</option>
-                  <option value="Equity">Equity</option>
-                  <option value="Revenue">Revenue</option>
-                  <option value="Expense">Expense</option>
+                  <option value="asset">Asset</option>
+                  <option value="liability">Liability</option>
+                  <option value="equity">Equity</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Parent Account
                 </label>
                 <select
@@ -227,7 +345,7 @@ export default function Accounts() {
                   onChange={(e) =>
                     setFormData({ ...formData, parentAccount: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">No Parent</option>
                   {parentOptions.map((acc) => (
@@ -239,9 +357,9 @@ export default function Accounts() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Opening Balance
                 </label>
                 <input
@@ -254,12 +372,52 @@ export default function Accounts() {
                       openingBalance: parseFloat(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   step="0.01"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Opening Balance Type
+                </label>
+                <select
+                  value={formData.openingBalanceType}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      openingBalanceType: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={Number(formData.openingBalance) === 0}
+                >
+                  <option value="debit">Debit</option>
+                  <option value="credit">Credit</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Status
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      status: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Description
                 </label>
                 <input
@@ -269,51 +427,75 @@ export default function Accounts() {
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            <div className="flex gap-2 justify-end">
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition hover:bg-gray-50"
               >
                 Cancel
               </button>
+
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700 disabled:bg-gray-400"
               >
-                {isLoading ? (editingAccount ? "Updating..." : "Creating...") : (editingAccount ? "Update Account" : "Create Account")}
+                {isLoading
+                  ? editingAccount
+                    ? "Updating..."
+                    : "Creating..."
+                  : editingAccount
+                    ? "Update Account"
+                    : "Create Account"}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <COATreeView 
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <COATreeView
+          accounts={visibleAccounts}
+          statusFilter={statusFilter}
           onAddAccount={() => {
             resetForm();
             setShowForm(true);
           }}
           onEditAccount={(account) => {
+            if (account.status === "archived") {
+              toast.error("Archived accounts cannot be edited");
+              return;
+            }
+
+            const accountType = account.accountType || "asset";
+
             setEditingAccount(account);
             setFormData({
-              accountCode: account.accountCode,
-              accountName: account.accountName,
-              accountType: account.accountType,
-              parentAccount: account.parentAccount?._id || account.parentAccount || "",
+              accountCode: account.accountCode || "",
+              accountName: account.accountName || "",
+              accountType,
+              parentAccount:
+                account.parentAccount?._id || account.parentAccount || "",
               description: account.description || "",
               openingBalance: account.openingBalance || 0,
+              openingBalanceType:
+                account.openingBalanceType ||
+                getDefaultBalanceType(accountType),
+              status: account.status || "active",
             });
+
             setShowForm(true);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          onDeleteAccount={handleDelete}
+          onDeleteAccount={handleArchive}
+          onRestoreAccount={handleRestore}
+          onStatusChange={handleStatusChange}
         />
       </div>
     </div>

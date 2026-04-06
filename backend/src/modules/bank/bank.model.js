@@ -13,12 +13,12 @@ const bankSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    accountHolderName: {
-      type: String,
-      required: true,
-      trim: true,
+    coaAccount: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ChartOfAccounts",
+      required: [true, "Please link a chart of account"],
     },
-    ifscCode: {
+    accountHolderName: {
       type: String,
       required: true,
       trim: true,
@@ -32,6 +32,18 @@ const bankSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    lastReconciledDate: {
+      type: Date,
+      default: null,
+    },
+    lastReconciledBalance: {
+      type: Number,
+      default: 0,
+    },
+    reconciliationDifference: {
+      type: Number,
+      default: 0,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
