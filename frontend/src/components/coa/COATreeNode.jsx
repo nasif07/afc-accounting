@@ -6,6 +6,7 @@ import {
   Trash2,
   Eye,
   Power,
+  RotateCcw,
 } from "lucide-react";
 
 const formatBalance = (amount = 0, balanceType = "debit") => {
@@ -22,8 +23,9 @@ const COATreeNode = ({
   level = 0,
   onEdit,
   onDelete,
+  onRestore,
   onView,
-  onToggleStatus, // ✅ NEW
+  onToggleStatus,
   isLeaf = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -136,6 +138,7 @@ const COATreeNode = ({
           <button
             onClick={() => onView?.(node)}
             className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+            title="View Account"
           >
             <Eye size={16} />
           </button>
@@ -145,6 +148,7 @@ const COATreeNode = ({
             onClick={() => !isArchived && onEdit?.(node)}
             disabled={isArchived}
             className="p-1 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded disabled:opacity-40"
+            title="Edit Account"
           >
             <Edit2 size={16} />
           </button>
@@ -170,6 +174,17 @@ const COATreeNode = ({
               <Trash2 size={16} />
             </button>
           )}
+
+          {/* Restore */}
+          {isArchived && (
+            <button
+              onClick={() => onRestore?.(node._id)}
+              className="p-1 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded"
+              title="Restore Account"
+            >
+              <RotateCcw size={16} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -183,6 +198,7 @@ const COATreeNode = ({
               level={level + 1}
               onEdit={onEdit}
               onDelete={onDelete}
+              onRestore={onRestore}
               onView={onView}
               onToggleStatus={onToggleStatus}
               isLeaf={!child.children?.length}

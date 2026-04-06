@@ -21,12 +21,12 @@ export const fetchAccountTree = createAsyncThunk(
   "accounts/fetchAccountTree",
   async (params = {}, { rejectWithValue }) => {
     try {
-      const { status = "all" } = params;
+      const { status = "all", includeDeleted = true } = params;
 
       const res = await api.get("/accounts/tree", {
         params: {
-          includeDeleted: true, // ✅ VERY IMPORTANT
-          status,               // active | inactive | archived | all
+          includeDeleted,
+          status,
         },
       });
 
@@ -166,12 +166,29 @@ const accountSlice = createSlice({
     builder
 
       // FETCH
+      .addCase(fetchAccounts.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(fetchAccounts.fulfilled, (state, action) => {
         state.accounts = sortAccounts(action.payload || []);
+        state.isLoading = false;
+      })
+      .addCase(fetchAccounts.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       })
 
+      .addCase(fetchAccountTree.pending, (state) => {
+        state.isLoading = true;
+      })
       .addCase(fetchAccountTree.fulfilled, (state, action) => {
         state.accountTree = action.payload || [];
+        state.isLoading = false;
+      })
+      .addCase(fetchAccountTree.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       })
 
       .addCase(fetchLeafAccounts.fulfilled, (state, action) => {
@@ -179,42 +196,87 @@ const accountSlice = createSlice({
       })
 
       // CREATE
+      .addCase(createAccount.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(createAccount.fulfilled, (state, action) => {
         state.accounts = sortAccounts([...state.accounts, action.payload]);
+        state.isLoading = false;
+      })
+      .addCase(createAccount.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       })
 
       // UPDATE
+      .addCase(updateAccount.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(updateAccount.fulfilled, (state, action) => {
         state.accounts = sortAccounts(
           state.accounts.map((acc) =>
             acc._id === action.payload._id ? action.payload : acc,
           ),
         );
+        state.isLoading = false;
+      })
+      .addCase(updateAccount.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       })
 
       // STATUS
+      .addCase(updateAccountStatus.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(updateAccountStatus.fulfilled, (state, action) => {
         state.accounts = sortAccounts(
           state.accounts.map((acc) =>
             acc._id === action.payload._id ? action.payload : acc,
           ),
         );
+        state.isLoading = false;
+      })
+      .addCase(updateAccountStatus.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       })
 
       // ARCHIVE (soft delete)
+      .addCase(archiveAccount.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(archiveAccount.fulfilled, (state, action) => {
         state.accounts = state.accounts.map((acc) =>
           acc._id === action.payload._id ? action.payload : acc,
         );
+        state.isLoading = false;
+      })
+      .addCase(archiveAccount.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       })
 
       // RESTORE
+      .addCase(restoreAccount.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(restoreAccount.fulfilled, (state, action) => {
         state.accounts = sortAccounts(
           state.accounts.map((acc) =>
             acc._id === action.payload._id ? action.payload : acc,
           ),
         );
+        state.isLoading = false;
+      })
+      .addCase(restoreAccount.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });

@@ -31,10 +31,13 @@ const COATreeView = ({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["accountTree", "all"],
+    queryKey: ["accountTree", statusFilter],
     queryFn: async () => {
       const res = await api.get("/accounts/tree", {
-        params: { includeDeleted: true },
+        params: {
+          includeDeleted: true,
+          status: statusFilter === "all" ? "all" : statusFilter,
+        },
       });
       return res.data.data || [];
     },
@@ -141,7 +144,6 @@ const COATreeView = ({
 
     await onDeleteAccount(accountId);
     await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-    await queryClient.invalidateQueries({ queryKey: ["accountTree", "all"] });
   };
 
   const handleRestoreAccount = async (accountId) => {
@@ -152,7 +154,6 @@ const COATreeView = ({
 
     await onRestoreAccount(accountId);
     await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-    await queryClient.invalidateQueries({ queryKey: ["accountTree", "all"] });
   };
 
   const handleToggleStatus = async (account) => {
@@ -163,7 +164,6 @@ const COATreeView = ({
 
     await onStatusChange(account._id, newStatus);
     await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-    await queryClient.invalidateQueries({ queryKey: ["accountTree", "all"] });
   };
 
   if (!Array.isArray(accounts) && isLoading) {

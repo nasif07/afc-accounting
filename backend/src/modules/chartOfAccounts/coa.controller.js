@@ -24,19 +24,13 @@ class COAController {
         );
       }
 
-      const normalizedType = accountType.toLowerCase();
-
       const accountData = {
         accountCode,
         accountName,
-        accountType: normalizedType,
+        accountType: accountType.toLowerCase(),
         description,
         openingBalance: openingBalance || 0,
-        openingBalanceType:
-          openingBalanceType ||
-          (["asset", "expense"].includes(normalizedType)
-            ? "debit"
-            : "credit"),
+        openingBalanceType: openingBalanceType,
         parentAccount: parentAccount || null,
         createdBy: req.user.userId,
       };
@@ -54,13 +48,14 @@ class COAController {
   // =============================
   static async getAllAccounts(req, res, next) {
     try {
-      const { accountType, status, leafNodesOnly } = req.query;
+      const { accountType, status, leafNodesOnly, includeDeleted } = req.query;
 
       const filters = {};
 
       if (accountType) filters.accountType = accountType.toLowerCase();
       if (status) filters.status = status;
       if (leafNodesOnly === "true") filters.leafNodesOnly = true;
+      if (includeDeleted === "true") filters.includeDeleted = true;
 
       const accounts = await COAService.getAllAccounts(filters);
 
@@ -104,24 +99,6 @@ class COAController {
     try {
       const { id } = req.params;
 
-      const forbiddenFields = [
-        "currentBalance",
-        "hasChildren",
-        "hasTransactions",
-        "deletedAt",
-        "deletedBy",
-        "createdBy",
-      ];
-
-      for (const field of forbiddenFields) {
-        if (req.body[field] !== undefined) {
-          return ApiResponse.badRequest(
-            res,
-            `${field} cannot be updated directly`
-          );
-        }
-      }
-
       const allowedFields = [
         "accountCode",
         "accountName",
@@ -129,8 +106,8 @@ class COAController {
         "description",
         "openingBalance",
         "openingBalanceType",
-        "status",
         "parentAccount",
+        "status",
       ];
 
       const updateData = {};
@@ -144,9 +121,7 @@ class COAController {
         }
       }
 
-      updateData.updatedBy = req.user.userId;
-
-      const account = await COAService.updateAccount(id, updateData);
+      const account = await COAService.updateAccount(id, updateData, req.user.userId);
 
       if (!account) {
         return ApiResponse.notFound(res, "Account not found");
@@ -172,10 +147,7 @@ class COAController {
         return ApiResponse.badRequest(res, "Invalid status value");
       }
 
-      const account = await COAService.updateAccount(id, {
-        status,
-        updatedBy: req.user.userId,
-      });
+      const account = await COAService.updateAccountStatus(id, status, req.user.userId);
 
       if (!account) {
         return ApiResponse.notFound(res, "Account not found");
@@ -194,10 +166,7 @@ class COAController {
     try {
       const { id } = req.params;
 
-      const account = await COAService.archiveAccount(
-        id,
-        req.user.userId
-      );
+      const account = await COAService.archiveAccount(id, req.user.userId);
 
       if (!account) {
         return ApiResponse.notFound(res, "Account not found");
@@ -216,7 +185,7 @@ class COAController {
     try {
       const { id } = req.params;
 
-      const account = await COAService.restoreAccount(id);
+      const account = await COAService.restoreAccount(id, req.user.userId);
 
       if (!account) {
         return ApiResponse.notFound(res, "Account not found");
@@ -273,25 +242,24 @@ class COAController {
   // =============================
   // TREE
   // =============================
-static async getAccountTree(req, res, next) {
-  try {
-    const includeDeleted = req.query.includeDeleted === "true";
-    const status = req.query.status || "all";
+  static async getAccountTree(req, res, next) {
+    try {
+      const { includeDeleted, status } = req.query;
 
-    const tree = await COAService.buildAccountTree({
-      includeDeleted,
-      status,
-    });
+      const tree = await COAService.buildAccountTree({
+        includeDeleted: includeDeleted === "true",
+        status: status || "all",
+      });
 
-    return ApiResponse.success(
-      res,
-      tree,
-      "Account tree retrieved successfully"
-    );
-  } catch (error) {
-    next(error);
+      return ApiResponse.success(
+        res,
+        tree,
+        "Account tree retrieved successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
   }
-}
 }
 
 module.exports = COAController;

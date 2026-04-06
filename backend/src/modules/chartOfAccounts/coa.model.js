@@ -17,7 +17,7 @@ const coaSchema = new mongoose.Schema(
     },
     accountType: {
       type: String,
-      enum: Object.values(ACCOUNT_TYPES),
+      enum: Object.values(ACCOUNT_TYPES).map(type => type.toLowerCase()),
       required: [true, "Please provide an account type"],
     },
     description: {
