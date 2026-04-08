@@ -10,12 +10,48 @@ class COAService {
     return !!(await JournalEntry.exists({ "bookEntries.account": accountId, deletedAt: null }));
   }
 
+  /**
+   * Check if setting parentAccount would create a circular reference
+   * @param {ObjectId} accountId - The account being updated
+   * @param {ObjectId} newParentId - The proposed parent account
+   * @returns {Promise<boolean>} - True if circular reference would be created
+   */
+  static async wouldCreateCircularReference(accountId, newParentId) {
+    if (!newParentId) return false;
+    if (accountId.toString() === newParentId.toString()) return true;
+
+    // Check if newParent is a descendant of accountId
+    let currentParent = newParentId;
+    const visited = new Set();
+
+    while (currentParent) {
+      if (visited.has(currentParent.toString())) {
+        // Circular reference detected in existing tree
+        return true;
+      }
+      if (currentParent.toString() === accountId.toString()) {
+        // newParent is a descendant of accountId
+        return true;
+      }
+
+      visited.add(currentParent.toString());
+      const parent = await ChartOfAccounts.findById(currentParent, { parentAccount: 1 });
+      currentParent = parent?.parentAccount;
+    }
+
+    return false;
+  }
+
   static async createAccount(accountData) {
     const account = new ChartOfAccounts(accountData);
     await account.save();
     return account;
   }
 
+  /**
+   * Get all accounts with optional filtering
+   * Optimized to avoid N+1 queries for leaf node detection
+   */
   static async getAllAccounts(filters = {}) {
     const query = {};
 
@@ -31,20 +67,23 @@ class COAService {
       query.accountType = filters.accountType;
     }
 
-    const accounts = await ChartOfAccounts.find(query)
+    let accounts = await ChartOfAccounts.find(query)
       .populate("createdBy", "name email")
       .populate("parentAccount", "accountCode accountName accountType status")
       .sort({ accountCode: 1 });
 
+    // Optimized leaf node filtering using aggregation instead of N+1 queries
     if (filters.leafNodesOnly) {
-      const leafAccounts = [];
-      for (const account of accounts) {
-        const hasChildren = await this.hasRealChildren(account._id);
-        if (!hasChildren) {
-          leafAccounts.push(account);
-        }
-      }
-      return leafAccounts;
+      // Get all accounts that have children in a single query
+      const parentAccounts = await ChartOfAccounts.distinct("parentAccount", {
+        parentAccount: { $ne: null },
+        deletedAt: null,
+      });
+
+      // Filter to only leaf accounts
+      accounts = accounts.filter(
+        (account) => !parentAccounts.some((p) => p.toString() === account._id.toString())
+      );
     }
 
     return accounts;
@@ -57,6 +96,9 @@ class COAService {
       .populate("parentAccount", "accountCode accountName accountType status");
   }
 
+  /**
+   * Update account with validation for circular references
+   */
   static async updateAccount(accountId, updateData, userId) {
     const account = await ChartOfAccounts.findById(accountId);
     if (!account) throw new Error("Account not found");
@@ -73,10 +115,16 @@ class COAService {
       if (hasChildren) throw new Error("Cannot change account type of a parent account");
     }
 
-    // Prevent changing parent if it has transactions
+    // Prevent changing parent if it has transactions or would create circular reference
     if (updateData.parentAccount !== undefined && String(updateData.parentAccount || '') !== String(account.parentAccount || '')) {
-        const hasTransactions = await this.hasRealTransactions(accountId);
-        if (hasTransactions) throw new Error("Cannot change parent of an account with transactions");
+      const hasTransactions = await this.hasRealTransactions(accountId);
+      if (hasTransactions) throw new Error("Cannot change parent of an account with transactions");
+
+      // CRITICAL FIX: Check for circular references
+      const wouldBeCircular = await this.wouldCreateCircularReference(accountId, updateData.parentAccount);
+      if (wouldBeCircular) {
+        throw new Error("Cannot set parent account: would create a circular reference in the account hierarchy");
+      }
     }
 
     Object.assign(account, updateData);

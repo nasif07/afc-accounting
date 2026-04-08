@@ -50,6 +50,10 @@ class AccountingService {
     };
   }
 
+  /**
+   * FIXED: Income statement now correctly calculates period-specific amounts
+   * Instead of using balance differences, it queries only entries in the period
+   */
   static async generateIncomeStatement(startDate, endDate) {
     const revenues = await ChartOfAccounts.find({
       accountType: "Income",
@@ -66,16 +70,16 @@ class AccountingService {
     const revenueList = [];
     let totalRevenue = 0;
     for (const account of revenues) {
-      const balanceData = await this.calculateAccountBalance(account._id, new Date(endDate));
-      const startBalanceData = await this.calculateAccountBalance(account._id, new Date(startDate));
-      const periodBalance = balanceData.balance - startBalanceData.balance;
+      // FIXED: Query only entries in the period, not cumulative balance difference
+      const periodAmount = await this.calculatePeriodAmount(account._id, startDate, endDate);
       
       // Revenue accounts have natural credit balance. In our calculation, credit is negative.
       // So we negate it for display.
-      const displayAmount = -periodBalance;
+      const displayAmount = -periodAmount;
       
       if (displayAmount !== 0) {
         revenueList.push({
+          accountCode: account.accountCode,
           accountName: account.accountName,
           amount: displayAmount,
         });
@@ -86,17 +90,17 @@ class AccountingService {
     const expenseList = [];
     let totalExpenses = 0;
     for (const account of expenses) {
-      const balanceData = await this.calculateAccountBalance(account._id, new Date(endDate));
-      const startBalanceData = await this.calculateAccountBalance(account._id, new Date(startDate));
-      const periodBalance = balanceData.balance - startBalanceData.balance;
+      // FIXED: Query only entries in the period
+      const periodAmount = await this.calculatePeriodAmount(account._id, startDate, endDate);
 
       // Expense accounts have natural debit balance (positive).
-      if (periodBalance !== 0) {
+      if (periodAmount !== 0) {
         expenseList.push({
+          accountCode: account.accountCode,
           accountName: account.accountName,
-          amount: periodBalance,
+          amount: periodAmount,
         });
-        totalExpenses += periodBalance;
+        totalExpenses += periodAmount;
       }
     }
 
@@ -133,7 +137,11 @@ class AccountingService {
     for (const account of assets) {
       const balanceData = await this.calculateAccountBalance(account._id, asOfDate);
       if (balanceData.balance !== 0) {
-        assetList.push({ accountName: account.accountName, amount: balanceData.balance });
+        assetList.push({ 
+          accountCode: account.accountCode,
+          accountName: account.accountName, 
+          amount: balanceData.balance 
+        });
         totalAssets += balanceData.balance;
       }
     }
@@ -145,7 +153,11 @@ class AccountingService {
       // Liabilities are natural credit (negative). Negate for display.
       const displayAmount = -balanceData.balance;
       if (displayAmount !== 0) {
-        liabilityList.push({ accountName: account.accountName, amount: displayAmount });
+        liabilityList.push({ 
+          accountCode: account.accountCode,
+          accountName: account.accountName, 
+          amount: displayAmount 
+        });
         totalLiabilities += displayAmount;
       }
     }
@@ -157,16 +169,38 @@ class AccountingService {
       // Equity is natural credit (negative). Negate for display.
       const displayAmount = -balanceData.balance;
       if (displayAmount !== 0) {
-        equityList.push({ accountName: account.accountName, amount: displayAmount });
+        equityList.push({ 
+          accountCode: account.accountCode,
+          accountName: account.accountName, 
+          amount: displayAmount 
+        });
         totalEquity += displayAmount;
       }
     }
 
-    const fiscalYearStart = new Date(asOfDate.getFullYear(), 0, 1);
-    const incomeStatement = await this.generateIncomeStatement(fiscalYearStart, asOfDate);
-    const retainedEarnings = incomeStatement.netIncome;
+    // FIXED: Calculate retained earnings from actual account, not just current period
+    const retainedEarningsAccount = await ChartOfAccounts.findOne({
+      accountName: { $regex: /retained earnings/i },
+      deletedAt: null,
+      status: "active",
+    }).lean();
+
+    let retainedEarnings = 0;
+    if (retainedEarningsAccount) {
+      const reData = await this.calculateAccountBalance(retainedEarningsAccount._id, asOfDate);
+      retainedEarnings = -reData.balance; // Negate for display
+    } else {
+      // If no retained earnings account exists, calculate from income statement
+      const fiscalYearStart = new Date(asOfDate.getFullYear(), 0, 1);
+      const incomeStatement = await this.generateIncomeStatement(fiscalYearStart, asOfDate);
+      retainedEarnings = incomeStatement.netIncome;
+    }
     
-    equityList.push({ accountName: "Retained Earnings (Current Period)", amount: retainedEarnings });
+    equityList.push({ 
+      accountCode: "RE",
+      accountName: "Retained Earnings", 
+      amount: retainedEarnings 
+    });
     totalEquity += retainedEarnings;
 
     return {
@@ -293,12 +327,38 @@ class AccountingService {
     return {
       accountName: account.accountName,
       accountCode: account.accountCode,
+      accountType: account.accountType,
       openingBalance: openingBalanceData.balance,
       totalDebit,
       totalCredit,
       closingBalance: runningBalance,
       transactions
     };
+  }
+
+  /**
+   * NEW: Helper method to calculate amount for a specific period
+   * Queries only entries within the date range
+   */
+  static async calculatePeriodAmount(accountId, startDate, endDate) {
+    const entries = await JournalEntry.find({
+      "bookEntries.account": accountId,
+      status: "posted",
+      deletedAt: null,
+      voucherDate: { $gte: new Date(startDate), $lte: new Date(endDate) },
+    }).lean();
+
+    let amount = 0;
+    for (const entry of entries) {
+      for (const line of entry.bookEntries) {
+        if (line.account.toString() === accountId.toString()) {
+          amount += line.debit || 0;
+          amount -= line.credit || 0;
+        }
+      }
+    }
+
+    return amount;
   }
 
   static async calculateAccountBalance(accountId, asOfDate = new Date()) {
