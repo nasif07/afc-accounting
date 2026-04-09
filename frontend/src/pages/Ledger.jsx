@@ -175,7 +175,7 @@ const Ledger = () => {
                     </td>
                   </tr>
                   
-                  {ledgerData.transactions.length > 0 ? (
+                  {ledgerData?.transactions?.length > 0 ? (
                     ledgerData.transactions.map((tx, idx) => (
                       <tr key={idx} className="hover:bg-gray-50 transition">
                         <td className="px-6 py-4 text-sm text-gray-600">

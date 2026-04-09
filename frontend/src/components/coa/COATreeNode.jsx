@@ -36,15 +36,6 @@ const COATreeNode = ({
 
   const indentationStyle = { paddingLeft: `${level * 1.5}rem` };
 
-  const displayBalance =
-    node.balance ?? node.currentBalance ?? node.openingBalance ?? 0;
-
-  const displayBalanceType =
-    node.balanceType ??
-    node.currentBalanceType ??
-    node.openingBalanceType ??
-    "debit";
-
   return (
     <div className={`select-none ${isArchived ? "opacity-50" : ""}`}>
       <div
@@ -122,15 +113,7 @@ const COATreeNode = ({
           )}
         </div>
 
-        {/* Balance */}
-        <div className="text-right mr-4">
-          <p className="text-sm font-semibold text-gray-900">
-            {formatBalance(displayBalance, displayBalanceType)}
-          </p>
-          <p className="text-xs text-gray-500 capitalize">
-            {displayBalanceType}
-          </p>
-        </div>
+        {/* Balance - Removed: Not available in tree response */}
 
         {/* ACTIONS */}
         <div className="flex gap-1">

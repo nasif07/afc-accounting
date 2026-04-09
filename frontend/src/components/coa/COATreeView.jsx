@@ -5,14 +5,7 @@ import api from "../../services/api";
 import COATreeNode from "./COATreeNode";
 import { toast } from "sonner";
 
-const formatBalance = (amount = 0, balanceType = "debit") => {
-  const numericAmount = Number(amount) || 0;
-
-  return `${numericAmount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ${balanceType === "credit" ? "Cr" : "Dr"}`;
-};
+// REMOVED: formatBalance function - not needed since balance display removed
 
 const COATreeView = ({
   accounts,
@@ -107,23 +100,9 @@ const COATreeView = ({
   }, [treeData, searchTerm, statusFilter]);
 
   const handleViewAccount = (account) => {
-    const amount =
-      account.balance ??
-      account.currentBalance ??
-      account.openingBalance ??
-      0;
-
-    const type =
-      account.balanceType ??
-      account.currentBalanceType ??
-      account.openingBalanceType ??
-      "debit";
-
+    // FIXED: Tree view doesn't include balance data, show account info only
     toast.info(
-      `${account.accountCode} - ${account.accountName} • ${formatBalance(
-        amount,
-        type
-      )}`
+      `${account.accountCode} - ${account.accountName} (${account.accountType})`
     );
   };
 

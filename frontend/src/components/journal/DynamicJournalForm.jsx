@@ -34,7 +34,8 @@ const DynamicJournalForm = ({ onSubmit, onCancel, isLoading: isSubmitting = fals
   // Calculate totals
   const totalDebit = bookEntries.reduce((sum, entry) => sum + (parseFloat(entry.debit) || 0), 0);
   const totalCredit = bookEntries.reduce((sum, entry) => sum + (parseFloat(entry.credit) || 0), 0);
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
+  // FIXED: Both debit and credit must be > 0 for a balanced entry
+  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0 && totalCredit > 0;
 
   // Validate form
   const validateForm = () => {

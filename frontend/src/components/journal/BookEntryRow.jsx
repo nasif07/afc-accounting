@@ -25,21 +25,23 @@ const BookEntryRow = ({
 
   const handleDebitChange = (e) => {
     const value = e.target.value;
+    const numValue = value === '' ? 0 : Number(value);
 
     onUpdate(rowIndex, {
       ...entry,
-      debit: value === '' ? '' : Number(value),
-      credit: Number(value) > 0 ? 0 : entry.credit,
+      debit: numValue,
+      credit: numValue > 0 ? 0 : entry.credit,
     });
   };
 
   const handleCreditChange = (e) => {
     const value = e.target.value;
+    const numValue = value === '' ? 0 : Number(value);
 
     onUpdate(rowIndex, {
       ...entry,
-      credit: value === '' ? '' : Number(value),
-      debit: Number(value) > 0 ? 0 : entry.debit,
+      credit: numValue,
+      debit: numValue > 0 ? 0 : entry.debit,
     });
   };
 
