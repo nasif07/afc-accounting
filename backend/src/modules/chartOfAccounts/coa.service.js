@@ -199,6 +199,34 @@ class COAService {
     return account;
   }
 
+  /**
+   * Get only leaf accounts (accounts with no children)
+   * Used for journal entry account selection
+   */
+  static async getLeafNodes(filters = {}) {
+    const query = { deletedAt: null, status: 'active' };
+
+    if (filters.accountType) {
+      query.accountType = filters.accountType;
+    }
+
+    // Get all accounts that have children
+    const parentAccountIds = await ChartOfAccounts.distinct('parentAccount', {
+      parentAccount: { $ne: null },
+      deletedAt: null,
+    });
+
+    // Get all accounts that are NOT parents (i.e., leaf accounts)
+    query._id = { $nin: parentAccountIds };
+
+    const leafAccounts = await ChartOfAccounts.find(query)
+      .select('_id accountCode accountName accountType status balance balanceType')
+      .populate('parentAccount', 'accountCode accountName')
+      .sort({ accountCode: 1 });
+
+    return leafAccounts;
+  }
+
   static async buildAccountTree(filters = {}) {
     const query = {};
 
