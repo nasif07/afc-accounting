@@ -157,7 +157,8 @@ const router = createBrowserRouter([
       },
       {
         path: "users",
-        element: <ComingSoon />,
+        
+        element: <DirectorApprovals />,
       },
       {
         path: "audit-log",
@@ -177,7 +178,7 @@ const router = createBrowserRouter([
     children: [
       {
         path: "approvals",
-        element: <DirectorApprovals />,
+        element: <ComingSoon />,
       },
     ],
   },
