@@ -8,14 +8,28 @@ const router = express.Router();
 // All routes require authentication
 router.use(auth);
 
-// CRUD operations
+/**
+ * @routes /api/students
+ */
+
+// 1. Create Student
 router.post('/', accountantOrDirector, StudentController.createStudent);
+
+// 2. Get All (with filters/pagination)
 router.get('/', StudentController.getAllStudents);
+
+// 3. Get Single Student by ID
+// Note: Ensure you add getStudentById to your StudentController!
 router.get('/:id', StudentController.getStudentById);
-router.put('/:id', accountantOrDirector, StudentController.updateStudent);
+
+// 4. Update Student
+// Changed to PATCH because your controller strips rollNumber (partial update)
+router.patch('/:id', accountantOrDirector, StudentController.updateStudent);
+
+// 5. Delete Student
 router.delete('/:id', accountantOrDirector, StudentController.deleteStudent);
 
-// Bulk import
-router.post('/bulk/import', accountantOrDirector, StudentController.bulkImportStudents);
+// 6. Bulk Import
+router.post('/bulk-import', accountantOrDirector, StudentController.bulkImportStudents);
 
 module.exports = router;

@@ -1,81 +1,90 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const studentSchema = new mongoose.Schema(
   {
     rollNumber: {
       type: String,
-      required: [true, 'Please provide a roll number'],
+      required: [true, "Please provide a roll number"],
       unique: true,
-      trim: true
+      trim: true,
+      uppercase: true,
     },
     name: {
       type: String,
-      required: [true, 'Please provide a name'],
-      trim: true
+      required: [true, "Please provide a name"],
+      trim: true,
     },
     class: {
       type: String,
-      required: [true, 'Please provide a class'],
-      trim: true
+      required: [true, "Please provide a class"],
+      trim: true,
+      index: true, 
     },
     section: {
       type: String,
-      trim: true
+      trim: true,
     },
     email: {
       type: String,
       lowercase: true,
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+      trim: true,
+      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, "Please provide a valid email"],
     },
     phone: {
       type: String,
-      trim: true
+      trim: true,
     },
-    parentName: {
+    nationality: {
       type: String,
-      trim: true
+      trim: true,
+      default: "Unknown",
     },
-    parentEmail: {
+    profession: { 
       type: String,
-      lowercase: true
+      trim: true,
     },
-    parentPhone: {
-      type: String,
-      trim: true
+    parent: {
+      name: { type: String, trim: true },
+      email: { type: String, lowercase: true, trim: true },
+      phone: { type: String, trim: true },
     },
     address: {
       type: String,
-      trim: true
+      trim: true,
     },
-    dateOfBirth: {
-      type: Date
-    },
+    dateOfBirth: Date,
     admissionDate: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
     status: {
       type: String,
-      enum: ['active', 'inactive', 'suspended'],
-      default: 'active'
+      enum: ["active", "inactive", "suspended"],
+      default: "active",
     },
-    totalFeesPayable: {
-      type: Number,
-      default: 0
+    financials: {
+      totalPayable: { type: Number, default: 0, min: 0 },
+      totalPaid: { type: Number, default: 0, min: 0 },
+      pending: { type: Number, default: 0 },
     },
-    totalFeesPaid: {
-      type: Number,
-      default: 0
-    },
-    feePendingAmount: {
-      type: Number,
-      default: 0
-    },
-    notes: {
-      type: String
-    }
+    notes: String,
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-module.exports = mongoose.model('Student', studentSchema);
+// Performance: Compound index for class-based rosters
+studentSchema.index({ class: 1, rollNumber: 1 });
+
+// Middleware for logic
+studentSchema.pre("save", function (next) {
+  if (this.isModified("financials.totalPayable") || this.isModified("financials.totalPaid")) {
+    this.financials.pending = this.financials.totalPayable - this.financials.totalPaid;
+  }
+  next();
+});
+
+module.exports = mongoose.model("Student", studentSchema);

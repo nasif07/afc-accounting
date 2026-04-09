@@ -5,17 +5,20 @@ import { toast } from 'sonner';
 const STUDENTS_KEY = ['students'];
 
 /**
- * Fetch all students
+ * Fetch all students with pagination and search
+ * The queryKey now includes params so it refetches on change
  */
-export const useStudents = (options = {}) => {
+export const useStudents = (params = {}) => {
   return useQuery({
-    queryKey: STUDENTS_KEY,
+    // CRITICAL: Include params in the key so React Query tracks page/search changes
+    queryKey: [...STUDENTS_KEY, params], 
     queryFn: async () => {
-      const response = await api.get('/students');
+      const response = await api.get('/students', { params });
+      // Logic to handle different backend response structures
       return response.data.data || response.data;
     },
     staleTime: 5 * 60 * 1000,
-    ...options,
+    keepPreviousData: true, // Smoother pagination transitions
   });
 };
 
@@ -24,7 +27,7 @@ export const useStudents = (options = {}) => {
  */
 export const useStudentById = (id, options = {}) => {
   return useQuery({
-    queryKey: [...STUDENTS_KEY, id],
+    queryKey: [...STUDENTS_KEY, 'detail', id],
     queryFn: async () => {
       const response = await api.get(`/students/${id}`);
       return response.data.data || response.data;
@@ -68,8 +71,9 @@ export const useUpdateStudent = () => {
       return response.data.data || response.data;
     },
     onSuccess: (data) => {
+      // Invalidates the list and the specific detail view
       queryClient.invalidateQueries({ queryKey: STUDENTS_KEY });
-      queryClient.invalidateQueries({ queryKey: [...STUDENTS_KEY, data._id] });
+      queryClient.invalidateQueries({ queryKey: [...STUDENTS_KEY, 'detail', data._id] });
       toast.success('Student updated successfully');
     },
     onError: (error) => {
@@ -91,11 +95,33 @@ export const useDeleteStudent = () => {
     },
     onSuccess: (id) => {
       queryClient.invalidateQueries({ queryKey: STUDENTS_KEY });
-      queryClient.removeQueries({ queryKey: [...STUDENTS_KEY, id] });
+      queryClient.removeQueries({ queryKey: [...STUDENTS_KEY, 'detail', id] });
       toast.success('Student deleted successfully');
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to delete student');
+    },
+  });
+};
+
+/**
+ * Bulk Create Students
+ */
+export const useBulkCreateStudents = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data) => {
+      // Expects data to be { students: [...] }
+      const response = await api.post('/students/bulk-import', data);
+      return response.data.data || response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STUDENTS_KEY });
+      toast.success('Bulk import successful');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Bulk import failed');
     },
   });
 };
