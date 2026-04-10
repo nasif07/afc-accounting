@@ -29,6 +29,11 @@ const bankSchema = new mongoose.Schema(
       enum: ["savings", "current", "checking", "money-market"],
       required: true,
     },
+    openingBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     isActive: {
       type: Boolean,
       default: true,

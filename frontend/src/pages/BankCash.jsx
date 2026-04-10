@@ -96,18 +96,19 @@ const BankCash = () => {
   const fetchCOAAccounts = async () => {
     setCoaLoading(true);
     try {
-      // Adjust this endpoint if your project uses a different route
-      const res = await api.get('/accounts');
+      // FIXED: Use leaf-nodes endpoint to get only leaf accounts (not parent accounts)
+      // FIXED: Filter for asset accounts with status='active'
+      const res = await api.get('/accounts/leaf-nodes?accountType=asset');
       const accounts = res?.data?.data || [];
 
+      // FIXED: Filter by status='active' instead of isActive
       const assetAccounts = accounts.filter(
         (acc) =>
           acc &&
           acc.accountType === 'asset' &&
-          (acc.isActive !== false) &&
+          acc.status === 'active' &&
           !acc.deletedAt
       );
-      console.log(assetAccounts);
 
       setCoaAccounts(assetAccounts);
     } catch (error) {

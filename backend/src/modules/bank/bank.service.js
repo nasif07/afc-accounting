@@ -34,7 +34,8 @@ class BankService {
   }
 
   static async getAllBankAccounts() {
-    const banks = await Bank.find()
+    // FIXED: Filter out deleted and inactive accounts
+    const banks = await Bank.find({ deletedAt: null, isActive: true })
       .populate("createdBy", "name email")
       .populate("coaAccount", "accountName accountCode accountType")
       .sort({ createdAt: -1 })

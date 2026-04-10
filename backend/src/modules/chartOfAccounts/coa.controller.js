@@ -32,6 +32,7 @@ class COAController {
         openingBalance: openingBalance || 0,
         openingBalanceType: openingBalanceType,
         parentAccount: parentAccount || null,
+        status: 'active',  // FIXED: Ensure accounts are created as active
         createdBy: req.user.userId,
       };
 

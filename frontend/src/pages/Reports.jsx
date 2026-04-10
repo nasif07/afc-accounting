@@ -58,6 +58,16 @@ export default function Reports() {
           if (filters.endDate) params.endDate = filters.endDate;
           break;
 
+        case 'general-ledger':
+          // FIXED: Add general-ledger support
+          if (!filters.accountId) {
+            throw new Error('Please select an account for General Ledger report');
+          }
+          endpoint += '/ledger/' + filters.accountId;
+          if (filters.startDate) params.startDate = filters.startDate;
+          if (filters.endDate) params.endDate = filters.endDate;
+          break;
+
         default:
           throw new Error('Invalid report type selected');
       }

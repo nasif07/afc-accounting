@@ -7,12 +7,17 @@ const router = express.Router();
 
 router.use(auth);
 
+// FIXED: Static routes BEFORE dynamic routes to prevent /:id from matching /report/total-balance
+router.get('/report/total-balance', BankController.getTotalBankBalance);
+
+// CRUD operations
 router.post('/', directorOnly, BankController.createBankAccount);
 router.get('/', BankController.getAllBankAccounts);
+
+// Dynamic routes LAST
 router.get('/:id', BankController.getBankAccountById);
 router.put('/:id', directorOnly, BankController.updateBankAccount);
 router.delete('/:id', directorOnly, BankController.deleteBankAccount);
 router.put('/:id/reconcile', directorOnly, BankController.reconcileBankAccount);
-router.get('/report/total-balance', BankController.getTotalBankBalance);
 
 module.exports = router;
