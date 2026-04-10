@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   fetchJournalEntries,
   createJournalEntry,
+  updateJournalEntry,
   deleteJournalEntry,
   clearError,
 } from "../store/slices/journalSlice";
@@ -13,7 +14,9 @@ import {
   Trash2,
   CheckCircle,
   XCircle,
-  AlertCircle,
+  Search,
+  Filter,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import DynamicJournalForm from "../components/journal/DynamicJournalForm";
@@ -21,27 +24,19 @@ import DynamicJournalForm from "../components/journal/DynamicJournalForm";
 export default function JournalEntries() {
   const dispatch = useDispatch();
   const { entries, isLoading, error } = useSelector((state) => state.journals);
-  const { accounts } = useSelector((state) => state.accounts);
-
-  const initialFormState = {
-    voucherDate: new Date().toISOString().split("T")[0],
-    description: "",
-    voucherNumber: "",
-    transactionType: "journal-entry",
-    bookEntries: [
-      { account: "", debit: 0, credit: 0 },
-      { account: "", debit: 0, credit: 0 },
-    ],
-  };
-
+  
+  // State for UI management
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState(initialFormState);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
+  // Load data on mount
   useEffect(() => {
     dispatch(fetchJournalEntries());
     dispatch(fetchAccounts());
   }, [dispatch]);
 
+  // Error Handling
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -49,347 +44,220 @@ export default function JournalEntries() {
     }
   }, [error, dispatch]);
 
-  const leafAccounts = useMemo(() => {
-    if (!Array.isArray(accounts)) return [];
-
-    // The backend now provides a leaf-nodes endpoint, but for local filtering:
-    // We check if an account is a parent by looking at other accounts' parentAccount field
-    const parentIds = new Set(
-      accounts
-        .map((acc) => acc.parentAccount?._id || acc.parentAccount)
-        .filter(Boolean)
-        .map((id) => id.toString())
+  // Filtered Entries for Search
+  const filteredEntries = useMemo(() => {
+    if (!entries) return [];
+    return entries.filter(entry => 
+      entry.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.voucherNumber?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+  }, [entries, searchTerm]);
 
-    return accounts.filter(
-      (acc) =>
-        !parentIds.has(acc._id.toString()) &&
-        acc.status === "active" &&
-        acc.isActive !== false &&
-        !acc.deletedAt,
-    );
-  }, [accounts]);
-
-  const handleAddEntry = () => {
-    if (formData.bookEntries.length >= 10) {
-      toast.error("Maximum 10 line items allowed");
-      return;
-    }
-
-    setFormData({
-      ...formData,
-      bookEntries: [
-        ...formData.bookEntries,
-        { account: "", debit: 0, credit: 0 },
-      ],
-    });
-  };
-
-  const handleRemoveEntry = (index) => {
-    if (formData.bookEntries.length <= 2) {
-      toast.error("Minimum 2 line items required");
-      return;
-    }
-
-    setFormData({
-      ...formData,
-      bookEntries: formData.bookEntries.filter((_, i) => i !== index),
-    });
-  };
-
-  const handleEntryChange = (index, field, value) => {
-    const newEntries = [...formData.bookEntries];
-    const currentEntry = { ...newEntries[index] };
-
-    if (field === "debit") {
-      currentEntry.debit = value;
-      if (value > 0) currentEntry.credit = 0;
-    } else if (field === "credit") {
-      currentEntry.credit = value;
-      if (value > 0) currentEntry.debit = 0;
+  // Handle Create or Update
+  const handleFormSubmit = async (payload) => {
+    let result;
+    if (editingEntry) {
+      result = await dispatch(updateJournalEntry({ id: editingEntry._id, ...payload }));
     } else {
-      currentEntry[field] = value;
+      result = await dispatch(createJournalEntry(payload));
     }
-
-    newEntries[index] = currentEntry;
-    setFormData({ ...formData, bookEntries: newEntries });
-  };
-
-  const calculateTotalDebit = () =>
-    formData.bookEntries.reduce((sum, e) => sum + parseFloat(e.debit || 0), 0);
-
-  const calculateTotalCredit = () =>
-    formData.bookEntries.reduce((sum, e) => sum + parseFloat(e.credit || 0), 0);
-
-  const totalDebit = calculateTotalDebit();
-  const totalCredit = calculateTotalCredit();
-
-  const isBalanced = Math.abs(totalDebit - totalCredit) <= 0.01;
-  const hasValidAccounts = formData.bookEntries.every((e) => e.account);
-  const hasValidAmounts = formData.bookEntries.every(
-    (e) => (e.debit > 0 || e.credit > 0) && !(e.debit > 0 && e.credit > 0),
-  );
-
-  const canSubmit =
-    isBalanced &&
-    hasValidAccounts &&
-    hasValidAmounts &&
-    formData.bookEntries.length >= 2 &&
-    !!formData.description.trim();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!formData.description.trim()) {
-      toast.error("Description is required");
-      return;
-    }
-
-    if (!canSubmit) {
-      if (!isBalanced) {
-        toast.error(
-          "Journal entry is not balanced. Debits must equal credits.",
-        );
-      } else if (!hasValidAccounts) {
-        toast.error("All line items must have an account selected");
-      } else if (!hasValidAmounts) {
-        toast.error("Each line must have either debit or credit, not both");
-      } else {
-        toast.error("Please complete the journal entry correctly");
-      }
-      return;
-    }
-
-    const payload = {
-      voucherDate: formData.voucherDate,
-      description: formData.description.trim(),
-      transactionType: formData.transactionType,
-      bookEntries: formData.bookEntries.map((entry) => ({
-        account: entry.account,
-        debit: parseFloat(entry.debit || 0),
-        credit: parseFloat(entry.credit || 0),
-      })),
-    };
-
-    if (formData.voucherNumber?.trim()) {
-      payload.voucherNumber = formData.voucherNumber.trim();
-    }
-
-    const result = await dispatch(createJournalEntry(payload));
 
     if (result?.error) {
-      toast.error(result.payload || "Failed to create journal entry");
-      return;
+      toast.error(result.payload || "Operation failed");
+    } else {
+      toast.success(`Entry ${editingEntry ? "updated" : "created"} successfully`);
+      handleCloseForm();
+      dispatch(fetchJournalEntries());
     }
+  };
 
-    toast.success("Journal entry created successfully");
-    setFormData(initialFormState);
+  const handleEdit = (entry) => {
+    setEditingEntry(entry);
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
     setShowForm(false);
-    dispatch(fetchJournalEntries());
+    setEditingEntry(null);
   };
 
   const handleDelete = async (id) => {
-    const confirmed = window.confirm("Delete this journal entry?");
-    if (!confirmed) return;
-
-    const result = await dispatch(deleteJournalEntry(id));
-
-    if (result?.error) {
-      toast.error(result.payload || "Failed to delete journal entry");
-      return;
+    if (window.confirm("Are you sure you want to delete this entry? This action cannot be undone.")) {
+      const result = await dispatch(deleteJournalEntry(id));
+      if (!result?.error) {
+        toast.success("Entry deleted");
+        dispatch(fetchJournalEntries());
+      }
     }
-
-    toast.success("Journal entry deleted successfully");
-    dispatch(fetchJournalEntries());
-  };
-
-  const handleReset = () => {
-    setFormData(initialFormState);
-    setShowForm(false);
   };
 
   const getTransactionTypeLabel = (type) => {
-    switch (type) {
-      case "receipt":
-        return "Receipt";
-      case "payment":
-        return "Payment";
-      case "journal-entry":
-        return "Journal Entry";
-      case "transfer":
-        return "Transfer";
-      default:
-        return type || "-";
-    }
+    const types = {
+      'receipt': 'Receipt',
+      'payment': 'Payment',
+      'journal-entry': 'Journal Entry',
+      'transfer': 'Transfer'
+    };
+    return types[type] || type;
   };
 
   const getStatusDisplay = (entry) => {
-    if (entry.status === "posted" || entry.approvalStatus === "approved") {
-      return (
-        <span className="flex items-center gap-1 text-green-600 font-medium">
-          <CheckCircle size={16} /> Approved
-        </span>
-      );
-    }
+    const isApproved = entry.status === "posted" || entry.approvalStatus === "approved";
+    const isRejected = entry.approvalStatus === "rejected";
 
-    if (entry.approvalStatus === "rejected") {
-      return (
-        <span className="flex items-center gap-1 text-red-600 font-medium">
-          <XCircle size={16} /> Rejected
-        </span>
-      );
-    }
-
+    if (isApproved) return (
+      <span className="flex items-center gap-1 text-green-600 font-medium text-xs">
+        <CheckCircle size={14} /> Approved
+      </span>
+    );
+    if (isRejected) return (
+      <span className="flex items-center gap-1 text-red-600 font-medium text-xs">
+        <XCircle size={14} /> Rejected
+      </span>
+    );
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
         Pending
       </span>
     );
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Journal Entries</h1>
-          <p className="text-gray-600 mt-1">
-            Create and manage journal entries with double-entry validation
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Journal Entries</h1>
+          <p className="text-sm text-gray-500">Record and monitor your financial transactions</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-          <Plus size={20} />
-          New Entry
-        </button>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
+          >
+            <Plus size={18} />
+            New Entry
+          </button>
+        )}
       </div>
 
-      {showForm && (
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <DynamicJournalForm 
-            onSubmit={async (payload) => {
-              const result = await dispatch(createJournalEntry(payload));
-              if (result?.error) {
-                toast.error(result.payload || "Failed to create journal entry");
-                return;
-              }
-              toast.success("Journal entry created successfully");
-              setShowForm(false);
-              dispatch(fetchJournalEntries());
-            }}
-            onCancel={() => setShowForm(false)}
-            isLoading={isLoading}
-          />
+      {showForm ? (
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+            <h2 className="font-semibold text-gray-700">
+              {editingEntry ? "Edit Journal Entry" : "Create New Journal Entry"}
+            </h2>
+            <button onClick={handleCloseForm} className="text-gray-400 hover:text-gray-600">
+              <ArrowLeft size={20} />
+            </button>
+          </div>
+          <div className="p-6">
+            <DynamicJournalForm 
+              initialData={editingEntry} 
+              onSubmit={handleFormSubmit}
+              onCancel={handleCloseForm}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Filters/Search Bar */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Search by description or voucher #..."
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button className="flex items-center justify-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 text-gray-600">
+              <Filter size={18} />
+              Filters
+            </button>
+          </div>
 
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Voucher #
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Description
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
-                  Debit
-                </th>
-                <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
-                  Credit
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center">
-                    <div className="flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    </div>
-                  </td>
-                </tr>
-              ) : entries && entries.length > 0 ? (
-                entries.map((entry) => (
-                  <tr key={entry._id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {new Date(
-                        entry.voucherDate || entry.date,
-                      ).toLocaleDateString()}
-                    </td>
-
-                    <td className="px-6 py-4 text-sm font-mono text-gray-900">
-                      {entry.voucherNumber || entry.referenceNumber}
-                    </td>
-
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {entry.description}
-                    </td>
-
-                    <td className="px-6 py-4 text-sm">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {getTransactionTypeLabel(entry.transactionType)}
-                      </span>
-                    </td>
-
-                    <td className="px-6 py-4 text-sm text-right font-mono text-gray-900">
-                      ৳{Number(entry.totalDebit || 0).toFixed(2)}
-                    </td>
-
-                    <td className="px-6 py-4 text-sm text-right font-mono text-gray-900">
-                      ৳{Number(entry.totalCredit || 0).toFixed(2)}
-                    </td>
-
-                    <td className="px-6 py-4 text-sm">
-                      {getStatusDisplay(entry)}
-                    </td>
-
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          className="p-1 text-gray-600 hover:text-blue-600 transition"
-                          title="Edit">
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(entry._id)}
-                          className="p-1 text-gray-600 hover:text-red-600 transition"
-                          title="Delete">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+          {/* Table Container */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Date</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Voucher #</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Description</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Type</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Debit (৳)</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Credit (৳)</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-center">Actions</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="px-6 py-8 text-center text-gray-500">
-                    No journal entries found. Create your first entry to get
-                    started.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {isLoading ? (
+                    [...Array(3)].map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td colSpan="8" className="px-6 py-6 border-b"><div className="h-4 bg-gray-100 rounded w-full"></div></td>
+                      </tr>
+                    ))
+                  ) : filteredEntries.length > 0 ? (
+                    filteredEntries.map((entry) => (
+                      <tr key={entry._id} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {new Date(entry.voucherDate || entry.date).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-mono font-medium text-blue-700">
+                          {entry.voucherNumber || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                          {entry.description}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-[10px] px-2 py-1 rounded-md bg-gray-100 text-gray-600 font-semibold uppercase">
+                            {getTransactionTypeLabel(entry.transactionType)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-right font-mono">
+                          {Number(entry.totalDebit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-right font-mono">
+                          {Number(entry.totalCredit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4">{getStatusDisplay(entry)}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center gap-3">
+                            <button 
+                              onClick={() => handleEdit(entry)}
+                              className="text-gray-400 hover:text-blue-600 transition"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(entry._id)}
+                              className="text-gray-400 hover:text-red-600 transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="8" className="px-6 py-12 text-center text-gray-400">
+                        No entries found matching your criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

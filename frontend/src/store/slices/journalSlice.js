@@ -1,53 +1,73 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api from '../../services/api';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import api from "../../services/api";
+
+// --- Thunks ---
 
 export const fetchJournalEntries = createAsyncThunk(
-  'journals/fetchJournalEntries',
+  "journals/fetchJournalEntries",
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/accounting/journal-entries', { params });
+      const response = await api.get("/accounting/journal-entries", { params });
+      // Flexible handling for different API response structures
       return response.data.data || response.data.entries || response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to fetch entries'
+        error.response?.data?.message || "Failed to fetch entries",
       );
     }
-  }
+  },
 );
 
 export const createJournalEntry = createAsyncThunk(
-  'journals/createJournalEntry',
+  "journals/createJournalEntry",
   async (entryData, { rejectWithValue }) => {
     try {
-      const response = await api.post('/accounting/journal-entries', entryData);
+      const response = await api.post("/accounting/journal-entries", entryData);
       return response.data.data || response.data.entry || response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to create entry'
+        error.response?.data?.message || "Failed to create entry",
       );
     }
-  }
+  },
+);
+
+/**
+ * Added Update Thunk
+ * Expects an object with { id, ...data }
+ */
+export const updateJournalEntry = createAsyncThunk(
+  "journals/updateJournalEntry",
+  async ({ id, ...updateData }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(
+        `/accounting/journal-entries/${id}`,
+        updateData,
+      );
+      return response.data.data || response.data.entry || response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update entry",
+      );
+    }
+  },
 );
 
 export const deleteJournalEntry = createAsyncThunk(
-  'journals/deleteJournalEntry',
+  "journals/deleteJournalEntry",
   async (id, { rejectWithValue }) => {
     try {
       await api.delete(`/accounting/journal-entries/${id}`);
       return id;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to delete entry'
+        error.response?.data?.message || "Failed to delete entry",
       );
     }
-  }
+  },
 );
 
-const initialState = {
-  entries: [],
-  isLoading: false,
-  error: null,
-};
+// --- Helpers ---
 
 const sortEntries = (entries) => {
   return [...entries].sort((a, b) => {
@@ -57,8 +77,16 @@ const sortEntries = (entries) => {
   });
 };
 
+// --- Slice ---
+
+const initialState = {
+  entries: [],
+  isLoading: false,
+  error: null,
+};
+
 const journalSlice = createSlice({
-  name: 'journals',
+  name: "journals",
   initialState,
   reducers: {
     clearError: (state) => {
@@ -72,7 +100,7 @@ const journalSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // fetch
+      // Fetch Entries
       .addCase(fetchJournalEntries.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -88,14 +116,13 @@ const journalSlice = createSlice({
         state.error = action.payload;
       })
 
-      // create
+      // Create Entry
       .addCase(createJournalEntry.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
       .addCase(createJournalEntry.fulfilled, (state, action) => {
         state.isLoading = false;
-
         if (action.payload?._id) {
           state.entries = sortEntries([...state.entries, action.payload]);
         }
@@ -105,7 +132,27 @@ const journalSlice = createSlice({
         state.error = action.payload;
       })
 
-      // delete
+      // Update Entry (New)
+      .addCase(updateJournalEntry.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(updateJournalEntry.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const index = state.entries.findIndex(
+          (e) => e._id === action.payload._id,
+        );
+        if (index !== -1) {
+          state.entries[index] = action.payload;
+          state.entries = sortEntries(state.entries);
+        }
+      })
+      .addCase(updateJournalEntry.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Delete Entry
       .addCase(deleteJournalEntry.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -113,7 +160,7 @@ const journalSlice = createSlice({
       .addCase(deleteJournalEntry.fulfilled, (state, action) => {
         state.isLoading = false;
         state.entries = state.entries.filter(
-          (entry) => entry._id !== action.payload
+          (entry) => entry._id !== action.payload,
         );
       })
       .addCase(deleteJournalEntry.rejected, (state, action) => {

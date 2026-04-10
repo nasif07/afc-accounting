@@ -1,22 +1,22 @@
-import React, { useEffect, useState } from 'react'
-import ReactDOM from 'react-dom/client'
-import { Provider, useDispatch, useSelector } from 'react-redux'
-import { QueryClientProvider } from '@tanstack/react-query'
-import { Toaster } from 'sonner'
-import store from './store/store.js'
-import { queryClient } from './lib/queryClient'
-import './index.css'
+import React, { useEffect, useState } from "react";
+import ReactDOM from "react-dom/client";
+import { Provider, useDispatch, useSelector } from "react-redux";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
+import store from "./store/store.js";
+import { queryClient } from "./lib/queryClient";
+import "./index.css";
 import { RouterProvider } from "react-router-dom";
-import router from './Routes/Routes.jsx'
-import { getCurrentUser } from './store/slices/authSlice.js'
-import LoadingSpinner from './components/LoadingSpinner'
+import router from "./Routes/Routes.jsx";
+import { getCurrentUser } from "./store/slices/authSlice.js";
+import LoadingSpinner from "./components/LoadingSpinner";
 
 /**
  * AppInitializer: Initializes the app by:
  * 1. Dispatching getCurrentUser to check authentication
  * 2. Waiting for auth check to complete
  * 3. THEN providing the router to React Router
- * 
+ *
  * This ensures the router doesn't render before we know if user is authenticated
  */
 function AppInitializer() {
@@ -40,7 +40,7 @@ function AppInitializer() {
   return <RouterProvider router={router} />;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
@@ -49,4 +49,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       </QueryClientProvider>
     </Provider>
   </React.StrictMode>,
-)
+);
