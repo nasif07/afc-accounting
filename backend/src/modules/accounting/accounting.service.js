@@ -565,10 +565,27 @@ class AccountingService {
     return entry.populate('bookEntries.account');
   }
 
+  static async rejectEntry(entryId, rejectedBy, rejectionReason) {
+    const entry = await JournalEntry.findOne({ _id: entryId, deletedAt: null });
+    if (!entry) throw new Error('Entry not found');
+    if (entry.status === 'posted') throw new Error('Cannot reject already posted entry');
+    if (entry.approvalStatus !== 'pending') throw new Error('Entry is not pending approval');
+
+    entry.approvalStatus = 'rejected';
+    entry.status = 'rejected';
+    entry.rejectedBy = rejectedBy;
+    entry.rejectionDate = new Date();
+    entry.rejectionReason = rejectionReason;
+
+    await entry.save();
+    return entry.populate('bookEntries.account');
+  }
+
   static async getPendingApprovals() {
     return await JournalEntry.find({ approvalStatus: 'pending', deletedAt: null })
-      .populate('bookEntries.account')
-      .sort({ voucherDate: 1 });
+      .populate('createdBy', 'name email')
+      .populate('bookEntries.account', 'accountCode accountName accountType')
+      .sort({ voucherDate: -1 });
   }
 }
 
