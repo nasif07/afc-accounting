@@ -1,86 +1,89 @@
-const mongoose = require('mongoose');
-const { TRANSACTION_TYPES, APPROVAL_STATUS } = require('../../config/constants');
-const generateVoucherNumber = require('../../utils/generateVoucherNumber');
+const mongoose = require("mongoose");
+const {
+  TRANSACTION_TYPES,
+  APPROVAL_STATUS,
+} = require("../../config/constants");
+const generateVoucherNumber = require("../../utils/generateVoucherNumber");
 
 const bookEntrySchema = new mongoose.Schema(
   {
     account: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'ChartOfAccounts',
-      required: [true, 'Account is required'],
+      ref: "ChartOfAccounts",
+      required: [true, "Account is required"],
     },
     debit: {
       type: Number,
       default: 0,
-      min: [0, 'Debit cannot be negative'],
+      min: [0, "Debit cannot be negative"],
       get: (v) => v / 100,
       set: (v) => Math.round((v || 0) * 100),
     },
     credit: {
       type: Number,
       default: 0,
-      min: [0, 'Credit cannot be negative'],
+      min: [0, "Credit cannot be negative"],
       get: (v) => v / 100,
       set: (v) => Math.round((v || 0) * 100),
     },
     description: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
   },
   {
     _id: false,
     toJSON: { getters: true },
     toObject: { getters: true },
-  }
+  },
 );
 
 // Validate each journal line
-bookEntrySchema.pre('validate', async function (next) {
+bookEntrySchema.pre("validate", async function (next) {
   try {
     if (!this.account) {
-      return next(new Error('Account is required for each line item'));
+      return next(new Error("Account is required for each line item"));
     }
 
     if (this.debit > 0 && this.credit > 0) {
       return next(
-        new Error('Cannot have both debit and credit in the same line item')
+        new Error("Cannot have both debit and credit in the same line item"),
       );
     }
 
     if (this.debit === 0 && this.credit === 0) {
       return next(
         new Error(
-          'Amount cannot be zero - each line must have either a debit or credit'
-        )
+          "Amount cannot be zero - each line must have either a debit or credit",
+        ),
       );
     }
 
-    const ChartOfAccounts = mongoose.model('ChartOfAccounts');
+    const ChartOfAccounts = mongoose.model("ChartOfAccounts");
     const account = await ChartOfAccounts.findById(this.account);
 
     if (!account) {
-      return next(new Error('Invalid account selected'));
+      return next(new Error("Invalid account selected"));
     }
 
     if (account.deletedAt) {
-      return next(new Error('Deleted account cannot be used in transactions'));
+      return next(new Error("Deleted account cannot be used in transactions"));
     }
 
-    if (!account.isActive || account.status !== 'active') {
-      return next(new Error('Inactive account cannot be used in transactions'));
+    if (account.status !== "active") {
+      return next(new Error("Inactive account cannot be used in transactions"));
     }
 
     const hasChildren = await ChartOfAccounts.exists({
       parentAccount: account._id,
       deletedAt: null,
-      status: { $ne: 'archived' },
+      status: { $ne: "archived" },
     });
 
     if (hasChildren) {
       return next(
-        new Error('Parent account cannot be used in journal transactions')
+        new Error("Parent account cannot be used in journal transactions"),
       );
     }
 
@@ -93,42 +96,42 @@ bookEntrySchema.pre('validate', async function (next) {
 const journalEntrySchema = new mongoose.Schema(
   {
     voucherNumber: {
-      required: [true, 'Voucher number is required'],
+      required: [true, "Voucher number is required"],
       type: String,
       unique: true,
       trim: true,
     },
     voucherDate: {
       type: Date,
-      required: [true, 'Voucher date is required'],
+      required: [true, "Voucher date is required"],
       default: Date.now,
     },
     transactionType: {
       type: String,
       enum: Object.values(TRANSACTION_TYPES),
-      required: [true, 'Transaction type is required'],
+      required: [true, "Transaction type is required"],
     },
     bookEntries: {
       type: [bookEntrySchema],
-      required: [true, 'Book entries are required'],
+      required: [true, "Book entries are required"],
       validate: {
         validator: function (entries) {
           return Array.isArray(entries) && entries.length >= 2;
         },
-        message: 'Journal entry must have at least 2 line items',
+        message: "Journal entry must have at least 2 line items",
       },
     },
     totalDebit: {
       type: Number,
       default: 0,
-      get: (v) => v / 100,
       set: (v) => Math.round((v || 0) * 100),
+      get: (v) => v / 100,
     },
     totalCredit: {
       type: Number,
       default: 0,
-      get: (v) => v / 100,
       set: (v) => Math.round((v || 0) * 100),
+      get: (v) => v / 100,
     },
     isBalanced: {
       type: Boolean,
@@ -137,12 +140,12 @@ const journalEntrySchema = new mongoose.Schema(
     description: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
     referenceNumber: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
     approvalStatus: {
       type: String,
@@ -151,8 +154,8 @@ const journalEntrySchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['draft', 'posted', 'reversed', 'deleted'],
-      default: 'draft',
+      enum: ["draft", "posted", "reversed", "deleted"],
+      default: "draft",
     },
     isLocked: {
       type: Boolean,
@@ -160,12 +163,12 @@ const journalEntrySchema = new mongoose.Schema(
     },
     reversalOf: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'JournalEntry',
+      ref: "JournalEntry",
       default: null,
     },
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       default: null,
     },
     approvalDate: {
@@ -175,12 +178,12 @@ const journalEntrySchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Created by is required'],
+      ref: "User",
+      required: [true, "Created by is required"],
     },
     deletedAt: {
       type: Date,
@@ -188,7 +191,7 @@ const journalEntrySchema = new mongoose.Schema(
     },
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       default: null,
     },
     attachments: {
@@ -200,14 +203,14 @@ const journalEntrySchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { getters: true },
     toObject: { getters: true },
-  }
+  },
 );
 
 // Auto-generate voucher number if missing
-journalEntrySchema.pre('validate', async function (next) {
+journalEntrySchema.pre("validate", async function (next) {
   try {
     if (!this.voucherNumber) {
-      this.voucherNumber = await generateVoucherNumber('JV');
+      this.voucherNumber = await generateVoucherNumber("JV");
     }
     next();
   } catch (error) {
@@ -216,19 +219,19 @@ journalEntrySchema.pre('validate', async function (next) {
 });
 
 // Validate totals and final journal state before save
-journalEntrySchema.pre('save', function (next) {
+journalEntrySchema.pre("save", function (next) {
   try {
     if (!this.bookEntries || this.bookEntries.length < 2) {
-      return next(new Error('Journal entry must have at least 2 line items'));
+      return next(new Error("Journal entry must have at least 2 line items"));
     }
 
     const totalD = this.bookEntries.reduce(
       (sum, entry) => sum + (entry.debit || 0),
-      0
+      0,
     );
     const totalC = this.bookEntries.reduce(
       (sum, entry) => sum + (entry.credit || 0),
-      0
+      0,
     );
 
     this.totalDebit = totalD;
@@ -238,13 +241,13 @@ journalEntrySchema.pre('save', function (next) {
     if (!this.isBalanced) {
       return next(
         new Error(
-          `Journal entry is not balanced. Debits: ${totalD / 100}, Credits: ${totalC / 100}`
-        )
+          `Journal entry is not balanced. Debits: ${totalD / 100}, Credits: ${totalC / 100}`,
+        ),
       );
     }
 
-    if (this.status === 'posted' && this.approvalStatus !== 'approved') {
-      return next(new Error('Cannot post a journal entry without approval'));
+    if (this.status === "posted" && this.approvalStatus !== "approved") {
+      return next(new Error("Cannot post a journal entry without approval"));
     }
 
     next();
@@ -254,15 +257,15 @@ journalEntrySchema.pre('save', function (next) {
 });
 
 // Prevent editing finalized entries
-journalEntrySchema.pre('findOneAndUpdate', async function (next) {
+journalEntrySchema.pre("findOneAndUpdate", async function (next) {
   try {
     const doc = await this.model.findOne(this.getFilter());
 
     if (
       doc &&
-      (doc.isLocked || doc.status === 'posted' || doc.status === 'deleted')
+      (doc.isLocked || doc.status === "posted" || doc.status === "deleted")
     ) {
-      return next(new Error('Cannot edit finalized journal entry'));
+      return next(new Error("Cannot edit finalized journal entry"));
     }
 
     next();
@@ -271,15 +274,15 @@ journalEntrySchema.pre('findOneAndUpdate', async function (next) {
   }
 });
 
-journalEntrySchema.pre('findByIdAndUpdate', async function (next) {
+journalEntrySchema.pre("findByIdAndUpdate", async function (next) {
   try {
     const doc = await this.model.findById(this.getFilter()._id);
 
     if (
       doc &&
-      (doc.isLocked || doc.status === 'posted' || doc.status === 'deleted')
+      (doc.isLocked || doc.status === "posted" || doc.status === "deleted")
     ) {
-      return next(new Error('Cannot edit finalized journal entry'));
+      return next(new Error("Cannot edit finalized journal entry"));
     }
 
     next();
@@ -300,9 +303,9 @@ function excludeDeleted(next) {
   next();
 }
 
-journalEntrySchema.pre('find', excludeDeleted);
-journalEntrySchema.pre('findOne', excludeDeleted);
-journalEntrySchema.pre('countDocuments', excludeDeleted);
+journalEntrySchema.pre("find", excludeDeleted);
+journalEntrySchema.pre("findOne", excludeDeleted);
+journalEntrySchema.pre("countDocuments", excludeDeleted);
 
 // Indexes
 journalEntrySchema.index({ voucherNumber: 1 }, { unique: true });
@@ -310,6 +313,6 @@ journalEntrySchema.index({ voucherDate: -1 });
 journalEntrySchema.index({ createdBy: 1, voucherDate: -1 });
 journalEntrySchema.index({ approvalStatus: 1, status: 1 });
 journalEntrySchema.index({ status: 1, deletedAt: 1 });
-journalEntrySchema.index({ 'bookEntries.account': 1 });
+journalEntrySchema.index({ "bookEntries.account": 1 });
 
-module.exports = mongoose.model('JournalEntry', journalEntrySchema);
+module.exports = mongoose.model("JournalEntry", journalEntrySchema);

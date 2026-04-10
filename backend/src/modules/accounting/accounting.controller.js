@@ -106,6 +106,8 @@ class AccountingController {
         attachments,
       } = req.body;
 
+      console.log(req.body);
+
       if (!voucherDate || !transactionType || !bookEntries || bookEntries.length === 0) {
         return ApiResponse.badRequest(
           res,
