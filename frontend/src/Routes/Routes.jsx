@@ -20,6 +20,7 @@ import BankCash from "../pages/BankCash";
 import Reports from "../pages/Reports";
 import Settings from "../pages/Settings";
 import DirectorApprovals from "../pages/DirectorApprovals";
+import JournalEntryApprovals from "../pages/JournalEntryApprovals";
 
 /**
  * RootRedirect: Handles root path redirection based on auth state
@@ -178,7 +179,7 @@ const router = createBrowserRouter([
     children: [
       {
         path: "approvals",
-        element: <ComingSoon />,
+        element: <JournalEntryApprovals />,
       },
     ],
   },
