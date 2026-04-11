@@ -116,7 +116,7 @@ export const bankAPI = {
   create: (data) => api.post("/bank", data),
   update: (id, data) => api.put(`/bank/${id}`, data),
   delete: (id) => api.delete(`/bank/${id}`),
-  reconcile: (id, data) => api.put(`/bank/${id}/reconcile`, data),
+  reconcile: (id, data) => api.put(`/bank/${id}/reconciliation`, data),
   getTotalBalance: () => api.get("/bank/report/total-balance"),
 };
 
