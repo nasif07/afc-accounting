@@ -1,12 +1,18 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useMemo } from "react";
+import { X } from "lucide-react";
 import { menuSections } from "../constants/menuSection";
+import logo from "/afc-logo.jpg";
 
-export default function Sidebar({ user, isOpen = true }) {
+export default function Sidebar({
+  user,
+  mobileOpen = false,
+  desktopOpen = true,
+  onClose = () => {},
+}) {
   const location = useLocation();
   const role = user?.role || "sub-accountant";
 
-  // Filter menu items based on role
   const authorizedSections = useMemo(() => {
     return menuSections
       .map((section) => ({
@@ -17,82 +23,135 @@ export default function Sidebar({ user, isOpen = true }) {
   }, [role]);
 
   return (
-    <aside
-      className={`bg-white border-r border-gray-100 h-screen sticky top-0 transition-all duration-200 ${
-        isOpen ? "w-64" : "w-20"
-      }`}
-      style={{ fontFamily: "'Inter', system-ui, sans-serif" }} // Force a clean font
-    >
-      {/* 1. Simple Header: Just the Brand */}
-      <div className="h-16 flex items-center px-6 border-b border-gray-50">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#DA002E] rounded flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-sm">af</span>
-          </div>
-          {isOpen && (
-            <span className="font-bold text-gray-800 tracking-tight text-sm uppercase">
-              Accounting <span className="text-gray-400 font-medium text-[10px] align-top ml-1">v1.0</span>
-            </span>
+    <>
+      {/* Mobile Backdrop */}
+      <div
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 lg:hidden ${
+          mobileOpen
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+      />
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-slate-200 bg-white shadow-xl transition-all duration-300 ease-in-out lg:shadow-none ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        } lg:translate-x-0 ${desktopOpen ? "lg:w-64" : "lg:w-20"} w-[280px]`}
+      >
+        {/* Logo/Header */}
+        <div className="relative flex min-h-[72px] items-center justify-center border-b border-slate-200 px-4 py-4">
+          {/* Mobile close */}
+          <button
+            onClick={onClose}
+            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+            aria-label="Close sidebar"
+            type="button"
+          >
+            <X size={18} />
+          </button>
+
+          {desktopOpen ? (
+            <img
+              className="h-auto w-28 object-contain"
+              src={logo}
+              alt="AFC Logo"
+            />
+          ) : (
+            <img
+              className="hidden h-10 w-10 rounded-md object-cover lg:block"
+              src={logo}
+              alt="AFC Logo"
+            />
           )}
         </div>
-      </div>
 
-      {/* 2. Navigation: High Contrast & Simple */}
-      <nav className="p-3 space-y-6 overflow-y-auto max-h-[calc(100vh-120px)]">
-        {authorizedSections.map((section) => (
-          <div key={section.title}>
-            {isOpen && (
-              <p className="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                {section.title}
-              </p>
+        {/* Navigation */}
+        <nav className="custom-scrollbar flex-1 space-y-6 overflow-y-auto px-3 py-4">
+          {authorizedSections.map((section) => (
+            <div key={section.title} className="space-y-1">
+              {desktopOpen && (
+                <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                  {section.title}
+                </h3>
+              )}
+
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  const Icon = item.icon;
+
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => {
+                        if (window.innerWidth < 1024) {
+                          onClose();
+                        }
+                      }}
+                      className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 ${
+                        isActive
+                          ? "bg-slate-100 text-slate-900"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      } ${!desktopOpen ? "lg:justify-center" : ""}`}
+                    >
+                      {isActive && (
+                        <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-[#DA002E]" />
+                      )}
+
+                      <Icon
+                        size={18}
+                        strokeWidth={isActive ? 2.4 : 2}
+                        className={`shrink-0 ${
+                          isActive
+                            ? "text-slate-900"
+                            : "text-slate-400 group-hover:text-slate-700"
+                        }`}
+                      />
+
+                      {desktopOpen && (
+                        <span
+                          className={`truncate ${
+                            isActive ? "font-semibold" : "font-medium"
+                          }`}
+                        >
+                          {item.title}
+                        </span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* User Footer */}
+        <div className="border-t border-slate-200 bg-white p-4">
+          <div
+            className={`flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5 ${
+              !desktopOpen ? "lg:justify-center" : ""
+            }`}
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold uppercase text-slate-700">
+              {user?.name?.[0] || "U"}
+            </div>
+
+            {desktopOpen && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-800">
+                  {user?.name || "System User"}
+                </p>
+                <p className="truncate text-xs font-medium capitalize text-slate-500">
+                  {role.replace("-", " ")}
+                </p>
+              </div>
             )}
-
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const isActive = location.pathname === item.path;
-                const Icon = item.icon;
-
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                      isActive
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-                    } ${!isOpen ? "justify-center" : ""}`}
-                  >
-                    <Icon 
-                      size={18} 
-                      className={isActive ? "text-[#DA002E]" : "text-gray-400"} 
-                    />
-                    {isOpen && (
-                      <span className={`text-[13px] ${isActive ? "font-semibold" : "font-medium"}`}>
-                        {item.title}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </div>
           </div>
-        ))}
-      </nav>
-
-      {/* 3. Footer: Basic Identity */}
-      <div className="absolute bottom-0 w-full p-4 border-t border-gray-50">
-        <div className={`flex items-center gap-3 ${!isOpen ? "justify-center" : ""}`}>
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 uppercase">
-            {user?.name?.[0] || 'A'}
-          </div>
-          {isOpen && (
-            <div className="leading-tight">
-              <p className="text-[12px] font-bold text-gray-800 truncate">{user?.name || "Accountant"}</p>
-              <p className="text-[10px] text-gray-400 uppercase font-semibold">{role}</p>
-            </div>
-          )}
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

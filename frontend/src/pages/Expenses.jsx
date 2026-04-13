@@ -7,6 +7,7 @@ import {
   X,
   CheckCircle,
   XCircle,
+  DollarSign,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -22,6 +23,7 @@ import {
   clearSuccess,
 } from "../store/slices/expenseSlice";
 import { fetchVendors } from "../store/slices/vendorSlice";
+import SectionHeader from "../components/common/SectionHeader";
 
 const EXPENSE_CATEGORIES = [
   "utilities",
@@ -160,21 +162,18 @@ export default function Expenses() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Expenses Management
-          </h1>
-          <p className="text-gray-600 mt-1">Manage organizational expenses</p>
-        </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition">
-          <Plus size={20} /> Add Expense
-        </button>
-      </div>
-
+    <div className="space-y-4">
+      <SectionHeader
+        icon={DollarSign}
+        title="Expenses Management"
+        description="Manage organizational expenses"
+        buttonText="Add Expense"
+        onButtonClick={handleOpenModal}
+        buttonIcon={Plus}
+        buttonColor="bg-red-600 hover:bg-red-700" // Alliance Française theme
+        iconBg="bg-red-50"
+        iconColor="text-red-600"
+      />
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1 relative">

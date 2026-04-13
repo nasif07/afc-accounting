@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import toast from 'react-hot-toast';
-import { Check, X, Loader, ChevronDown, Eye, AlertCircle } from 'lucide-react';
-import Card from '../components/common/Card';
-import Badge from '../components/common/Badge';
+import { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
+import toast from "react-hot-toast";
+import { Check, X, Loader, ChevronDown, Eye, AlertCircle, CheckCircle } from "lucide-react";
+import Card from "../components/common/Card";
+import Badge from "../components/common/Badge";
+import SectionHeader from "../components/common/SectionHeader";
 
 export default function JournalEntryApprovals() {
   const [pendingEntries, setPendingEntries] = useState([]);
@@ -13,16 +14,16 @@ export default function JournalEntryApprovals() {
   const [expandedId, setExpandedId] = useState(null);
   const [approving, setApproving] = useState(null);
   const [rejecting, setRejecting] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState(null);
-  
+
   const user = useSelector((state) => state.auth.user);
   const navigate = useNavigate();
 
   // Check if user is director
   useEffect(() => {
-    if (user?.role !== 'director') {
-      navigate('/dashboard');
+    if (user?.role !== "director") {
+      navigate("/dashboard");
       return;
     }
     fetchPendingEntries();
@@ -31,10 +32,12 @@ export default function JournalEntryApprovals() {
   const fetchPendingEntries = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/accounting/journal-entries/pending-approvals');
+      const response = await api.get(
+        "/accounting/journal-entries/pending-approvals",
+      );
       setPendingEntries(response?.data?.data || []);
     } catch (error) {
-      toast.error('Failed to load pending journal entries');
+      toast.error("Failed to load pending journal entries");
       console.error(error);
     } finally {
       setLoading(false);
@@ -45,10 +48,10 @@ export default function JournalEntryApprovals() {
     try {
       setApproving(entryId);
       await api.patch(`/accounting/journal-entries/${entryId}/approve`);
-      toast.success('Journal entry approved successfully');
+      toast.success("Journal entry approved successfully");
       fetchPendingEntries();
     } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to approve entry');
+      toast.error(error?.response?.data?.message || "Failed to approve entry");
       console.error(error);
     } finally {
       setApproving(null);
@@ -57,7 +60,7 @@ export default function JournalEntryApprovals() {
 
   const handleRejectSubmit = async (entryId) => {
     if (!rejectionReason.trim()) {
-      toast.error('Please provide a rejection reason');
+      toast.error("Please provide a rejection reason");
       return;
     }
 
@@ -66,12 +69,12 @@ export default function JournalEntryApprovals() {
       await api.patch(`/accounting/journal-entries/${entryId}/reject`, {
         rejectionReason: rejectionReason.trim(),
       });
-      toast.success('Journal entry rejected successfully');
+      toast.success("Journal entry rejected successfully");
       setShowRejectModal(null);
-      setRejectionReason('');
+      setRejectionReason("");
       fetchPendingEntries();
     } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to reject entry');
+      toast.error(error?.response?.data?.message || "Failed to reject entry");
       console.error(error);
     } finally {
       setRejecting(null);
@@ -79,25 +82,29 @@ export default function JournalEntryApprovals() {
   };
 
   const calculateTotalDebit = (entry) => {
-    return entry?.bookEntries?.reduce((sum, be) => sum + (be.debit || 0), 0) || 0;
+    return (
+      entry?.bookEntries?.reduce((sum, be) => sum + (be.debit || 0), 0) || 0
+    );
   };
 
   const calculateTotalCredit = (entry) => {
-    return entry?.bookEntries?.reduce((sum, be) => sum + (be.credit || 0), 0) || 0;
+    return (
+      entry?.bookEntries?.reduce((sum, be) => sum + (be.credit || 0), 0) || 0
+    );
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount || 0);
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    return new Date(date).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -110,14 +117,15 @@ export default function JournalEntryApprovals() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Journal Entry Approvals</h1>
-        <p className="mt-2 text-gray-600">
-          Review and approve pending journal entries
-        </p>
-      </div>
+      <SectionHeader
+        icon={CheckCircle}
+        title="Journal Entry Approvals"
+        description="Review and approve pending journal entries"
+        iconBg="bg-red-50"
+        iconColor="text-red-600"
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -139,7 +147,10 @@ export default function JournalEntryApprovals() {
             </p>
             <p className="mt-2 text-2xl font-bold text-green-900">
               {formatCurrency(
-                pendingEntries.reduce((sum, e) => sum + calculateTotalDebit(e), 0)
+                pendingEntries.reduce(
+                  (sum, e) => sum + calculateTotalDebit(e),
+                  0,
+                ),
               )}
             </p>
           </div>
@@ -152,7 +163,10 @@ export default function JournalEntryApprovals() {
             </p>
             <p className="mt-2 text-2xl font-bold text-orange-900">
               {formatCurrency(
-                pendingEntries.reduce((sum, e) => sum + calculateTotalCredit(e), 0)
+                pendingEntries.reduce(
+                  (sum, e) => sum + calculateTotalCredit(e),
+                  0,
+                ),
               )}
             </p>
           </div>
@@ -168,7 +182,8 @@ export default function JournalEntryApprovals() {
               No Pending Approvals
             </h3>
             <p className="text-gray-600">
-              All journal entries have been reviewed. Check back later for new submissions.
+              All journal entries have been reviewed. Check back later for new
+              submissions.
             </p>
           </div>
         </Card>
@@ -189,10 +204,10 @@ export default function JournalEntryApprovals() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
                         <h3 className="text-lg font-bold text-gray-900">
-                          {entry.voucherNumber || 'N/A'}
+                          {entry.voucherNumber || "N/A"}
                         </h3>
-                        <Badge variant={isBalanced ? 'success' : 'danger'}>
-                          {isBalanced ? 'Balanced' : 'Unbalanced'}
+                        <Badge variant={isBalanced ? "success" : "danger"}>
+                          {isBalanced ? "Balanced" : "Unbalanced"}
                         </Badge>
                       </div>
 
@@ -204,9 +219,11 @@ export default function JournalEntryApprovals() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-600 font-medium">Created By</p>
+                          <p className="text-gray-600 font-medium">
+                            Created By
+                          </p>
                           <p className="text-gray-900 font-semibold">
-                            {entry.createdBy?.name || 'Unknown'}
+                            {entry.createdBy?.name || "Unknown"}
                           </p>
                         </div>
                         <div>
@@ -235,12 +252,11 @@ export default function JournalEntryApprovals() {
                       onClick={() =>
                         setExpandedId(isExpanded ? null : entry._id)
                       }
-                      className="ml-4 p-2 hover:bg-gray-200 rounded-lg transition"
-                    >
+                      className="ml-4 p-2 hover:bg-gray-200 rounded-lg transition">
                       <ChevronDown
                         size={20}
                         className={`text-gray-600 transition-transform ${
-                          isExpanded ? 'rotate-180' : ''
+                          isExpanded ? "rotate-180" : ""
                         }`}
                       />
                     </button>
@@ -249,13 +265,17 @@ export default function JournalEntryApprovals() {
                   {/* Warning if Unbalanced */}
                   {!isBalanced && (
                     <div className="mt-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                      <AlertCircle
+                        size={18}
+                        className="text-red-600 flex-shrink-0 mt-0.5"
+                      />
                       <div>
                         <p className="text-sm font-semibold text-red-900">
                           Entry is not balanced
                         </p>
                         <p className="text-xs text-red-700">
-                          Difference: {formatCurrency(Math.abs(totalDebit - totalCredit))}
+                          Difference:{" "}
+                          {formatCurrency(Math.abs(totalDebit - totalCredit))}
                         </p>
                       </div>
                     </div>
@@ -290,7 +310,9 @@ export default function JournalEntryApprovals() {
                           </thead>
                           <tbody>
                             {entry.bookEntries?.map((be, idx) => (
-                              <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
+                              <tr
+                                key={idx}
+                                className="border-b border-gray-200 hover:bg-gray-50">
                                 <td className="py-3 px-3">
                                   <div>
                                     <p className="font-semibold text-gray-900">
@@ -320,7 +342,7 @@ export default function JournalEntryApprovals() {
                                   )}
                                 </td>
                                 <td className="py-3 px-3 text-gray-700">
-                                  {be.description || '-'}
+                                  {be.description || "-"}
                                 </td>
                               </tr>
                             ))}
@@ -346,8 +368,7 @@ export default function JournalEntryApprovals() {
                       <button
                         onClick={() => handleApprove(entry._id)}
                         disabled={approving === entry._id || !isBalanced}
-                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition"
-                      >
+                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition">
                         {approving === entry._id ? (
                           <>
                             <Loader size={18} className="animate-spin" />
@@ -364,8 +385,7 @@ export default function JournalEntryApprovals() {
                       <button
                         onClick={() => setShowRejectModal(entry._id)}
                         disabled={rejecting === entry._id}
-                        className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition"
-                      >
+                        className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition">
                         {rejecting === entry._id ? (
                           <>
                             <Loader size={18} className="animate-spin" />
@@ -413,18 +433,20 @@ export default function JournalEntryApprovals() {
                 <button
                   onClick={() => {
                     setShowRejectModal(null);
-                    setRejectionReason('');
+                    setRejectionReason("");
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition"
-                >
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition">
                   Cancel
                 </button>
                 <button
                   onClick={() => handleRejectSubmit(showRejectModal)}
-                  disabled={!rejectionReason.trim() || rejecting === showRejectModal}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition"
-                >
-                  {rejecting === showRejectModal ? 'Rejecting...' : 'Confirm Rejection'}
+                  disabled={
+                    !rejectionReason.trim() || rejecting === showRejectModal
+                  }
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition">
+                  {rejecting === showRejectModal
+                    ? "Rejecting..."
+                    : "Confirm Rejection"}
                 </button>
               </div>
             </div>

@@ -7,6 +7,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Users,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom"; // navigate removed as we use Modal now
 import {
@@ -24,6 +25,7 @@ import { Card, CardContent } from "../components/ui/Card";
 import { formatCurrency } from "../utils/currency";
 import StudentFormModal from "../components/students/StudentFormModal";
 import StudentDetailsModal from "../components/students/StudentDetailsModal"; // Import the new modal
+import SectionHeader from "../components/common/SectionHeader";
 
 export default function Students() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -174,23 +176,16 @@ export default function Students() {
   ];
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-4">
       {/* 1. Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
-            Student Directory
-          </h1>
-          <p className="text-neutral-500 text-sm">
-            Overview of all registered students and their status.
-          </p>
-        </div>
-        <button
-          onClick={handleAddStudent}
-          className="flex items-center justify-center gap-2 bg-neutral-900 text-white px-5 py-2.5 rounded-xl hover:bg-neutral-800 transition shadow-sm font-medium">
-          <Plus size={20} /> Add Student
-        </button>
-      </div>
+      <SectionHeader
+        icon={Users}
+        title="Student Directory"
+        description="Overview of all registered students and their status."
+        buttonText="Add Student"
+        onButtonClick={handleAddStudent}
+        buttonIcon={Plus}
+      />
 
       {/* 2. Search Card */}
       <Card className="border-neutral-200/60 shadow-sm">

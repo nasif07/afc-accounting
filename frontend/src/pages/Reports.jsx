@@ -1,25 +1,32 @@
-import React, { useState, useRef } from 'react';
-import { Download, Printer, BarChart3, AlertCircle, Loader } from 'lucide-react';
-import { Card, CardContent } from '../components/ui/Card';
-import Button from '../components/ui/Button';
-import KPICard from '../components/reports/KPICard';
-import ReportFilters from '../components/reports/ReportFilters';
-import TrialBalanceReport from '../components/reports/TrialBalanceReport';
-import IncomeStatementReport from '../components/reports/IncomeStatementReport';
-import BalanceSheetReport from '../components/reports/BalanceSheetReport';
-import CashFlowReport from '../components/reports/CashFlowReport';
-import { toast } from 'sonner';
-import api from '../services/api';
+import React, { useState, useRef } from "react";
+import {
+  Download,
+  Printer,
+  BarChart3,
+  AlertCircle,
+  Loader,
+} from "lucide-react";
+import { Card, CardContent } from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import KPICard from "../components/reports/KPICard";
+import ReportFilters from "../components/reports/ReportFilters";
+import TrialBalanceReport from "../components/reports/TrialBalanceReport";
+import IncomeStatementReport from "../components/reports/IncomeStatementReport";
+import BalanceSheetReport from "../components/reports/BalanceSheetReport";
+import CashFlowReport from "../components/reports/CashFlowReport";
+import { toast } from "sonner";
+import api from "../services/api";
+import SectionHeader from "../components/common/SectionHeader";
 
 export default function Reports() {
   const printRef = useRef(null);
 
-  const [reportType, setReportType] = useState('trial-balance');
+  const [reportType, setReportType] = useState("trial-balance");
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
-    asOfDate: new Date().toISOString().split('T')[0],
-    viewType: 'detailed',
+    startDate: "",
+    endDate: "",
+    asOfDate: new Date().toISOString().split("T")[0],
+    viewType: "detailed",
   });
 
   const [loading, setLoading] = useState(false);
@@ -32,54 +39,56 @@ export default function Reports() {
     setReportData(null);
 
     try {
-      let endpoint = '/accounting/journal-entries';
+      let endpoint = "/accounting/journal-entries";
       const params = {};
 
       switch (reportType) {
-        case 'trial-balance':
-          endpoint += '/trial-balance';
+        case "trial-balance":
+          endpoint += "/trial-balance";
           if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
 
-        case 'income-statement':
-          endpoint += '/income-statement';
+        case "income-statement":
+          endpoint += "/income-statement";
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
 
-        case 'balance-sheet':
-          endpoint += '/balance-sheet';
+        case "balance-sheet":
+          endpoint += "/balance-sheet";
           if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
 
-        case 'cash-flow':
-          endpoint += '/cash-flow';
+        case "cash-flow":
+          endpoint += "/cash-flow";
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
 
-        case 'general-ledger':
+        case "general-ledger":
           // FIXED: Add general-ledger support
           if (!filters.accountId) {
-            throw new Error('Please select an account for General Ledger report');
+            throw new Error(
+              "Please select an account for General Ledger report",
+            );
           }
-          endpoint += '/ledger/' + filters.accountId;
+          endpoint += "/ledger/" + filters.accountId;
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
 
         default:
-          throw new Error('Invalid report type selected');
+          throw new Error("Invalid report type selected");
       }
 
       const response = await api.get(endpoint, { params });
       setReportData(response?.data?.data || null);
-      toast.success('Report generated successfully');
+      toast.success("Report generated successfully");
     } catch (err) {
       const message =
         err?.response?.data?.message ||
         err?.message ||
-        'Failed to generate report';
+        "Failed to generate report";
       setError(message);
       toast.error(message);
     } finally {
@@ -102,10 +111,10 @@ export default function Reports() {
 
   const handleReset = () => {
     setFilters({
-      startDate: '',
-      endDate: '',
-      asOfDate: new Date().toISOString().split('T')[0],
-      viewType: 'detailed',
+      startDate: "",
+      endDate: "",
+      asOfDate: new Date().toISOString().split("T")[0],
+      viewType: "detailed",
     });
     setReportData(null);
     setError(null);
@@ -114,9 +123,9 @@ export default function Reports() {
   const handlePrint = () => {
     if (!printRef.current) return;
 
-    const printWindow = window.open('', '', 'height=700,width=1000');
+    const printWindow = window.open("", "", "height=700,width=1000");
     if (!printWindow) {
-      toast.error('Unable to open print window');
+      toast.error("Unable to open print window");
       return;
     }
 
@@ -156,171 +165,169 @@ export default function Reports() {
     }, 500);
   };
 
-const handleDownloadPDF = async () => {
-  try {
-    const source = printRef.current;
-    if (!source) {
-      toast.error('No report content found to export');
-      return;
+  const handleDownloadPDF = async () => {
+    try {
+      const source = printRef.current;
+      if (!source) {
+        toast.error("No report content found to export");
+        return;
+      }
+
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdf = html2pdfModule.default || html2pdfModule;
+
+      // Create a clean export container
+      const exportWrapper = document.createElement("div");
+      exportWrapper.style.position = "fixed";
+      exportWrapper.style.left = "0";
+      exportWrapper.style.top = "0";
+      exportWrapper.style.width = "794px"; // A4-ish content width in px
+      exportWrapper.style.background = "#ffffff";
+      exportWrapper.style.color = "#111827";
+      exportWrapper.style.padding = "24px";
+      exportWrapper.style.zIndex = "-1";
+      exportWrapper.style.opacity = "1";
+      exportWrapper.style.pointerEvents = "none";
+
+      // Clone the report content
+      const clone = source.cloneNode(true);
+      exportWrapper.appendChild(clone);
+      document.body.appendChild(exportWrapper);
+
+      // Force plain export-safe styling
+      const all = exportWrapper.querySelectorAll("*");
+      all.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+
+        node.style.boxShadow = "none";
+        node.style.textShadow = "none";
+        node.style.filter = "none";
+        node.style.backdropFilter = "none";
+        node.style.borderColor = "#d1d5db";
+
+        const text = window.getComputedStyle(node).color;
+        const bg = window.getComputedStyle(node).backgroundColor;
+
+        if (text && text.includes("oklch")) {
+          node.style.color = "#111827";
+        }
+
+        if (bg && bg.includes("oklch")) {
+          node.style.backgroundColor = "#ffffff";
+        }
+      });
+
+      // Give the browser a moment to render the clone
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const options = {
+        margin: 10,
+        filename: `${reportType}-${new Date().toISOString().split("T")[0]}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait",
+        },
+        pagebreak: { mode: ["css", "legacy"] },
+      };
+
+      await html2pdf().set(options).from(exportWrapper).save();
+
+      document.body.removeChild(exportWrapper);
+      toast.success("Report downloaded successfully");
+    } catch (err) {
+      console.error("PDF export error:", err);
+      toast.error(
+        typeof err?.message === "string" ? err.message : "Failed to export PDF",
+      );
     }
-
-    const html2pdfModule = await import('html2pdf.js');
-    const html2pdf = html2pdfModule.default || html2pdfModule;
-
-    // Create a clean export container
-    const exportWrapper = document.createElement('div');
-    exportWrapper.style.position = 'fixed';
-    exportWrapper.style.left = '0';
-    exportWrapper.style.top = '0';
-    exportWrapper.style.width = '794px'; // A4-ish content width in px
-    exportWrapper.style.background = '#ffffff';
-    exportWrapper.style.color = '#111827';
-    exportWrapper.style.padding = '24px';
-    exportWrapper.style.zIndex = '-1';
-    exportWrapper.style.opacity = '1';
-    exportWrapper.style.pointerEvents = 'none';
-
-    // Clone the report content
-    const clone = source.cloneNode(true);
-    exportWrapper.appendChild(clone);
-    document.body.appendChild(exportWrapper);
-
-    // Force plain export-safe styling
-    const all = exportWrapper.querySelectorAll('*');
-    all.forEach((node) => {
-      if (!(node instanceof HTMLElement)) return;
-
-      node.style.boxShadow = 'none';
-      node.style.textShadow = 'none';
-      node.style.filter = 'none';
-      node.style.backdropFilter = 'none';
-      node.style.borderColor = '#d1d5db';
-
-      const text = window.getComputedStyle(node).color;
-      const bg = window.getComputedStyle(node).backgroundColor;
-
-      if (text && text.includes('oklch')) {
-        node.style.color = '#111827';
-      }
-
-      if (bg && bg.includes('oklch')) {
-        node.style.backgroundColor = '#ffffff';
-      }
-    });
-
-    // Give the browser a moment to render the clone
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const options = {
-      margin: 10,
-      filename: `${reportType}-${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      },
-      jsPDF: {
-        unit: 'mm',
-        format: 'a4',
-        orientation: 'portrait',
-      },
-      pagebreak: { mode: ['css', 'legacy'] },
-    };
-
-    await html2pdf().set(options).from(exportWrapper).save();
-
-    document.body.removeChild(exportWrapper);
-    toast.success('Report downloaded successfully');
-  } catch (err) {
-    console.error('PDF export error:', err);
-    toast.error(
-      typeof err?.message === 'string'
-        ? err.message
-        : 'Failed to export PDF'
-    );
-  }
-};
+  };
 
   const getKPIs = () => {
     if (!reportData) return [];
 
     switch (reportType) {
-      case 'income-statement':
+      case "income-statement":
         return [
           {
-            title: 'Total Revenue',
+            title: "Total Revenue",
             value: reportData.totalRevenue || 0,
-            color: 'green',
+            color: "green",
           },
           {
-            title: 'Total Expenses',
+            title: "Total Expenses",
             value: reportData.totalExpenses || 0,
-            color: 'red',
+            color: "red",
           },
           {
-            title: 'Net Income',
+            title: "Net Income",
             value: reportData.netIncome || 0,
-            color: reportData.netIncome >= 0 ? 'green' : 'red',
+            color: reportData.netIncome >= 0 ? "green" : "red",
           },
         ];
 
-      case 'balance-sheet':
+      case "balance-sheet":
         return [
           {
-            title: 'Total Assets',
+            title: "Total Assets",
             value: reportData.totalAssets || 0,
-            color: 'blue',
+            color: "blue",
           },
           {
-            title: 'Total Liabilities',
+            title: "Total Liabilities",
             value: reportData.totalLiabilities || 0,
-            color: 'amber',
+            color: "amber",
           },
           {
-            title: 'Total Equity',
+            title: "Total Equity",
             value: reportData.totalEquity || 0,
-            color: 'purple',
+            color: "purple",
           },
         ];
 
-      case 'cash-flow':
+      case "cash-flow":
         return [
           {
-            title: 'Total Inflows',
+            title: "Total Inflows",
             value: reportData.totalInflow || 0,
-            color: 'green',
+            color: "green",
           },
           {
-            title: 'Total Outflows',
+            title: "Total Outflows",
             value: reportData.totalOutflow || 0,
-            color: 'red',
+            color: "red",
           },
           {
-            title: 'Net Cash Flow',
+            title: "Net Cash Flow",
             value: reportData.netCashFlow || 0,
-            color: reportData.netCashFlow >= 0 ? 'green' : 'red',
+            color: reportData.netCashFlow >= 0 ? "green" : "red",
           },
         ];
 
-      case 'trial-balance':
+      case "trial-balance":
         return [
           {
-            title: 'Total Debits',
+            title: "Total Debits",
             value: reportData.totalDebits || 0,
-            color: 'blue',
+            color: "blue",
           },
           {
-            title: 'Total Credits',
+            title: "Total Credits",
             value: reportData.totalCredits || 0,
-            color: 'blue',
+            color: "blue",
           },
           {
-            title: 'Status',
-            value: reportData.isBalanced ? 'Balanced' : 'Unbalanced',
-            color: reportData.isBalanced ? 'green' : 'red',
-            format: 'text',
+            title: "Status",
+            value: reportData.isBalanced ? "Balanced" : "Unbalanced",
+            color: reportData.isBalanced ? "green" : "red",
+            format: "text",
           },
         ];
 
@@ -333,28 +340,15 @@ const handleDownloadPDF = async () => {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-neutral-900">Financial Reports</h1>
-          <p className="mt-2 text-neutral-600">
-            Generate and analyze comprehensive financial statements
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-          <Button
-            variant="primary"
-            onClick={fetchReport}
-            isLoading={loading}
-            disabled={loading}
-            size="md"
-            className="shadow-lg"
-          >
-            <BarChart3 size={18} className="mr-2" />
-            Generate Report
-          </Button>
-        </div>
-      </div>
+      <SectionHeader
+        icon={BarChart3}
+        title="Financial Reports"
+        description="Generate and analyze comprehensive financial statements"
+        buttonText="Generate Report"
+        onButtonClick={fetchReport}
+        buttonIcon={BarChart3}
+        isLoading={loading}
+      />
 
       <ReportFilters
         reportType={reportType}
@@ -380,7 +374,10 @@ const handleDownloadPDF = async () => {
       {loading && (
         <Card>
           <CardContent className="pt-12 text-center">
-            <Loader size={48} className="mx-auto mb-4 animate-spin text-neutral-400" />
+            <Loader
+              size={48}
+              className="mx-auto mb-4 animate-spin text-neutral-400"
+            />
             <p className="text-neutral-600">Generating report...</p>
           </CardContent>
         </Card>
@@ -396,7 +393,7 @@ const handleDownloadPDF = async () => {
                   title={kpi.title}
                   value={kpi.value}
                   color={kpi.color}
-                  format={kpi.format || 'currency'}
+                  format={kpi.format || "currency"}
                 />
               ))}
             </div>
@@ -424,31 +421,34 @@ const handleDownloadPDF = async () => {
                 </p>
 
                 <div className="mt-6 inline-block rounded-full bg-neutral-900 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white">
-                  {reportType === 'trial-balance' && 'Trial Balance'}
-                  {reportType === 'income-statement' && 'Profit & Loss Statement'}
-                  {reportType === 'balance-sheet' && 'Balance Sheet'}
-                  {reportType === 'cash-flow' && 'Cash Flow Statement'}
+                  {reportType === "trial-balance" && "Trial Balance"}
+                  {reportType === "income-statement" &&
+                    "Profit & Loss Statement"}
+                  {reportType === "balance-sheet" && "Balance Sheet"}
+                  {reportType === "cash-flow" && "Cash Flow Statement"}
                 </div>
 
                 <div className="mt-4 flex flex-col items-center gap-1">
                   {(filters.startDate || filters.endDate) &&
-                    (reportType === 'income-statement' || reportType === 'cash-flow') && (
+                    (reportType === "income-statement" ||
+                      reportType === "cash-flow") && (
                       <p className="text-sm text-neutral-600">
-                        <span className="font-semibold">Period:</span>{' '}
+                        <span className="font-semibold">Period:</span>{" "}
                         {filters.startDate
                           ? new Date(filters.startDate).toLocaleDateString()
-                          : 'N/A'}{' '}
-                        to{' '}
+                          : "N/A"}{" "}
+                        to{" "}
                         {filters.endDate
                           ? new Date(filters.endDate).toLocaleDateString()
-                          : 'N/A'}
+                          : "N/A"}
                       </p>
                     )}
 
                   {filters.asOfDate &&
-                    (reportType === 'trial-balance' || reportType === 'balance-sheet') && (
+                    (reportType === "trial-balance" ||
+                      reportType === "balance-sheet") && (
                       <p className="text-sm text-neutral-600">
-                        <span className="font-semibold">As of:</span>{' '}
+                        <span className="font-semibold">As of:</span>{" "}
                         {new Date(filters.asOfDate).toLocaleDateString()}
                       </p>
                     )}
@@ -456,11 +456,14 @@ const handleDownloadPDF = async () => {
               </div>
 
               <div className="min-h-[400px]">
-                {reportType === 'trial-balance' && (
-                  <TrialBalanceReport data={reportData} asOfDate={filters.asOfDate} />
+                {reportType === "trial-balance" && (
+                  <TrialBalanceReport
+                    data={reportData}
+                    asOfDate={filters.asOfDate}
+                  />
                 )}
 
-                {reportType === 'income-statement' && (
+                {reportType === "income-statement" && (
                   <IncomeStatementReport
                     data={reportData}
                     startDate={filters.startDate}
@@ -468,11 +471,14 @@ const handleDownloadPDF = async () => {
                   />
                 )}
 
-                {reportType === 'balance-sheet' && (
-                  <BalanceSheetReport data={reportData} asOfDate={filters.asOfDate} />
+                {reportType === "balance-sheet" && (
+                  <BalanceSheetReport
+                    data={reportData}
+                    asOfDate={filters.asOfDate}
+                  />
                 )}
 
-                {reportType === 'cash-flow' && (
+                {reportType === "cash-flow" && (
                   <CashFlowReport
                     data={reportData}
                     startDate={filters.startDate}
@@ -483,10 +489,13 @@ const handleDownloadPDF = async () => {
 
               <div className="mt-12 border-t border-neutral-200 pt-6 text-center text-xs italic text-neutral-500">
                 <p>
-                  Generated on {new Date().toLocaleDateString()} at{' '}
+                  Generated on {new Date().toLocaleDateString()} at{" "}
                   {new Date().toLocaleTimeString()}
                 </p>
-                <p>This is a computer-generated report and does not require a signature.</p>
+                <p>
+                  This is a computer-generated report and does not require a
+                  signature.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -499,7 +508,9 @@ const handleDownloadPDF = async () => {
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
               <BarChart3 size={40} className="text-neutral-300" />
             </div>
-            <h3 className="mb-2 text-xl font-bold text-neutral-900">No Report Generated</h3>
+            <h3 className="mb-2 text-xl font-bold text-neutral-900">
+              No Report Generated
+            </h3>
             <p className="mx-auto mb-8 max-w-md text-neutral-600">
               Select your report type and date filters above, then click the
               "Generate Report" button to view your financial statements.

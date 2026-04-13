@@ -1,4 +1,4 @@
-import { Save, Loader } from "lucide-react";
+import { Save, Loader, Settings2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
@@ -8,6 +8,7 @@ import {
   clearError,
   clearSuccess,
 } from "../store/slices/settingsSlice";
+import SectionHeader from "../components/common/SectionHeader";
 
 export default function Settings() {
   const dispatch = useDispatch();
@@ -66,13 +67,14 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">System Settings</h1>
-        <p className="text-gray-600 mt-1">
-          Configure system and organization settings
-        </p>
-      </div>
+    <div className="space-y-4">
+      <SectionHeader
+        icon={Settings2}
+        title="System Settings"
+        description="Configure system and organization settings"
+        iconBg="bg-red-50"
+        iconColor="text-red-600"
+      />
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <form onSubmit={handleSubmit} className="space-y-6">

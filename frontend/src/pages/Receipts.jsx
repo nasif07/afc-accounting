@@ -1,26 +1,41 @@
-import { useState } from 'react';
-import { useSelector } from 'react-redux';
-import { Plus, Edit2, Trash2, CheckCircle, XCircle, Eye } from 'lucide-react';
-import { useReceiptsAdvanced, useApproveReceiptAdvanced, useRejectReceiptAdvanced, useDeleteReceiptAdvanced } from '../hooks/useReceiptsAdvanced';
-import Table from '../components/ui/Table';
-import Button from '../components/ui/Button';
-import Badge from '../components/ui/Badge';
-import EmptyState from '../components/EmptyState';
-import { Card, CardContent } from '../components/ui/Card';
-import StatusPipeline from '../components/StatusPipeline';
-import { formatCurrency } from '../utils/currency';
+import { useState } from "react";
+import { useSelector } from "react-redux";
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  Eye,
+  DollarSign,
+} from "lucide-react";
+import {
+  useReceiptsAdvanced,
+  useApproveReceiptAdvanced,
+  useRejectReceiptAdvanced,
+  useDeleteReceiptAdvanced,
+} from "../hooks/useReceiptsAdvanced";
+import Table from "../components/ui/Table";
+import Button from "../components/ui/Button";
+import Badge from "../components/ui/Badge";
+import EmptyState from "../components/EmptyState";
+import { Card, CardContent } from "../components/ui/Card";
+import StatusPipeline from "../components/StatusPipeline";
+import { formatCurrency } from "../utils/currency";
+import SectionHeader from "../components/common/SectionHeader";
 
 export default function Receipts() {
   const { user } = useSelector((state) => state.auth);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Fetch data
   const { data: allReceipts, isLoading } = useReceiptsAdvanced();
-  
+
   // Filter receipts
-  const receipts = statusFilter === 'all' 
-    ? allReceipts 
-    : allReceipts?.filter((r) => r.approvalStatus === statusFilter);
+  const receipts =
+    statusFilter === "all"
+      ? allReceipts
+      : allReceipts?.filter((r) => r.approvalStatus === statusFilter);
 
   // Mutations
   const approveMutation = useApproveReceiptAdvanced();
@@ -29,14 +44,14 @@ export default function Receipts() {
 
   // Handle approve
   const handleApprove = async (id) => {
-    if (window.confirm('Approve this receipt?')) {
+    if (window.confirm("Approve this receipt?")) {
       await approveMutation.mutateAsync(id);
     }
   };
 
   // Handle reject
   const handleReject = async (id) => {
-    const reason = window.prompt('Enter rejection reason:');
+    const reason = window.prompt("Enter rejection reason:");
     if (reason) {
       await rejectMutation.mutateAsync({ id, reason });
     }
@@ -44,85 +59,84 @@ export default function Receipts() {
 
   // Handle delete
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this receipt?')) {
+    if (window.confirm("Are you sure you want to delete this receipt?")) {
       await deleteMutation.mutateAsync(id);
     }
   };
 
   // Table columns
   const columns = [
-    { key: 'receiptNumber', label: 'Receipt #' },
+    { key: "receiptNumber", label: "Receipt #" },
     {
-      key: 'receiptDate',
-      label: 'Date',
+      key: "receiptDate",
+      label: "Date",
       render: (value) => new Date(value).toLocaleDateString(),
     },
-    { key: 'studentName', label: 'Student' },
-    { key: 'feeType', label: 'Fee Type', render: (value) => <Badge variant="info">{value || 'General'}</Badge> },
+    { key: "studentName", label: "Student" },
     {
-      key: 'amount',
-      label: 'Amount',
+      key: "feeType",
+      label: "Fee Type",
+      render: (value) => <Badge variant="info">{value || "General"}</Badge>,
+    },
+    {
+      key: "amount",
+      label: "Amount",
       render: (value) => formatCurrency(value),
     },
     {
-      key: 'paymentMode',
-      label: 'Method',
-      render: (value) => <Badge variant="secondary">{value || 'Cash'}</Badge>,
+      key: "paymentMode",
+      label: "Method",
+      render: (value) => <Badge variant="secondary">{value || "Cash"}</Badge>,
     },
     {
-      key: 'approvalStatus',
-      label: 'Status',
+      key: "approvalStatus",
+      label: "Status",
       render: (value) => (
         <Badge
           variant={
-            value === 'approved'
-              ? 'success'
-              : value === 'rejected'
-              ? 'danger'
-              : 'warning'
-          }
-        >
-          {value || 'Pending'}
+            value === "approved"
+              ? "success"
+              : value === "rejected"
+                ? "danger"
+                : "warning"
+          }>
+          {value || "Pending"}
         </Badge>
       ),
     },
     {
-      key: '_id',
-      label: 'Actions',
+      key: "_id",
+      label: "Actions",
       render: (value, row) => (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => window.location.href = `/receipts/${value}`}
+            onClick={() => (window.location.href = `/receipts/${value}`)}
             className="text-blue-600 hover:text-blue-700 transition"
-            title="View"
-          >
+            title="View">
             <Eye size={16} />
           </button>
-          {row.approvalStatus === 'pending' && (
+          {row.approvalStatus === "pending" && (
             <>
               <button
                 onClick={() => handleDelete(value)}
                 className="text-red-600 hover:text-red-700 transition"
-                title="Delete"
-              >
+                title="Delete">
                 <Trash2 size={16} />
               </button>
             </>
           )}
-          {user?.role === 'director' && row.approvalStatus === 'pending' && (
+          {user?.role === "director" && row.approvalStatus === "pending" && (
             <>
               <button
                 onClick={() => handleApprove(value)}
                 className="text-green-600 hover:text-green-700 transition"
-                title="Approve"
-              >
+                title="Approve">
                 <CheckCircle size={16} />
               </button>
               <button
                 onClick={() => handleReject(value)}
                 className="text-red-600 hover:text-red-700 transition"
-                title="Reject"
-              >
+                title="Reject">
                 <XCircle size={16} />
               </button>
             </>
@@ -135,16 +149,17 @@ export default function Receipts() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-neutral-900">Fee Collection</h1>
-          <p className="text-neutral-600 mt-2">Manage student fee receipts and payments</p>
-        </div>
-        <Button variant="primary">
-          <Plus size={18} />
-          New Receipt
-        </Button>
-      </div>
+      <SectionHeader
+        icon={DollarSign}
+        title="Fee Collection"
+        description="Manage student fee receipts and payments"
+        buttonText="New Receipt"
+        // onButtonClick={handleNewReceipt}
+        buttonIcon={Plus}
+        buttonColor="bg-red-600 hover:bg-red-700" // Alliance Française theme
+        iconBg="bg-red-50"
+        iconColor="text-red-600"
+      />
 
       {/* Status Pipeline */}
       <Card>
@@ -158,14 +173,17 @@ export default function Receipts() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-neutral-600 mb-2">Total Receipts</p>
-            <p className="text-3xl font-bold text-neutral-900">{allReceipts?.length || 0}</p>
+            <p className="text-3xl font-bold text-neutral-900">
+              {allReceipts?.length || 0}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-neutral-600 mb-2">Pending</p>
             <p className="text-3xl font-bold text-neutral-900">
-              {allReceipts?.filter((r) => r.approvalStatus === 'pending')?.length || 0}
+              {allReceipts?.filter((r) => r.approvalStatus === "pending")
+                ?.length || 0}
             </p>
           </CardContent>
         </Card>
@@ -173,7 +191,8 @@ export default function Receipts() {
           <CardContent className="pt-6">
             <p className="text-sm text-neutral-600 mb-2">Approved</p>
             <p className="text-3xl font-bold text-neutral-900">
-              {allReceipts?.filter((r) => r.approvalStatus === 'approved')?.length || 0}
+              {allReceipts?.filter((r) => r.approvalStatus === "approved")
+                ?.length || 0}
             </p>
           </CardContent>
         </Card>
@@ -182,7 +201,7 @@ export default function Receipts() {
             <p className="text-sm text-neutral-600 mb-2">Total Amount</p>
             <p className="text-3xl font-bold text-neutral-900">
               {formatCurrency(
-                allReceipts?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0
+                allReceipts?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0,
               )}
             </p>
           </CardContent>
@@ -191,13 +210,12 @@ export default function Receipts() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 flex-wrap">
-        {['all', 'pending', 'approved', 'rejected'].map((status) => (
+        {["all", "pending", "approved", "rejected"].map((status) => (
           <Button
             key={status}
-            variant={statusFilter === status ? 'primary' : 'outline'}
+            variant={statusFilter === status ? "primary" : "outline"}
             size="sm"
-            onClick={() => setStatusFilter(status)}
-          >
+            onClick={() => setStatusFilter(status)}>
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </Button>
         ))}
@@ -221,7 +239,7 @@ export default function Receipts() {
           icon={Plus}
           title="No Receipts"
           description="Start by creating your first receipt."
-          action={() => window.location.href = '/receipts/new'}
+          action={() => (window.location.href = "/receipts/new")}
           actionLabel="Create Receipt"
         />
       )}

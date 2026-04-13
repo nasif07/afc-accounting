@@ -1,7 +1,17 @@
-import { Plus, Edit2, Trash2, Search, Loader, X, CheckCircle, XCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import toast from 'react-hot-toast';
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
+  Loader,
+  X,
+  CheckCircle,
+  XCircle,
+  Users,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import {
   fetchPayroll,
   createPayroll,
@@ -11,29 +21,45 @@ import {
   rejectPayroll,
   clearError,
   clearSuccess,
-} from '../store/slices/payrollSlice';
-import { fetchEmployees } from '../store/slices/employeeSlice';
+} from "../store/slices/payrollSlice";
+import { fetchEmployees } from "../store/slices/employeeSlice";
+import SectionHeader from "../components/common/SectionHeader";
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const SALARY_TYPES = ['monthly', 'contract', 'hourly'];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const SALARY_TYPES = ["monthly", "contract", "hourly"];
 
 export default function Payroll() {
   const dispatch = useDispatch();
-  const { items, loading, error, success } = useSelector((state) => state.payroll);
+  const { items, loading, error, success } = useSelector(
+    (state) => state.payroll,
+  );
   const { items: employees } = useSelector((state) => state.employees);
   const { user } = useSelector((state) => state.auth);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    employee: '',
+    employee: "",
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
-    salaryType: 'monthly',
-    baseSalary: '',
+    salaryType: "monthly",
+    baseSalary: "",
     allowances: 0,
     deductions: 0,
-    notes: '',
+    notes: "",
   });
 
   useEffect(() => {
@@ -43,7 +69,11 @@ export default function Payroll() {
 
   useEffect(() => {
     if (success) {
-      toast.success(editingId ? 'Payroll updated successfully!' : 'Payroll created successfully!');
+      toast.success(
+        editingId
+          ? "Payroll updated successfully!"
+          : "Payroll created successfully!",
+      );
       dispatch(clearSuccess());
       setShowModal(false);
       resetForm();
@@ -60,14 +90,14 @@ export default function Payroll() {
 
   const resetForm = () => {
     setFormData({
-      employee: '',
+      employee: "",
       month: new Date().getMonth() + 1,
       year: new Date().getFullYear(),
-      salaryType: 'monthly',
-      baseSalary: '',
+      salaryType: "monthly",
+      baseSalary: "",
       allowances: 0,
       deductions: 0,
-      notes: '',
+      notes: "",
     });
     setEditingId(null);
   };
@@ -91,7 +121,13 @@ export default function Payroll() {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: ['baseSalary', 'allowances', 'deductions', 'month', 'year'].includes(name)
+      [name]: [
+        "baseSalary",
+        "allowances",
+        "deductions",
+        "month",
+        "year",
+      ].includes(name)
         ? parseFloat(value) || 0
         : value,
     }));
@@ -107,42 +143,45 @@ export default function Payroll() {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this payroll?')) {
+    if (window.confirm("Are you sure you want to delete this payroll?")) {
       dispatch(deletePayroll(id));
-      toast.success('Payroll deleted successfully!');
+      toast.success("Payroll deleted successfully!");
     }
   };
 
   const handleApprove = (id) => {
-    if (window.confirm('Approve this payroll?')) {
+    if (window.confirm("Approve this payroll?")) {
       dispatch(approvePayroll(id));
-      toast.success('Payroll approved!');
+      toast.success("Payroll approved!");
     }
   };
 
   const handleReject = (id) => {
-    const reason = window.prompt('Enter rejection reason:');
+    const reason = window.prompt("Enter rejection reason:");
     if (reason) {
       dispatch(rejectPayroll({ id, data: { rejectionReason: reason } }));
-      toast.success('Payroll rejected!');
+      toast.success("Payroll rejected!");
     }
   };
 
-  const filteredPayroll = items.filter((p) =>
-    p.employee?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.employee?.employeeCode?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPayroll = items.filter(
+    (p) =>
+      p.employee?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.employee?.employeeCode
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()),
   );
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'paid':
-        return 'bg-blue-100 text-blue-800';
+      case "approved":
+        return "bg-green-100 text-green-800";
+      case "rejected":
+        return "bg-red-100 text-red-800";
+      case "paid":
+        return "bg-blue-100 text-blue-800";
       default:
-        return 'bg-yellow-100 text-yellow-800';
+        return "bg-yellow-100 text-yellow-800";
     }
   };
 
@@ -151,19 +190,18 @@ export default function Payroll() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Payroll Management</h1>
-          <p className="text-gray-600 mt-1">Manage employee payroll and salaries</p>
-        </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition"
-        >
-          <Plus size={20} /> Add Payroll
-        </button>
-      </div>
+    <div className="space-y-4">
+      <SectionHeader
+        icon={Users}
+        title="Payroll Management"
+        description="Manage employee payroll and salaries"
+        buttonText="Add Payroll"
+        onButtonClick={handleOpenModal}
+        buttonIcon={Plus}
+        buttonColor="bg-red-600 hover:bg-red-700" // Alliance Française theme
+        iconBg="bg-red-50"
+        iconColor="text-red-600"
+      />
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center gap-4 mb-6">
@@ -187,63 +225,106 @@ export default function Payroll() {
 
         {!loading && filteredPayroll.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            <p>No payroll records found. Create a new payroll to get started.</p>
+            <p>
+              No payroll records found. Create a new payroll to get started.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Employee</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Month/Year</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Base Salary</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Allowances</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Deductions</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Net Salary</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Status</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Actions</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Employee
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Month/Year
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Base Salary
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Allowances
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Deductions
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Net Salary
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Status
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPayroll.map((payroll) => (
-                  <tr key={payroll._id} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                    <td className="py-3 px-4 font-medium text-gray-900">{payroll.employee?.name}</td>
+                  <tr
+                    key={payroll._id}
+                    className="border-b border-gray-100 hover:bg-gray-50 transition">
+                    <td className="py-3 px-4 font-medium text-gray-900">
+                      {payroll.employee?.name}
+                    </td>
                     <td className="py-3 px-4 text-gray-600">
                       {MONTHS[payroll.month - 1]} {payroll.year}
                     </td>
-                    <td className="py-3 px-4 text-gray-600">৳{payroll.baseSalary}</td>
-                    <td className="py-3 px-4 text-gray-600">৳{payroll.allowances}</td>
-                    <td className="py-3 px-4 text-gray-600">৳{payroll.deductions}</td>
+                    <td className="py-3 px-4 text-gray-600">
+                      ৳{payroll.baseSalary}
+                    </td>
+                    <td className="py-3 px-4 text-gray-600">
+                      ৳{payroll.allowances}
+                    </td>
+                    <td className="py-3 px-4 text-gray-600">
+                      ৳{payroll.deductions}
+                    </td>
                     <td className="py-3 px-4 font-semibold text-gray-900">
-                      ৳{calculateNetSalary(payroll.baseSalary, payroll.allowances, payroll.deductions)}
+                      ৳
+                      {calculateNetSalary(
+                        payroll.baseSalary,
+                        payroll.allowances,
+                        payroll.deductions,
+                      )}
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(payroll.approvalStatus)}`}>
-                        {payroll.approvalStatus || 'Pending'}
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(payroll.approvalStatus)}`}>
+                        {payroll.approvalStatus || "Pending"}
                       </span>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        {payroll.approvalStatus === 'pending' && (
+                        {payroll.approvalStatus === "pending" && (
                           <>
-                            <button onClick={() => handleOpenModal(payroll)} className="text-blue-600 hover:text-blue-700 transition">
+                            <button
+                              onClick={() => handleOpenModal(payroll)}
+                              className="text-blue-600 hover:text-blue-700 transition">
                               <Edit2 size={18} />
                             </button>
-                            <button onClick={() => handleDelete(payroll._id)} className="text-red-600 hover:text-red-700 transition">
+                            <button
+                              onClick={() => handleDelete(payroll._id)}
+                              className="text-red-600 hover:text-red-700 transition">
                               <Trash2 size={18} />
                             </button>
                           </>
                         )}
-                        {user?.role === 'director' && payroll.approvalStatus === 'pending' && (
-                          <>
-                            <button onClick={() => handleApprove(payroll._id)} className="text-green-600 hover:text-green-700 transition">
-                              <CheckCircle size={18} />
-                            </button>
-                            <button onClick={() => handleReject(payroll._id)} className="text-red-600 hover:text-red-700 transition">
-                              <XCircle size={18} />
-                            </button>
-                          </>
-                        )}
+                        {user?.role === "director" &&
+                          payroll.approvalStatus === "pending" && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(payroll._id)}
+                                className="text-green-600 hover:text-green-700 transition">
+                                <CheckCircle size={18} />
+                              </button>
+                              <button
+                                onClick={() => handleReject(payroll._id)}
+                                className="text-red-600 hover:text-red-700 transition">
+                                <XCircle size={18} />
+                              </button>
+                            </>
+                          )}
                       </div>
                     </td>
                   </tr>
@@ -259,9 +340,11 @@ export default function Payroll() {
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
-                {editingId ? 'Edit Payroll' : 'Add New Payroll'}
+                {editingId ? "Edit Payroll" : "Add New Payroll"}
               </h2>
-              <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-500 hover:text-gray-700">
                 <X size={24} />
               </button>
             </div>
@@ -269,14 +352,15 @@ export default function Payroll() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Employee *
+                  </label>
                   <select
                     name="employee"
                     value={formData.employee}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <option value="">Select an employee</option>
                     {employees.map((emp) => (
                       <option key={emp._id} value={emp._id}>
@@ -287,14 +371,15 @@ export default function Payroll() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Salary Type *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Salary Type *
+                  </label>
                   <select
                     name="salaryType"
                     value={formData.salaryType}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     {SALARY_TYPES.map((type) => (
                       <option key={type} value={type}>
                         {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -304,14 +389,15 @@ export default function Payroll() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Month *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Month *
+                  </label>
                   <select
                     name="month"
                     value={formData.month}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     {MONTHS.map((month, index) => (
                       <option key={index} value={index + 1}>
                         {month}
@@ -321,7 +407,9 @@ export default function Payroll() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Year *
+                  </label>
                   <input
                     type="number"
                     name="year"
@@ -333,7 +421,9 @@ export default function Payroll() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Base Salary *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Base Salary *
+                  </label>
                   <input
                     type="number"
                     name="baseSalary"
@@ -346,7 +436,9 @@ export default function Payroll() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Allowances</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Allowances
+                  </label>
                   <input
                     type="number"
                     name="allowances"
@@ -358,7 +450,9 @@ export default function Payroll() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Deductions</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Deductions
+                  </label>
                   <input
                     type="number"
                     name="deductions"
@@ -370,7 +464,9 @@ export default function Payroll() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes
+                  </label>
                   <textarea
                     name="notes"
                     value={formData.notes}
@@ -385,16 +481,20 @@ export default function Payroll() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader className="animate-spin" size={20} /> : null}
-                  {loading ? 'Saving...' : editingId ? 'Update Payroll' : 'Create Payroll'}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2">
+                  {loading ? (
+                    <Loader className="animate-spin" size={20} />
+                  ) : null}
+                  {loading
+                    ? "Saving..."
+                    : editingId
+                      ? "Update Payroll"
+                      : "Create Payroll"}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg transition"
-                >
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg transition">
                   Cancel
                 </button>
               </div>

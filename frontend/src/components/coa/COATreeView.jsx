@@ -1,242 +1,191 @@
 import React, { useMemo, useState } from "react";
-import { Search, Loader, Plus } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import api from "../../services/api";
+import { Info, Search, Tag } from "lucide-react";
 import COATreeNode from "./COATreeNode";
 import { toast } from "sonner";
 
-// REMOVED: formatBalance function - not needed since balance display removed
-
 const COATreeView = ({
-  accounts,
-  statusFilter = "active",
-  onAddAccount,
+  accounts = [],
   onEditAccount,
   onDeleteAccount,
   onRestoreAccount,
   onStatusChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const queryClient = useQueryClient();
-
-  const {
-    data: fetchedTreeData = [],
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["accountTree", statusFilter],
-    queryFn: async () => {
-      const res = await api.get("/accounts/tree", {
-        params: {
-          includeDeleted: true,
-          status: statusFilter === "all" ? "all" : statusFilter,
-        },
-      });
-      return res.data.data || [];
-    },
-    enabled: !Array.isArray(accounts),
-  });
 
   const treeData = useMemo(() => {
-    if (Array.isArray(accounts)) {
-      const map = {};
-      const roots = [];
+    const map = {};
+    const roots = [];
 
-      accounts.forEach((acc) => {
-        map[acc._id] = { ...acc, children: [] };
-      });
+    accounts.forEach((acc) => {
+      map[acc._id] = { ...acc, children: [] };
+    });
 
-      accounts.forEach((acc) => {
-        const parentId =
-          typeof acc.parentAccount === "object" && acc.parentAccount !== null
-            ? acc.parentAccount._id
-            : acc.parentAccount || null;
+    accounts.forEach((acc) => {
+      const parentId =
+        typeof acc.parentAccount === "object" && acc.parentAccount !== null
+          ? acc.parentAccount._id
+          : acc.parentAccount || null;
 
-        if (parentId && map[parentId]) {
-          map[parentId].children.push(map[acc._id]);
-        } else {
-          roots.push(map[acc._id]);
-        }
-      });
+      if (parentId && map[parentId]) {
+        map[parentId].children.push(map[acc._id]);
+      } else {
+        roots.push(map[acc._id]);
+      }
+    });
 
-      return roots.sort((a, b) =>
-        String(a.accountCode).localeCompare(String(b.accountCode), undefined, {
-          numeric: true,
-          sensitivity: "base",
-        })
-      );
-    }
+    const sortTree = (nodes) =>
+      nodes
+        .sort((a, b) =>
+          String(a.accountCode).localeCompare(
+            String(b.accountCode),
+            undefined,
+            {
+              numeric: true,
+              sensitivity: "base",
+            },
+          ),
+        )
+        .map((node) => ({
+          ...node,
+          children: sortTree(node.children || []),
+        }));
 
-    return fetchedTreeData;
-  }, [accounts, fetchedTreeData]);
+    return sortTree(roots);
+  }, [accounts]);
 
   const filteredTree = useMemo(() => {
-    const searchLower = searchTerm.trim().toLowerCase();
+    const search = searchTerm.trim().toLowerCase();
 
-    const applyFilters = (node) => {
-      const matchesSearch =
-        !searchLower ||
-        String(node.accountCode || "").toLowerCase().includes(searchLower) ||
-        String(node.accountName || "").toLowerCase().includes(searchLower);
+    const filterNode = (node) => {
+      const matches =
+        !search ||
+        String(node.accountCode || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(node.accountName || "")
+          .toLowerCase()
+          .includes(search);
 
-      const filteredChildren = Array.isArray(node.children)
-        ? node.children.map(applyFilters).filter(Boolean)
-        : [];
+      const filteredChildren = (node.children || [])
+        .map(filterNode)
+        .filter(Boolean);
 
-      const matchesStatus =
-        statusFilter === "all" ? true : node.status === statusFilter;
-
-      if ((matchesSearch && matchesStatus) || filteredChildren.length > 0) {
+      if (matches || filteredChildren.length > 0) {
         return {
           ...node,
           children: filteredChildren,
         };
       }
-
       return null;
     };
 
-    return treeData.map(applyFilters).filter(Boolean);
-  }, [treeData, searchTerm, statusFilter]);
+    return treeData.map(filterNode).filter(Boolean);
+  }, [treeData, searchTerm]);
 
   const handleViewAccount = (account) => {
-    // FIXED: Tree view doesn't include balance data, show account info only
     toast.info(
-      `${account.accountCode} - ${account.accountName} (${account.accountType})`
+      `${account.accountCode} - ${account.accountName} (${account.accountType})`,
     );
   };
-
-  const handleEditAccount = (account) => {
-    if (account.status === "archived") {
-      toast.error("Archived accounts cannot be edited");
-      return;
-    }
-
-    onEditAccount?.(account);
-  };
-
-  const handleArchiveAccount = async (accountId) => {
-    if (!onDeleteAccount) {
-      toast.error("Archive handler not provided");
-      return;
-    }
-
-    await onDeleteAccount(accountId);
-    await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-  };
-
-  const handleRestoreAccount = async (accountId) => {
-    if (!onRestoreAccount) {
-      toast.error("Restore handler not provided");
-      return;
-    }
-
-    await onRestoreAccount(accountId);
-    await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-  };
-
-  const handleToggleStatus = async (account) => {
-    if (!onStatusChange) return;
-    if (account.status === "archived") return;
-
-    const newStatus = account.status === "active" ? "inactive" : "active";
-
-    await onStatusChange(account._id, newStatus);
-    await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-  };
-
-  if (!Array.isArray(accounts) && isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader className="animate-spin text-blue-600" size={24} />
-        <span className="ml-2 text-gray-600">Loading account tree...</span>
-      </div>
-    );
-  }
-
-  if (!Array.isArray(accounts) && error) {
-    return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-        Error loading account tree: {error.message}
-      </div>
-    );
-  }
 
   return (
-    <div className="bg-white">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Chart of Accounts Hierarchy
-        </h2>
-
-        {onAddAccount && (
-          <button
-            onClick={onAddAccount}
-            className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-            type="button"
-          >
-            <Plus size={18} />
-            Add Account
-          </button>
-        )}
-      </div>
-
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+    <div className="w-full bg-white">
+      {/* Search Header - Responsive Padding */}
+      <div className="relative mb-4 group">
+        <Search
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"
+          size={16}
+        />
         <input
           type="text"
           placeholder="Search by code or name..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full rounded-md border border-gray-300 py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm transition-all focus:border-slate-400 focus:ring-4 focus:ring-slate-50 focus:outline-none placeholder:text-slate-400"
         />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200">
-        {filteredTree.length ? (
-          <div className="divide-y divide-gray-200">
-            {filteredTree.map((node) => (
+      {/* Tree Container - Horizontal scroll on tiny screens if needed */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="min-w-full inline-block align-middle">
+          {filteredTree.length ? (
+            filteredTree.map((node) => (
               <COATreeNode
                 key={node._id}
                 node={node}
-                onEdit={handleEditAccount}
-                onDelete={handleArchiveAccount}
-                onRestore={handleRestoreAccount}
+                onEdit={onEditAccount}
+                onDelete={onDeleteAccount}
+                onRestore={onRestoreAccount}
                 onView={handleViewAccount}
-                onToggleStatus={handleToggleStatus}
-                isLeaf={!node.children?.length}
+                onToggleStatus={onStatusChange}
               />
-            ))}
-          </div>
-        ) : (
-          <div className="p-8 text-center text-gray-500">
-            {searchTerm
-              ? "No accounts found matching your search"
-              : `No ${statusFilter === "all" ? "" : statusFilter + " "}accounts available`}
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="px-4 py-16 text-center">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400 mb-3">
+                <Search size={20} />
+              </div>
+              <p className="text-sm font-medium text-slate-500">
+                No matching accounts found
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-600">
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded border border-blue-400 bg-blue-200" />
-          <span>Leaf Account</span>
+      {/* Legend / Info Section - Responsive Grid/Flex */}
+      <div className="mt-4 flex flex-col gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        {/* Types Legend */}
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 shrink-0">
+            <Tag size={13} className="text-slate-400" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              Account Types
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-bold">
+            <span className="flex items-center gap-1.5 text-blue-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" /> Asset
+            </span>
+            <span className="flex items-center gap-1.5 text-orange-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-600" />{" "}
+              Liability
+            </span>
+            <span className="flex items-center gap-1.5 text-violet-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-600" /> Equity
+            </span>
+            <span className="flex items-center gap-1.5 text-emerald-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />{" "}
+              Income
+            </span>
+            <span className="flex items-center gap-1.5 text-rose-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> Expense
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded border border-purple-400 bg-purple-200" />
-          <span>Parent Account</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-green-200" />
-          <span>Active</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-yellow-200" />
-          <span>Inactive</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-gray-300" />
-          <span>Archived</span>
+
+        {/* Separator - Visible only on Desktop */}
+        <div className="hidden h-5 w-px bg-slate-200 lg:block" />
+
+        {/* Status Legend */}
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 shrink-0">
+            <Info size={13} className="text-slate-400" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              Status Guide
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-tight">
+            <span className="rounded border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+              Active
+            </span>
+            <span className="rounded border border-amber-100 bg-amber-50 px-2 py-0.5 text-amber-700">
+              Inactive
+            </span>
+            <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-slate-500 tracking-normal">
+              Archived
+            </span>
+          </div>
         </div>
       </div>
     </div>

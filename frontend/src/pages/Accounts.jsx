@@ -9,12 +9,33 @@ import {
   restoreAccount,
   updateAccountStatus,
 } from "../store/slices/accountSlice";
-import { Plus, X } from "lucide-react";
+import { Plus, X, FolderTree, Landmark, Filter } from "lucide-react";
 import { toast } from "sonner";
 import COATreeView from "../components/coa/COATreeView";
+import SectionHeader from "../components/common/SectionHeader";
 
 const getDefaultBalanceType = (accountType) => {
-  return ["asset", "expense"].includes(accountType) ? "debit" : "credit";
+  return ["asset", "expense"].includes(String(accountType).toLowerCase())
+    ? "debit"
+    : "credit";
+};
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All Accounts" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "archived", label: "Archived" },
+];
+
+const INITIAL_FORM_DATA = {
+  accountCode: "",
+  accountName: "",
+  accountType: "asset",
+  description: "",
+  openingBalance: 0,
+  openingBalanceType: "debit",
+  parentAccount: "",
+  status: "active",
 };
 
 export default function Accounts() {
@@ -25,17 +46,7 @@ export default function Accounts() {
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [statusFilter, setStatusFilter] = useState("active");
-
-  const [formData, setFormData] = useState({
-    accountCode: "",
-    accountName: "",
-    accountType: "asset",
-    description: "",
-    openingBalance: 0,
-    openingBalanceType: "debit",
-    parentAccount: "",
-    status: "active",
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
   useEffect(() => {
     dispatch(fetchAccounts({ includeDeleted: true }));
@@ -49,16 +60,17 @@ export default function Accounts() {
 
   const resetForm = () => {
     setEditingAccount(null);
-    setFormData({
-      accountCode: "",
-      accountName: "",
-      accountType: "asset",
-      description: "",
-      openingBalance: 0,
-      openingBalanceType: "debit",
-      parentAccount: "",
-      status: "active",
-    });
+    setFormData(INITIAL_FORM_DATA);
+  };
+
+  const openCreateForm = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    resetForm();
+    setShowForm(false);
   };
 
   const refreshAccountsUI = async () => {
@@ -68,41 +80,82 @@ export default function Accounts() {
     await queryClient.invalidateQueries({ queryKey: ["leafAccounts"] });
   };
 
+  const normalizedAccounts = useMemo(() => {
+    if (!Array.isArray(accounts)) return [];
+
+    return accounts.map((account) => ({
+      ...account,
+      accountType: String(account.accountType || "").toLowerCase(),
+      status: String(account.status || "active").toLowerCase(),
+      parentAccount:
+        typeof account.parentAccount === "object" &&
+        account.parentAccount !== null
+          ? account.parentAccount._id
+          : account.parentAccount || null,
+    }));
+  }, [accounts]);
+
+  const visibleAccounts = useMemo(() => {
+    if (!Array.isArray(normalizedAccounts)) return [];
+    if (statusFilter === "all") return normalizedAccounts;
+    return normalizedAccounts.filter((acc) => acc.status === statusFilter);
+  }, [normalizedAccounts, statusFilter]);
+
+  const parentOptions = useMemo(() => {
+    return normalizedAccounts
+      .filter((acc) => acc.accountType === formData.accountType)
+      .filter((acc) => acc.status === "active")
+      .filter((acc) => !editingAccount || acc._id !== editingAccount._id)
+      .sort((a, b) =>
+        String(a.accountCode).localeCompare(String(b.accountCode), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
+      );
+  }, [normalizedAccounts, formData.accountType, editingAccount]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.accountCode || !formData.accountName) {
-      toast.error("Account code and name are required");
+    const accountCode = formData.accountCode.trim();
+    const accountName = formData.accountName.trim();
+    const accountType = String(formData.accountType || "").toLowerCase();
+    const description = formData.description.trim();
+    const openingBalance = Number(formData.openingBalance) || 0;
+    const status = String(formData.status || "").toLowerCase();
+
+    if (!accountCode || !accountName) {
+      toast.error("Account code and account name are required");
       return;
     }
 
-    if (!/^\d+$/.test(formData.accountCode)) {
-      toast.error("Account code must be numeric");
+    if (!/^\d+$/.test(accountCode)) {
+      toast.error("Account code must contain numbers only");
       return;
     }
 
     if (!["debit", "credit"].includes(formData.openingBalanceType)) {
-      toast.error("Opening balance type must be debit or credit");
+      toast.error("Opening balance type must be either debit or credit");
       return;
     }
 
-    if (!["active", "inactive"].includes(formData.status)) {
-      toast.error("Invalid status");
+    if (!["active", "inactive"].includes(status)) {
+      toast.error("Invalid account status");
       return;
     }
 
     const payload = {
-      accountCode: formData.accountCode.trim(),
-      accountName: formData.accountName.trim(),
-      accountType: formData.accountType,
-      description: formData.description.trim(),
-      openingBalance: Number(formData.openingBalance) || 0,
+      accountCode,
+      accountName,
+      accountType,
+      description,
+      openingBalance,
       openingBalanceType:
-        Number(formData.openingBalance) === 0
-          ? getDefaultBalanceType(formData.accountType)
+        openingBalance === 0
+          ? getDefaultBalanceType(accountType)
           : formData.openingBalanceType,
       parentAccount: formData.parentAccount || null,
-      status: formData.status,
+      status,
     };
 
     let result;
@@ -117,7 +170,7 @@ export default function Accounts() {
         updateAccount({
           id: editingAccount._id,
           data: payload,
-        })
+        }),
       );
     } else {
       result = await dispatch(createAccount(payload));
@@ -126,28 +179,22 @@ export default function Accounts() {
     if (result?.error) {
       toast.error(
         result.payload ||
-          `Failed to ${editingAccount ? "update" : "create"} account`
+          `Failed to ${editingAccount ? "update" : "create"} account`,
       );
       return;
     }
 
     toast.success(
-      `Account ${editingAccount ? "updated" : "created"} successfully`
+      `Account ${editingAccount ? "updated" : "created"} successfully`,
     );
 
-    resetForm();
-    setShowForm(false);
+    closeForm();
     await refreshAccountsUI();
-  };
-
-  const handleReset = () => {
-    resetForm();
-    setShowForm(false);
   };
 
   const handleArchive = async (id) => {
     const confirmed = window.confirm(
-      "Are you sure you want to archive this account?"
+      "Are you sure you want to archive this account?",
     );
     if (!confirmed) return;
 
@@ -178,7 +225,7 @@ export default function Accounts() {
     const result = await dispatch(updateAccountStatus({ id, status }));
 
     if (result?.error) {
-      toast.error(result.payload || "Failed to update status");
+      toast.error(result.payload || "Failed to update account status");
       return;
     }
 
@@ -186,148 +233,150 @@ export default function Accounts() {
     await refreshAccountsUI();
   };
 
-  const normalizedAccounts = useMemo(() => {
-    if (!Array.isArray(accounts)) return [];
+  const handleEditAccount = (account) => {
+    if (account.status === "archived") {
+      toast.error("Archived accounts cannot be edited");
+      return;
+    }
 
-    return accounts.map((account) => ({
-      ...account,
+    const accountType = String(account.accountType || "asset").toLowerCase();
+
+    setEditingAccount(account);
+    setFormData({
+      accountCode: account.accountCode || "",
+      accountName: account.accountName || "",
+      accountType,
       parentAccount:
-        typeof account.parentAccount === "object" &&
-        account.parentAccount !== null
-          ? account.parentAccount._id
-          : account.parentAccount || null,
-    }));
-  }, [accounts]);
+        typeof account.parentAccount === "object"
+          ? account.parentAccount?._id || ""
+          : account.parentAccount || "",
+      description: account.description || "",
+      openingBalance: Number(account.openingBalance) || 0,
+      openingBalanceType:
+        account.openingBalanceType || getDefaultBalanceType(accountType),
+      status: account.status || "active",
+    });
 
-  const visibleAccounts = useMemo(() => {
-    if (!Array.isArray(normalizedAccounts)) return [];
+    setShowForm(true);
 
-    if (statusFilter === "all") return normalizedAccounts;
-
-    return normalizedAccounts.filter((acc) => acc.status === statusFilter);
-  }, [normalizedAccounts, statusFilter]);
-
-  const parentOptions = useMemo(() => {
-    return normalizedAccounts
-      .filter((acc) => acc.accountType === formData.accountType)
-      .filter((acc) => acc.status === "active")
-      .filter((acc) => !editingAccount || acc._id !== editingAccount._id)
-      .sort((a, b) =>
-        String(a.accountCode).localeCompare(String(b.accountCode), undefined, {
-          numeric: true,
-          sensitivity: "base",
-        })
-      );
-  }, [normalizedAccounts, formData.accountType, editingAccount]);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Chart of Accounts
-          </h1>
-          <p className="mt-1 text-gray-600">
-            Manage your account hierarchy and create new accounts
-          </p>
+    <div className="space-y-3">
+      {/* Header */}
+      <SectionHeader
+        icon={Landmark}
+        title="Chart of Accounts"
+        description="Maintain account structure, parent-child relationships, and account status in a clear and simple way."
+        buttonText="Create Account"
+        onButtonClick={openCreateForm}
+        buttonIcon={Plus}
+      />
+
+      {/* Filters */}
+      <section className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm">
+          <Filter size={14} />
+          Account Filters
         </div>
 
-        <button
-          onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700"
-        >
-          <Plus size={20} />
-          New Account
-        </button>
-      </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          {STATUS_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setStatusFilter(option.value)}
+              className={`rounded-lg border px-3 py-2 text-xs font-medium transition sm:text-sm ${
+                statusFilter === option.value
+                  ? "border-red-600 bg-red-100 text-red-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <div className="flex flex-wrap gap-2">
-        {["all", "active", "inactive", "archived"].map((status) => (
-          <button
-            key={status}
-            type="button"
-            onClick={() => setStatusFilter(status)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-              statusFilter === status
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </button>
-        ))}
-      </div>
-
+      {/* Form */}
       {showForm && (
-        <div className="relative rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <section className="relative rounded-xl border border-red-100 bg-white p-3 sm:p-4">
           <button
-            onClick={handleReset}
-            className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
-            type="button"
-          >
-            <X size={20} />
+            onClick={closeForm}
+            className="absolute right-3 top-3 rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-red-600"
+            type="button">
+            <X size={18} />
           </button>
 
-          <h2 className="mb-4 text-xl font-semibold text-gray-900">
-            {editingAccount ? "Edit Account" : "Create New Account"}
-          </h2>
+          <div className="mb-4 border-b border-slate-100 pb-3 pr-8">
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg">
+              {editingAccount ? "Edit Account" : "Create New Account"}
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+              Enter account details in a clean and consistent format.
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Account Code *
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Account Code <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., 1000"
+                  placeholder="e.g. 1000"
                   value={formData.accountCode}
                   onChange={(e) =>
-                    setFormData({ ...formData, accountCode: e.target.value })
+                    setFormData((prev) => ({
+                      ...prev,
+                      accountCode: e.target.value,
+                    }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Account Name *
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Account Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., Cash"
+                  placeholder="e.g. Cash in Hand"
                   value={formData.accountName}
                   onChange={(e) =>
-                    setFormData({ ...formData, accountName: e.target.value })
+                    setFormData((prev) => ({
+                      ...prev,
+                      accountName: e.target.value,
+                    }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Account Type *
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Account Type <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.accountType}
                   onChange={(e) => {
-                    const selectedType = e.target.value;
-                    setFormData({
-                      ...formData,
+                    const selectedType = e.target.value.toLowerCase();
+                    setFormData((prev) => ({
+                      ...prev,
                       accountType: selectedType,
                       parentAccount: "",
                       openingBalanceType: getDefaultBalanceType(selectedType),
-                    });
+                    }));
                   }}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none">
                   <option value="asset">Asset</option>
                   <option value="liability">Liability</option>
                   <option value="equity">Equity</option>
@@ -337,17 +386,19 @@ export default function Accounts() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Parent Account
                 </label>
                 <select
                   value={formData.parentAccount}
                   onChange={(e) =>
-                    setFormData({ ...formData, parentAccount: e.target.value })
+                    setFormData((prev) => ({
+                      ...prev,
+                      parentAccount: e.target.value,
+                    }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">No Parent</option>
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none">
+                  <option value="">No Parent Account</option>
                   {parentOptions.map((acc) => (
                     <option key={acc._id} value={acc._id}>
                       {acc.accountCode} - {acc.accountName}
@@ -357,9 +408,9 @@ export default function Accounts() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Opening Balance
                 </label>
                 <input
@@ -367,85 +418,84 @@ export default function Accounts() {
                   placeholder="0.00"
                   value={formData.openingBalance}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormData((prev) => ({
+                      ...prev,
                       openingBalance: parseFloat(e.target.value) || 0,
-                    })
+                    }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
                   step="0.01"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Opening Balance Type
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Balance Type
                 </label>
                 <select
                   value={formData.openingBalanceType}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormData((prev) => ({
+                      ...prev,
                       openingBalanceType: e.target.value,
-                    })
+                    }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={Number(formData.openingBalance) === 0}
-                >
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
+                  disabled={Number(formData.openingBalance) === 0}>
                   <option value="debit">Debit</option>
                   <option value="credit">Credit</option>
                 </select>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Status
                 </label>
                 <select
                   value={formData.status}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormData((prev) => ({
+                      ...prev,
                       status: e.target.value,
-                    })
+                    }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none">
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Description
                 </label>
                 <input
                   type="text"
-                  placeholder="Optional account description"
+                  placeholder="Optional description"
                   value={formData.description}
                   onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
+                    setFormData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={handleReset}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition hover:bg-gray-50"
-              >
+                onClick={closeForm}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:w-auto">
                 Cancel
               </button>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700 disabled:bg-gray-400"
-              >
+                className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-400 sm:w-auto">
                 {isLoading
                   ? editingAccount
                     ? "Updating..."
@@ -456,48 +506,36 @@ export default function Accounts() {
               </button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-        <COATreeView
-          accounts={visibleAccounts}
-          statusFilter={statusFilter}
-          onAddAccount={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          onEditAccount={(account) => {
-            if (account.status === "archived") {
-              toast.error("Archived accounts cannot be edited");
-              return;
-            }
+      {/* Tree Section */}
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 p-3 sm:p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-red-600">
+            <FolderTree size={18} />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 sm:text-base">
+              Account Structure
+            </h2>
+            <p className="text-xs text-slate-500 sm:text-sm">
+              Review and manage the account hierarchy.
+            </p>
+          </div>
+        </div>
 
-            const accountType = account.accountType || "asset";
-
-            setEditingAccount(account);
-            setFormData({
-              accountCode: account.accountCode || "",
-              accountName: account.accountName || "",
-              accountType,
-              parentAccount:
-                account.parentAccount?._id || account.parentAccount || "",
-              description: account.description || "",
-              openingBalance: account.openingBalance || 0,
-              openingBalanceType:
-                account.openingBalanceType ||
-                getDefaultBalanceType(accountType),
-              status: account.status || "active",
-            });
-
-            setShowForm(true);
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          onDeleteAccount={handleArchive}
-          onRestoreAccount={handleRestore}
-          onStatusChange={handleStatusChange}
-        />
-      </div>
+        <div className="overflow-x-auto p-2 sm:p-3">
+          <COATreeView
+            accounts={visibleAccounts}
+            onAddAccount={openCreateForm}
+            onEditAccount={handleEditAccount}
+            onDeleteAccount={handleArchive}
+            onRestoreAccount={handleRestore}
+            onStatusChange={handleStatusChange}
+          />
+        </div>
+      </section>
     </div>
   );
 }

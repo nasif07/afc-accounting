@@ -1,21 +1,27 @@
 import React, { useState } from "react";
 import {
-  ChevronDown,
   ChevronRight,
+  ChevronDown,
+  Eye,
   Edit2,
   Trash2,
-  Eye,
   Power,
   RotateCcw,
+  Circle,
 } from "lucide-react";
 
-const formatBalance = (amount = 0, balanceType = "debit") => {
-  const numericAmount = Number(amount) || 0;
+const typeStyles = {
+  asset: "bg-blue-50 text-blue-700 border-blue-100",
+  liability: "bg-orange-50 text-orange-700 border-orange-100",
+  equity: "bg-violet-50 text-violet-700 border-violet-100",
+  income: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  expense: "bg-rose-50 text-rose-700 border-rose-100",
+};
 
-  return `${numericAmount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ${balanceType === "credit" ? "Cr" : "Dr"}`;
+const statusStyles = {
+  active: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  inactive: "bg-amber-50 text-amber-700 border-amber-100",
+  archived: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 const COATreeNode = ({
@@ -26,155 +32,158 @@ const COATreeNode = ({
   onRestore,
   onView,
   onToggleStatus,
-  isLeaf = false,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(level < 1);
 
-  const hasChildren = node.children?.length > 0;
+  const children = node.children || [];
+  const hasChildren = children.length > 0;
   const isArchived = node.status === "archived";
-  const isInactive = node.status === "inactive";
 
-  const indentationStyle = { paddingLeft: `${level * 1.5}rem` };
+  const type = String(node.accountType || "").toLowerCase();
+  const status = String(node.status || "").toLowerCase();
 
   return (
-    <div className={`select-none ${isArchived ? "opacity-50" : ""}`}>
+    <div className="w-full">
+      {/* Row Container */}
       <div
-        style={indentationStyle}
-        className="flex items-center gap-2 rounded px-3 py-2 transition hover:bg-gray-50"
-      >
-        {/* Expand */}
-        {hasChildren ? (
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="rounded p-1 hover:bg-gray-200"
-          >
-            {isExpanded ? (
-              <ChevronDown size={16} />
-            ) : (
-              <ChevronRight size={16} />
-            )}
-          </button>
-        ) : (
-          <div className="w-6" />
-        )}
-
-        {/* Icon */}
+        className={`flex items-center justify-between border-b border-slate-200 transition min-w-0 ${
+          isArchived
+            ? "bg-slate-50 opacity-70"
+            : "bg-white hover:bg-slate-100/50"
+        }`}>
         <div
-          className={`h-4 w-4 rounded ${
-            isLeaf || !hasChildren
-              ? "bg-blue-200 border border-blue-400"
-              : "bg-purple-200 border border-purple-400"
-          }`}
-        />
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-gray-700">
-              {node.accountCode}
-            </span>
-
-            <span className="text-sm text-gray-900 truncate">
-              {node.accountName}
-            </span>
-
-            <span className="hidden md:inline-block text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded capitalize">
-              {node.accountType}
-            </span>
-
-            <span
-              className={`hidden md:inline-block text-xs px-2 py-0.5 rounded ${
-                isLeaf || !hasChildren
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-purple-100 text-purple-700"
-              }`}
-            >
-              {isLeaf ? "Leaf" : "Parent"}
-            </span>
-
-            {/* STATUS BADGE */}
-            <span
-              className={`text-xs px-2 py-0.5 rounded capitalize ${
-                node.status === "active"
-                  ? "bg-green-100 text-green-700"
-                  : node.status === "inactive"
-                  ? "bg-yellow-100 text-yellow-700"
-                  : "bg-gray-300 text-gray-700"
-              }`}
-            >
-              {node.status}
-            </span>
+          className="flex flex-1 items-center gap-2 md:gap-3 py-2.5 px-3 min-w-0"
+          style={{ paddingLeft: `calc(12px + ${level * 16}px)` }}>
+          {/* Expand / Leaf Icon */}
+          <div className="flex shrink-0 items-center justify-center w-6">
+            {hasChildren ? (
+              <button
+                onClick={() => setIsExpanded((prev) => !prev)}
+                className="p-1 rounded hover:bg-slate-200 transition-colors">
+                {isExpanded ? (
+                  <ChevronDown size={14} />
+                ) : (
+                  <ChevronRight size={14} />
+                )}
+              </button>
+            ) : (
+              <Circle size={6} className="text-slate-300" fill="currentColor" />
+            )}
           </div>
 
-          {node.description && (
-            <p className="text-xs text-gray-500 mt-0.5 truncate">
-              {node.description}
-            </p>
-          )}
+          {/* Account Information */}
+          <div className="flex-1 md:flex md:items-center md:gap-4 min-w-0 md:py-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="bg-slate-50 px-1.5 py-0.5 text-[10px] font-mono text-slate-500 rounded border border-slate-200">
+                {node.accountCode}
+              </span>
+              <span
+                className={`truncate text-sm tracking-tight ${
+                  hasChildren
+                    ? "font-bold text-slate-900"
+                    : "font-medium text-slate-700"
+                }`}>
+                {node.accountName}
+              </span>
+            </div>
+
+            {/* Badges */}
+            <div className="flex items-center gap-2 pt-1.5 md:pt-0 flex-wrap">
+              <span
+                className={`border px-1.5 py-0.5 text-[9px] md:text-[10px] font-bold uppercase rounded tracking-wider ${typeStyles[type] || "bg-slate-50 text-slate-600 border-slate-200"}`}>
+                {type}
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+                <div
+                  className={`h-1.5 w-1.5 rounded-full bg-current ${statusStyles[status]}`}
+                />
+                <span
+                  className={`text-[9px] md:text-[10px] font-bold capitalize ${statusStyles[status].split(" ")[1]}`}>
+                  {status}
+                </span>
+              </div>
+
+              {hasChildren && (
+                <div className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[9px] md:text-[10px] font-bold text-slate-500 border border-slate-200">
+                  <span className="text-slate-400">/</span>
+                  <span>
+                    {children.length} {children.length === 1 ? "Sub" : "Subs"}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Balance - Removed: Not available in tree response */}
-
-        {/* ACTIONS */}
-        <div className="flex gap-1">
-          {/* View */}
+        {/* ACTIONS - Strictly Flat UI */}
+        <div className="flex items-center gap-1 md:gap-2 px-3 py-2 shrink-0">
           <button
             onClick={() => onView?.(node)}
-            className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
-            title="View Account"
-          >
-            <Eye size={16} />
+            className="flex h-8 w-8 md:h-auto md:w-auto items-center justify-center gap-2 md:px-2.5 md:py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-all">
+            <Eye size={15} />
+            <span className="hidden xl:inline text-[10px] font-bold uppercase tracking-wider">
+              View
+            </span>
           </button>
 
-          {/* Edit */}
-          <button
-            onClick={() => !isArchived && onEdit?.(node)}
-            disabled={isArchived}
-            className="p-1 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded disabled:opacity-40"
-            title="Edit Account"
-          >
-            <Edit2 size={16} />
-          </button>
+          {!isArchived ? (
+            <>
+              <button
+                onClick={() => onEdit?.(node)}
+                className="flex h-8 w-8 md:h-auto md:w-auto items-center justify-center gap-2 md:px-2.5 md:py-1.5 rounded-lg border border-blue-100 bg-blue-50/30 text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all">
+                <Edit2 size={14} />
+                <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider">
+                  Edit
+                </span>
+              </button>
 
-          {/* Toggle Active/Inactive */}
-          {!isArchived && (
-            <button
-              onClick={() => onToggleStatus?.(node)}
-              className="p-1 text-gray-600 hover:text-yellow-600 hover:bg-yellow-50 rounded"
-              title="Toggle Active/Inactive"
-            >
-              <Power size={16} />
-            </button>
-          )}
+              <button
+                onClick={() =>
+                  onToggleStatus?.(
+                    node._id,
+                    status === "active" ? "inactive" : "active",
+                  )
+                }
+                className={`flex h-8 w-8 md:h-auto md:w-auto items-center justify-center gap-2 md:px-2.5 md:py-1.5 rounded-lg border transition-all ${
+                  status === "active"
+                    ? "border-amber-100 bg-amber-50/30 text-slate-500 hover:border-amber-400 hover:text-amber-600"
+                    : "border-emerald-200 bg-emerald-50/50 text-emerald-700 hover:border-emerald-500"
+                }`}>
+                <Power size={14} />
+                <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider">
+                  {status === "active" ? "Off" : "On"}
+                </span>
+              </button>
 
-          {/* Archive */}
-          {(isLeaf || !hasChildren) && !isArchived && (
-            <button
-              onClick={() => onDelete?.(node._id)}
-              className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded"
-              title="Archive Account"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-
-          {/* Restore */}
-          {isArchived && (
+              {!hasChildren && (
+                <button
+                  onClick={() => onDelete?.(node._id)}
+                  className="flex h-8 w-8 md:h-auto md:w-auto items-center justify-center gap-2 md:px-2.5 md:py-1.5 rounded-lg border border-red-100 bg-red-50/30 text-slate-400 hover:border-red-400 hover:text-red-600 transition-all">
+                  <Trash2 size={14} />
+                  <span className="hidden xl:inline text-[10px] font-bold uppercase tracking-wider">
+                    Archive
+                  </span>
+                </button>
+              )}
+            </>
+          ) : (
             <button
               onClick={() => onRestore?.(node._id)}
-              className="p-1 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded"
-              title="Restore Account"
-            >
-              <RotateCcw size={16} />
+              className="flex h-8 w-8 md:h-auto md:w-auto items-center justify-center gap-2 md:px-2.5 md:py-1.5 rounded-lg border border-violet-200 bg-violet-50/30 text-violet-600 hover:border-violet-400 transition-all">
+              <RotateCcw size={14} />
+              <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider">
+                Restore
+              </span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Children */}
+      {/* CHILDREN */}
       {hasChildren && isExpanded && (
-        <div className="border-l border-gray-200 ml-4">
-          {node.children.map((child) => (
+        <div className="w-full">
+          {children.map((child) => (
             <COATreeNode
               key={child._id}
               node={child}
@@ -184,7 +193,6 @@ const COATreeNode = ({
               onRestore={onRestore}
               onView={onView}
               onToggleStatus={onToggleStatus}
-              isLeaf={!child.children?.length}
             />
           ))}
         </div>

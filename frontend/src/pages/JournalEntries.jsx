@@ -17,26 +17,27 @@ import {
   Search,
   Filter,
   ArrowLeft,
+  BookOpen,
+  Calendar,
+  Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 import DynamicJournalForm from "../components/journal/DynamicJournalForm";
+import SectionHeader from "../components/common/SectionHeader";
 
 export default function JournalEntries() {
   const dispatch = useDispatch();
   const { entries, isLoading, error } = useSelector((state) => state.journals);
-  
-  // State for UI management
+
   const [showForm, setShowForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Load data on mount
   useEffect(() => {
     dispatch(fetchJournalEntries());
     dispatch(fetchAccounts());
   }, [dispatch]);
 
-  // Error Handling
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -44,20 +45,21 @@ export default function JournalEntries() {
     }
   }, [error, dispatch]);
 
-  // Filtered Entries for Search
   const filteredEntries = useMemo(() => {
     if (!entries) return [];
-    return entries.filter(entry => 
-      entry.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.voucherNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+    return entries.filter(
+      (entry) =>
+        entry.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        entry.voucherNumber?.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [entries, searchTerm]);
 
-  // Handle Create or Update
   const handleFormSubmit = async (payload) => {
     let result;
     if (editingEntry) {
-      result = await dispatch(updateJournalEntry({ id: editingEntry._id, ...payload }));
+      result = await dispatch(
+        updateJournalEntry({ id: editingEntry._id, ...payload }),
+      );
     } else {
       result = await dispatch(createJournalEntry(payload));
     }
@@ -65,7 +67,9 @@ export default function JournalEntries() {
     if (result?.error) {
       toast.error(result.payload || "Operation failed");
     } else {
-      toast.success(`Entry ${editingEntry ? "updated" : "created"} successfully`);
+      toast.success(
+        `Entry ${editingEntry ? "updated" : "created"} successfully`,
+      );
       handleCloseForm();
       dispatch(fetchJournalEntries());
     }
@@ -82,7 +86,7 @@ export default function JournalEntries() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this entry? This action cannot be undone.")) {
+    if (window.confirm("Are you sure you want to delete this entry?")) {
       const result = await dispatch(deleteJournalEntry(id));
       if (!result?.error) {
         toast.success("Entry deleted");
@@ -91,69 +95,56 @@ export default function JournalEntries() {
     }
   };
 
-  const getTransactionTypeLabel = (type) => {
-    const types = {
-      'receipt': 'Receipt',
-      'payment': 'Payment',
-      'journal-entry': 'Journal Entry',
-      'transfer': 'Transfer'
-    };
-    return types[type] || type;
-  };
-
   const getStatusDisplay = (entry) => {
-    const isApproved = entry.status === "posted" || entry.approvalStatus === "approved";
+    const isApproved =
+      entry.status === "posted" || entry.approvalStatus === "approved";
     const isRejected = entry.approvalStatus === "rejected";
 
-    if (isApproved) return (
-      <span className="flex items-center gap-1 text-green-600 font-medium text-xs">
-        <CheckCircle size={14} /> Approved
-      </span>
-    );
-    if (isRejected) return (
-      <span className="flex items-center gap-1 text-red-600 font-medium text-xs">
-        <XCircle size={14} /> Rejected
-      </span>
-    );
+    if (isApproved)
+      return (
+        <span className="flex items-center gap-1.5 text-emerald-600 font-bold text-[10px] uppercase tracking-wider">
+          <CheckCircle size={12} /> Approved
+        </span>
+      );
+    if (isRejected)
+      return (
+        <span className="flex items-center gap-1.5 text-rose-600 font-bold text-[10px] uppercase tracking-wider">
+          <XCircle size={12} /> Rejected
+        </span>
+      );
     return (
-      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+      <span className="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider">
         Pending
       </span>
     );
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Journal Entries</h1>
-          <p className="text-sm text-gray-500">Record and monitor your financial transactions</p>
-        </div>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
-          >
-            <Plus size={18} />
-            New Entry
-          </button>
-        )}
-      </div>
+    <div className="space-y-4 pb-10">
+      <SectionHeader
+        icon={BookOpen}
+        title="Journal Entries"
+        description="Financial transaction ledger"
+        buttonText={"New Entry"}
+        onButtonClick={() => setShowForm(true)}
+        buttonIcon={Plus}
+      />
 
       {showForm ? (
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-            <h2 className="font-semibold text-gray-700">
-              {editingEntry ? "Edit Journal Entry" : "Create New Journal Entry"}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+            <h2 className="font-bold text-slate-800 text-sm uppercase tracking-tight">
+              {editingEntry ? "Edit Entry" : "New Entry"}
             </h2>
-            <button onClick={handleCloseForm} className="text-gray-400 hover:text-gray-600">
-              <ArrowLeft size={20} />
+            <button
+              onClick={handleCloseForm}
+              className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+              <ArrowLeft size={18} className="text-slate-500" />
             </button>
           </div>
-          <div className="p-6">
-            <DynamicJournalForm 
-              initialData={editingEntry} 
+          <div className="p-4 md:p-8">
+            <DynamicJournalForm
+              initialData={editingEntry}
               onSubmit={handleFormSubmit}
               onCancel={handleCloseForm}
               isLoading={isLoading}
@@ -162,99 +153,157 @@ export default function JournalEntries() {
         </div>
       ) : (
         <>
-          {/* Filters/Search Bar */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search & Filters */}
+          <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Search
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                size={16}
+              />
               <input
                 type="text"
-                placeholder="Search by description or voucher #..."
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                placeholder="Search description or voucher..."
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:border-slate-400 focus:ring-4 focus:ring-slate-50 outline-none transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <button className="flex items-center justify-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 text-gray-600">
-              <Filter size={18} />
-              Filters
+            <button className="flex items-center justify-center gap-2 px-5 py-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 text-sm font-medium transition-all">
+              <Filter size={16} /> Filters
             </button>
           </div>
 
-          {/* Table Container */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-200">
+          {/* Responsive View Wrapper */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {/* Desktop Table - Hidden on Mobile */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50/80 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Voucher #</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Description</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Type</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Debit (৳)</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Credit (৳)</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-center">Actions</th>
+                    {[
+                      "Date",
+                      "Voucher #",
+                      "Description",
+                      "Debit",
+                      "Credit",
+                      "Status",
+                      "Actions",
+                    ].map((head) => (
+                      <th
+                        key={head}
+                        className={`px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest ${head.includes("Debit") || head.includes("Credit") ? "text-right" : ""}`}>
+                        {head}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {isLoading ? (
-                    [...Array(3)].map((_, i) => (
-                      <tr key={i} className="animate-pulse">
-                        <td colSpan="8" className="px-6 py-6 border-b"><div className="h-4 bg-gray-100 rounded w-full"></div></td>
-                      </tr>
-                    ))
-                  ) : filteredEntries.length > 0 ? (
-                    filteredEntries.map((entry) => (
-                      <tr key={entry._id} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {new Date(entry.voucherDate || entry.date).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm font-mono font-medium text-blue-700">
-                          {entry.voucherNumber || "N/A"}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                          {entry.description}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-[10px] px-2 py-1 rounded-md bg-gray-100 text-gray-600 font-semibold uppercase">
-                            {getTransactionTypeLabel(entry.transactionType)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right font-mono">
-                          {Number(entry.totalDebit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right font-mono">
-                          {Number(entry.totalCredit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-4">{getStatusDisplay(entry)}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex justify-center gap-3">
-                            <button 
-                              onClick={() => handleEdit(entry)}
-                              className="text-gray-400 hover:text-blue-600 transition"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(entry._id)}
-                              className="text-gray-400 hover:text-red-600 transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="8" className="px-6 py-12 text-center text-gray-400">
-                        No entries found matching your criteria.
+                <tbody className="divide-y divide-slate-100">
+                  {filteredEntries.map((entry) => (
+                    <tr
+                      key={entry._id}
+                      className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
+                        {new Date(
+                          entry.voucherDate || entry.date,
+                        ).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-mono font-bold text-blue-600 tracking-tighter">
+                        {entry.voucherNumber || "---"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700 max-w-xs truncate">
+                        {entry.description}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right font-mono font-medium text-slate-900">
+                        {Number(entry.totalDebit || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right font-mono font-medium text-slate-900">
+                        {Number(entry.totalCredit || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4">{getStatusDisplay(entry)}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={() => handleEdit(entry)}
+                            className="p-2 border border-slate-100 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all">
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(entry._id)}
+                            className="p-2 border border-slate-100 rounded-lg text-slate-400 hover:text-rose-600 hover:border-rose-100 transition-all">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile/Tablet Card View - Hidden on Desktop */}
+            <div className="lg:hidden divide-y divide-slate-100">
+              {filteredEntries.map((entry) => (
+                <div key={entry._id} className="p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-blue-600 font-mono font-bold text-xs uppercase">
+                        <Hash size={12} /> {entry.voucherNumber}
+                      </div>
+                      <div className="text-sm font-bold text-slate-900 leading-tight">
+                        {entry.description}
+                      </div>
+                    </div>
+                    {getStatusDisplay(entry)}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 py-2 border-y border-slate-50">
+                    <div>
+                      <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">
+                        Debit
+                      </div>
+                      <div className="font-mono text-sm font-bold text-slate-800 tracking-tight">
+                        ৳{Number(entry.totalDebit || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">
+                        Credit
+                      </div>
+                      <div className="font-mono text-sm font-bold text-slate-800 tracking-tight">
+                        ৳{Number(entry.totalCredit || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-1">
+                    <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                      <Calendar size={12} />{" "}
+                      {new Date(
+                        entry.voucherDate || entry.date,
+                      ).toLocaleDateString()}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEdit(entry)}
+                        className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 uppercase">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(entry._id)}
+                        className="px-3 py-1.5 border border-rose-100 text-rose-600 rounded-lg text-xs font-bold uppercase">
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {filteredEntries.length === 0 && !isLoading && (
+              <div className="py-20 text-center text-slate-400 text-sm italic">
+                No ledger entries found.
+              </div>
+            )}
           </div>
         </>
       )}

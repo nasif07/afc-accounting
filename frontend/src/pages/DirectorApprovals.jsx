@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import toast from 'react-hot-toast';
-import { Check, X, Loader } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
+import toast from "react-hot-toast";
+import { Check, X, Loader, UserCheck } from "lucide-react";
+import SectionHeader from "../components/common/SectionHeader";
 
 export default function DirectorApprovals() {
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -13,8 +14,8 @@ export default function DirectorApprovals() {
 
   // Check if user is director
   useEffect(() => {
-    if (user?.role !== 'director') {
-      navigate('/dashboard');
+    if (user?.role !== "director") {
+      navigate("/dashboard");
       return;
     }
     fetchPendingUsers();
@@ -23,10 +24,10 @@ export default function DirectorApprovals() {
   const fetchPendingUsers = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/auth/pending');
+      const response = await api.get("/auth/pending");
       setPendingUsers(response.data || []);
     } catch (error) {
-      toast.error('Failed to load pending users');
+      toast.error("Failed to load pending users");
     } finally {
       setLoading(false);
     }
@@ -35,20 +36,20 @@ export default function DirectorApprovals() {
   const handleApprove = async (userId) => {
     try {
       await api.patch(`/auth/approve/${userId}`);
-      toast.success('User approved successfully');
+      toast.success("User approved successfully");
       fetchPendingUsers();
     } catch (error) {
-      toast.error('Failed to approve user');
+      toast.error("Failed to approve user");
     }
   };
 
   const handleReject = async (userId) => {
     try {
       await api.patch(`/auth/reject/${userId}`);
-      toast.success('User rejected successfully');
+      toast.success("User rejected successfully");
       fetchPendingUsers();
     } catch (error) {
-      toast.error('Failed to reject user');
+      toast.error("Failed to reject user");
     }
   };
 
@@ -62,9 +63,15 @@ export default function DirectorApprovals() {
   console.log(pendingUsers);
 
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Pending User Approvals</h1>
-      
+    <div className="space-y-4">
+      <SectionHeader
+        icon={UserCheck}
+        title="Pending User Approvals"
+        description="Review and approve newly registered users"
+        iconBg="bg-red-50"
+        iconColor="text-red-600"
+      />
+
       {pendingUsers.data?.length === 0 ? (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
           No pending users to approve.
@@ -72,23 +79,27 @@ export default function DirectorApprovals() {
       ) : (
         <div className="grid gap-4">
           {pendingUsers.data?.map((pendingUser) => (
-            <div key={pendingUser._id} className="bg-white border border-gray-200 rounded-lg p-6 flex justify-between items-center">
+            <div
+              key={pendingUser._id}
+              className="bg-white border border-gray-200 rounded-lg p-6 flex justify-between items-center">
               <div>
-                <h3 className="font-semibold text-gray-800">{pendingUser.name}</h3>
+                <h3 className="font-semibold text-gray-800">
+                  {pendingUser.name}
+                </h3>
                 <p className="text-gray-600">{pendingUser.email}</p>
-                <p className="text-sm text-gray-500">Role: {pendingUser.role}</p>
+                <p className="text-sm text-gray-500">
+                  Role: {pendingUser.role}
+                </p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleApprove(pendingUser._id)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-                >
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
                   <Check size={18} /> Approve
                 </button>
                 <button
                   onClick={() => handleReject(pendingUser._id)}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-                >
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
                   <X size={18} /> Reject
                 </button>
               </div>
