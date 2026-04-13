@@ -31,6 +31,11 @@ const bookEntrySchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    wasLeafAtCreation: {
+      type: Boolean,
+      default: true,
+      description: "Whether the account was a leaf account when this entry was created. Used to prevent retroactive validation failures if hierarchy changes.",
+    },
   },
   {
     _id: false,

@@ -607,7 +607,12 @@ class AccountingService {
         errors.push(`Account ${account.accountCode} is not active`);
       }
 
-      if (parentSet.has(accountId)) {
+      // CRITICAL FIX: Store whether account is currently a leaf
+      // This prevents retroactive validation failures if hierarchy changes later
+      const isCurrentlyLeaf = !parentSet.has(accountId);
+      entry.wasLeafAtCreation = isCurrentlyLeaf;
+
+      if (!isCurrentlyLeaf) {
         errors.push(
           `Account ${account.accountCode} is a parent account and cannot be used in transactions.`,
         );
@@ -717,6 +722,49 @@ class AccountingService {
 
     if (!entry) throw new Error("Entry not found");
     if (entry.status === "posted") throw new Error("Already posted");
+
+    // CRITICAL FIX: Validate accounts at approval time, not creation time
+    // Check if accounts were leaf accounts at creation time (stored in wasLeafAtCreation)
+    // OR if they are still leaf accounts now (in case hierarchy hasn't changed)
+    const accountIds = entry.bookEntries.map(e => e.account).filter(Boolean);
+    
+    if (accountIds.length > 0) {
+      const childRows = await ChartOfAccounts.aggregate([
+        {
+          $match: {
+            parentAccount: {
+              $in: accountIds.map(id => new mongoose.Types.ObjectId(id)),
+            },
+            deletedAt: null,
+            status: { $ne: "archived" },
+          },
+        },
+        {
+          $group: {
+            _id: "$parentAccount",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const currentParentSet = new Set(childRows.map(row => row._id.toString()));
+
+      for (const bookEntry of entry.bookEntries) {
+        const accountId = bookEntry.account?.toString();
+        if (!accountId) continue;
+
+        // Account must have been a leaf at creation time OR still be a leaf now
+        const wasLeafAtCreation = bookEntry.wasLeafAtCreation !== false; // default true for backward compat
+        const isCurrentlyLeaf = !currentParentSet.has(accountId);
+
+        if (!wasLeafAtCreation && !isCurrentlyLeaf) {
+          const account = await ChartOfAccounts.findById(accountId);
+          throw new Error(
+            `Cannot approve: Account ${account?.accountCode} was not a leaf account at creation time and is still not a leaf account now.`,
+          );
+        }
+      }
+    }
 
     entry.approvalStatus = "approved";
     entry.status = "posted";

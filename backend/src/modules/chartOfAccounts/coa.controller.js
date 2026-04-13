@@ -241,6 +241,30 @@ class COAController {
   }
 
   // =============================
+  // ACCOUNT TRANSACTIONS
+  // =============================
+  static async getAccountTransactions(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { limit = 20, offset = 0 } = req.query;
+
+      const transactions = await COAService.getAccountTransactions(
+        id,
+        parseInt(limit),
+        parseInt(offset)
+      );
+
+      return ApiResponse.success(
+        res,
+        transactions,
+        "Account transactions retrieved successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // =============================
   // TREE
   // =============================
   static async getAccountTree(req, res, next) {

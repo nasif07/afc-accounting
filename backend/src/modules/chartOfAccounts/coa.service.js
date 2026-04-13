@@ -227,6 +227,31 @@ class COAService {
     return leafAccounts;
   }
 
+  static async getAccountBalance(accountId) {
+    const AccountingService = require("../accounting/accounting.service");
+    return await AccountingService.calculateAccountBalance(accountId);
+  }
+
+
+  static async getAccountTransactions(accountId, limit = 20, offset = 0) {
+    const transactions = await JournalEntry.find(
+      { "bookEntries.account": accountId, deletedAt: null },
+      { bookEntries: 1, voucherNumber: 1, voucherDate: 1, description: 1, status: 1 }
+    )
+      .sort({ voucherDate: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean();
+
+    // Filter bookEntries to only include the requested account
+    return transactions.map(entry => ({
+      ...entry,
+      bookEntries: entry.bookEntries.filter(
+        be => be.account?.toString() === accountId.toString()
+      ),
+    }));
+  }
+
   static async buildAccountTree(filters = {}) {
     const query = {};
 

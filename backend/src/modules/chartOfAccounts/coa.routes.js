@@ -15,6 +15,7 @@ router.get("/leaf-nodes", COAController.getLeafNodes);
 router.post("/", accountantOrDirector, COAController.createAccount);
 router.get("/", COAController.getAllAccounts);
 router.get("/:id/balance", COAController.getAccountBalance);
+router.get("/:id/transactions", COAController.getAccountTransactions);
 router.get("/:id", COAController.getAccountById);
 router.patch("/:id", accountantOrDirector, COAController.updateAccount);
 
