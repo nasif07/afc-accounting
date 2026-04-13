@@ -220,7 +220,7 @@ export default function Students() {
     bulkMutation.isPending;
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-4">
       <SectionHeader
         icon={Users}
         title="Student Directory"
@@ -229,7 +229,7 @@ export default function Students() {
         onButtonClick={handleAddStudent}
         buttonIcon={Plus}
       />
-
+{/* 
       <Card className="border-neutral-200/60">
         <CardContent className="p-3">
           <div className="relative">
@@ -246,7 +246,7 @@ export default function Students() {
             />
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       <Card className="overflow-hidden border-neutral-200/60">
         {isLoading ? (
@@ -325,7 +325,7 @@ export default function Students() {
       />
 
       <StudentDetailsModal
-        isOpen={showViewModal}
+        open={showViewModal}
         onClose={handleCloseViewModal}
         student={viewingStudent}
       />
