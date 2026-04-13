@@ -87,7 +87,7 @@ const Table = React.forwardRef(
         )}
 
         {/* Table - Mobile Responsive with Horizontal Scroll */}
-        <div className="w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white shadow-sm">
+        <div className="w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white">
           <table className="w-full min-w-max md:min-w-full">
             <thead>
               <tr className="border-b border-neutral-200 bg-neutral-50">
