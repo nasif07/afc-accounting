@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Info, Search, Tag } from "lucide-react";
 import COATreeNode from "./COATreeNode";
 import AccountDetailsModal from "./AccountDetailsModal";
 import { toast } from "sonner";
+import { coaAPI } from "../../services/apiMethods";
 
 const COATreeView = ({
   accounts = [],
@@ -14,13 +15,41 @@ const COATreeView = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [balances, setBalances] = useState({});
+
+  // Fetch balances for leaf accounts
+  useEffect(() => {
+    const fetchBalances = async () => {
+      if (!Array.isArray(accounts) || accounts.length === 0) return;
+      
+      const leafAccounts = accounts.filter((acc) => {
+        const parentId = typeof acc.parentAccount === "object" && acc.parentAccount !== null
+          ? acc.parentAccount._id
+          : acc.parentAccount || null;
+        return !parentId || !accounts.some((a) => a._id === parentId);
+      });
+
+      const newBalances = {};
+      for (const account of leafAccounts) {
+        try {
+          const response = await coaAPI.getBalance(account._id);
+          newBalances[account._id] = response.data.data?.balance || 0;
+        } catch (error) {
+          console.error(`Failed to fetch balance for ${account._id}:`, error);
+        }
+      }
+      setBalances(newBalances);
+    };
+
+    fetchBalances();
+  }, [accounts]);
 
   const treeData = useMemo(() => {
     const map = {};
     const roots = [];
 
     accounts.forEach((acc) => {
-      map[acc._id] = { ...acc, children: [] };
+      map[acc._id] = { ...acc, children: [], balance: balances[acc._id] };
     });
 
     accounts.forEach((acc) => {

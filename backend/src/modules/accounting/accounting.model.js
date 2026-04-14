@@ -39,8 +39,8 @@ const bookEntrySchema = new mongoose.Schema(
   },
   {
     _id: false,
-    toJSON: { getters: true },
-    toObject: { getters: true },
+    toJSON: { getters: false },
+    toObject: { getters: false },
   },
 );
 
@@ -206,8 +206,8 @@ const journalEntrySchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { getters: true },
-    toObject: { getters: true },
+    toJSON: { getters: false },
+    toObject: { getters: false },
   },
 );
 

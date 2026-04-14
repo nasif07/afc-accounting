@@ -150,7 +150,7 @@ class AccountingController {
 
   static async getAllEntries(req, res, next) {
     try {
-      const { transactionType, approvalStatus, status, dateFrom, dateTo } = req.query;
+      const { transactionType, approvalStatus, status, dateFrom, dateTo, page, limit, sortBy, sortOrder } = req.query;
 
       const filters = {};
       if (transactionType) filters.transactionType = transactionType;
@@ -160,12 +160,17 @@ class AccountingController {
         filters.dateFrom = dateFrom;
         filters.dateTo = dateTo;
       }
+      // Pagination and sorting
+      if (page) filters.page = page;
+      if (limit) filters.limit = limit;
+      if (sortBy) filters.sortBy = sortBy;
+      if (sortOrder) filters.sortOrder = sortOrder;
 
-      const entries = await AccountingService.getAllEntries(filters);
+      const result = await AccountingService.getAllEntries(filters);
 
       return ApiResponse.success(
         res,
-        entries,
+        result,
         'Journal entries retrieved successfully'
       );
     } catch (error) {

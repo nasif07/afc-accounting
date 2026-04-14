@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useState } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -8,7 +9,9 @@ import {
   Power,
   RotateCcw,
   Circle,
+  Loader2,
 } from "lucide-react";
+import { formatCurrency } from "../../utils/currency";
 
 const typeStyles = {
   asset: "bg-blue-50 text-blue-700 border-blue-100",
@@ -107,6 +110,11 @@ const COATreeNode = ({
               {!hasChildren && (
                 <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] md:text-[10px] font-bold text-emerald-600 border border-emerald-200">
                   <span>Leaf</span>
+                </div>
+              )}
+              {!hasChildren && node.balance !== undefined && (
+                <div className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[9px] md:text-[10px] font-bold text-slate-700 border border-slate-200">
+                  <span>Balance: {formatCurrency(node.balance)}</span>
                 </div>
               )}
               {hasChildren && (

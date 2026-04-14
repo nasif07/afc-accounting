@@ -8,7 +8,14 @@ export const fetchJournalEntries = createAsyncThunk(
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await api.get("/accounting/journal-entries", { params });
-      // Flexible handling for different API response structures
+      // Handle paginated response format
+      if (response.data.data && response.data.pagination) {
+        return {
+          entries: response.data.data,
+          pagination: response.data.pagination,
+        };
+      }
+      // Fallback for non-paginated responses
       return response.data.data || response.data.entries || response.data;
     } catch (error) {
       return rejectWithValue(
@@ -81,6 +88,14 @@ const sortEntries = (entries) => {
 
 const initialState = {
   entries: [],
+  pagination: {
+    total: 0,
+    page: 1,
+    limit: 20,
+    pages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  },
   isLoading: false,
   error: null,
 };
@@ -107,9 +122,18 @@ const journalSlice = createSlice({
       })
       .addCase(fetchJournalEntries.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.entries = Array.isArray(action.payload)
-          ? sortEntries(action.payload)
-          : [];
+        if (action.payload && action.payload.entries) {
+          // Paginated response
+          state.entries = Array.isArray(action.payload.entries)
+            ? action.payload.entries
+            : [];
+          state.pagination = action.payload.pagination || state.pagination;
+        } else {
+          // Non-paginated response
+          state.entries = Array.isArray(action.payload)
+            ? sortEntries(action.payload)
+            : [];
+        }
       })
       .addCase(fetchJournalEntries.rejected, (state, action) => {
         state.isLoading = false;

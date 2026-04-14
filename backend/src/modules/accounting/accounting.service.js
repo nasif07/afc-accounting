@@ -681,12 +681,38 @@ class AccountingService {
       if (filters.dateTo) query.voucherDate.$lte = new Date(filters.dateTo);
     }
 
+    // Pagination
+    const page = Math.max(1, parseInt(filters.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(filters.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    // Sorting - support voucherDate, voucherNumber, totalDebit, totalCredit
+    const sortField = filters.sortBy || 'voucherDate';
+    const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
+    const sort = { [sortField]: sortOrder, _id: -1 };
+
+    // Get total count for pagination
+    const total = await JournalEntry.countDocuments(query);
+
+    // Fetch entries with pagination and sorting
     const entries = await JournalEntry.find(query)
       .populate("createdBy", "name email")
       .populate("bookEntries.account", "accountName accountCode accountType")
-      .sort({ voucherDate: -1, createdAt: -1 });
+      .sort(sort)
+      .skip(skip)
+      .limit(limit);
 
-    return entries.map((entry) => entry.toJSON());
+    return {
+      data: entries.map((entry) => entry.toJSON()),
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1,
+      },
+    };
   }
 
   static async getEntryById(entryId) {

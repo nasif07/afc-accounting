@@ -1,14 +1,16 @@
 /**
  * Currency formatting and conversion utilities
  * Backend stores amounts as integers (cents), frontend displays as decimals
+ * 
+ * SINGLE SOURCE OF TRUTH for currency handling
  */
 
 const CURRENCY_CONFIG = {
-  symbol: "৳",
-  code: "BDT",
+  symbol: '৳',
+  code: 'BDT',
   decimalPlaces: 2,
-  decimalSeparator: ".",
-  thousandsSeparator: ",",
+  decimalSeparator: '.',
+  thousandsSeparator: ',',
 };
 
 /**
@@ -51,7 +53,7 @@ export const formatCurrency = (cents, options = {}) => {
   }
 
   const decimal = centsToDecimal(cents);
-  const formatted = decimal.toLocaleString("en-IN", {
+  const formatted = decimal.toLocaleString('en-IN', {
     minimumFractionDigits: decimalPlaces,
     maximumFractionDigits: decimalPlaces,
   });
@@ -73,7 +75,7 @@ export const formatCurrency = (cents, options = {}) => {
  * @returns {string} Decimal amount as string
  */
 export const formatCurrencyForInput = (cents) => {
-  if (cents === null || cents === undefined) return "";
+  if (cents === null || cents === undefined) return '';
   return centsToDecimal(cents).toFixed(CURRENCY_CONFIG.decimalPlaces);
 };
 
