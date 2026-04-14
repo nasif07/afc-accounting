@@ -253,7 +253,7 @@ const BankCash = () => {
       />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card className="border-none bg-gradient-to-br from-blue-600 to-blue-700 p-6 text-white shadow-lg">
+        <Card className="border-none bg-gradient-to-br from-blue-600 to-blue-700 p-6 text-white ">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-wider text-blue-100">

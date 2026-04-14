@@ -115,7 +115,7 @@ export default function Students() {
 
   const handleDelete = async (id) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this student record?"
+      "Are you sure you want to delete this student record?",
     );
 
     if (!confirmed) return;
@@ -161,8 +161,7 @@ export default function Students() {
           <span
             className={
               pending > 0 ? "font-medium text-red-600" : "text-emerald-600"
-            }
-          >
+            }>
             {formatCurrency(pending)}
           </span>
         );
@@ -186,8 +185,7 @@ export default function Students() {
             type="button"
             onClick={() => handleViewStudent(row)}
             className="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100"
-            title="View"
-          >
+            title="View">
             <Eye size={16} />
           </button>
 
@@ -195,8 +193,7 @@ export default function Students() {
             type="button"
             onClick={() => handleEditStudent(row)}
             className="rounded-lg p-2 text-amber-600 transition hover:bg-amber-50"
-            title="Edit"
-          >
+            title="Edit">
             <Edit2 size={16} />
           </button>
 
@@ -204,8 +201,7 @@ export default function Students() {
             type="button"
             onClick={() => handleDelete(id)}
             className="rounded-lg p-2 text-red-600 transition hover:bg-red-50"
-            title="Delete"
-          >
+            title="Delete">
             <Trash2 size={16} />
           </button>
         </div>
@@ -229,7 +225,7 @@ export default function Students() {
         onButtonClick={handleAddStudent}
         buttonIcon={Plus}
       />
-{/* 
+      {/* 
       <Card className="border-neutral-200/60">
         <CardContent className="p-3">
           <div className="relative">
@@ -260,8 +256,8 @@ export default function Students() {
             <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-50 px-6 py-4">
               <p className="text-sm text-neutral-600">
                 Showing page{" "}
-                <span className="font-semibold text-neutral-900">{page}</span> of{" "}
-                {pagination.totalPages || 1}
+                <span className="font-semibold text-neutral-900">{page}</span>{" "}
+                of {pagination.totalPages || 1}
               </p>
 
               <div className="flex gap-2">
@@ -269,8 +265,7 @@ export default function Students() {
                   type="button"
                   disabled={page <= 1}
                   onClick={() => handlePageChange(page - 1)}
-                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50"
-                >
+                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50">
                   <ChevronLeft size={18} />
                 </button>
 
@@ -278,8 +273,7 @@ export default function Students() {
                   type="button"
                   disabled={page >= (pagination.totalPages || 1)}
                   onClick={() => handlePageChange(page + 1)}
-                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50"
-                >
+                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50">
                   <ChevronRight size={18} />
                 </button>
               </div>
@@ -325,7 +319,7 @@ export default function Students() {
       />
 
       <StudentDetailsModal
-        open={showViewModal}
+        isOpen={showViewModal}
         onClose={handleCloseViewModal}
         student={viewingStudent}
       />

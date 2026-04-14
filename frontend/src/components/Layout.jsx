@@ -33,8 +33,7 @@ export default function DashboardLayout() {
       <div
         className={`flex min-h-screen flex-col transition-all duration-300 ${
           desktopOpen ? "lg:ml-64" : "lg:ml-20"
-        }`}
-      >
+        }`}>
         {/* Header */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-6">
           <div className="flex items-center gap-2">
@@ -43,8 +42,7 @@ export default function DashboardLayout() {
               onClick={() => setMobileOpen(true)}
               className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
               aria-label="Open sidebar"
-              type="button"
-            >
+              type="button">
               <Menu size={20} />
             </button>
 
@@ -53,8 +51,7 @@ export default function DashboardLayout() {
               onClick={() => setDesktopOpen((prev) => !prev)}
               className="hidden items-center justify-center rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:inline-flex"
               aria-label="Toggle sidebar"
-              type="button"
-            >
+              type="button">
               {desktopOpen ? (
                 <PanelLeftClose size={20} />
               ) : (
@@ -68,7 +65,8 @@ export default function DashboardLayout() {
           </div>
 
           <div className="text-sm text-slate-700">
-            Welcome, <span className="font-semibold">{user?.name || "User"}</span>
+            Welcome,{" "}
+            <span className="font-semibold">{user?.name || "User"}</span>
           </div>
         </header>
 

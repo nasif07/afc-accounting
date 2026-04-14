@@ -169,7 +169,7 @@ export default function Payroll() {
 
       {/* Stats Quick-View */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 ">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Total Net Disbursement
           </p>
@@ -185,7 +185,7 @@ export default function Payroll() {
               .toLocaleString()}
           </p>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div className="bg-white p-5 rounded-xl border border-slate-200  flex items-center gap-4">
           <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
             <TrendingUp size={20} />
           </div>
@@ -201,7 +201,7 @@ export default function Payroll() {
             </p>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div className="bg-white p-5 rounded-xl border border-slate-200  flex items-center gap-4">
           <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
             <TrendingDown size={20} />
           </div>
@@ -217,7 +217,7 @@ export default function Payroll() {
             </p>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div className="bg-white p-5 rounded-xl border border-slate-200  flex items-center gap-4">
           <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
             <Wallet size={20} />
           </div>
@@ -233,7 +233,7 @@ export default function Payroll() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl  border border-slate-200 overflow-hidden">
         {/* Toolbar */}
         <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30">
           <div className="relative flex-1 max-w-md">
@@ -387,7 +387,7 @@ export default function Payroll() {
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             onClick={() => setShowModal(false)}
           />
-          <div className="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="relative bg-white w-full max-w-xl rounded-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-900">
                 {editingId

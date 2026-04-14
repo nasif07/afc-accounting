@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const employeeSchema = new mongoose.Schema(
   {
@@ -6,31 +6,34 @@ const employeeSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      trim: true
+      trim: true,
     },
     name: {
       type: String,
-      required: [true, 'Please provide a name'],
-      trim: true
+      required: [true, "Please provide a name"],
+      trim: true,
     },
     email: {
       type: String,
       lowercase: true,
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+      match: [
+        /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+        "Please provide a valid email",
+      ],
     },
     phone: {
       type: String,
-      trim: true
+      trim: true,
     },
     designation: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
     department: String,
     dateOfJoining: {
       type: Date,
-      required: true
+      required: true,
     },
     dateOfBirth: Date,
     address: String,
@@ -40,27 +43,22 @@ const employeeSchema = new mongoose.Schema(
     country: String,
     bankAccountNumber: String,
     bankName: String,
-    ifscCode: String,
-    panNumber: String,
-    aadharNumber: String,
-    qualifications: String,
-    experience: String,
     status: {
       type: String,
-      enum: ['active', 'inactive', 'on-leave', 'resigned'],
-      default: 'active'
+      enum: ["active", "inactive", "on-leave", "resigned"],
+      default: "active",
     },
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
     },
     notes: String,
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
+      ref: "User",
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-module.exports = mongoose.model('Employee', employeeSchema);
+module.exports = mongoose.model("Employee", employeeSchema);

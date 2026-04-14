@@ -21,6 +21,8 @@ import Reports from "../pages/Reports";
 import Settings from "../pages/Settings";
 import DirectorApprovals from "../pages/DirectorApprovals";
 import JournalEntryApprovals from "../pages/JournalEntryApprovals";
+import Employees from "../pages/Employees";
+import Vendors from "../pages/Vendors";
 
 /**
  * RootRedirect: Handles root path redirection based on auth state
@@ -34,9 +36,7 @@ function RootRedirect() {
     return <LoadingSpinner message="Verifying authentication..." />;
   }
 
-  return (
-    <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
-  );
+  return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
 }
 
 /**
@@ -83,7 +83,7 @@ function ComingSoon() {
 
 /**
  * Router configuration using createBrowserRouter
- * 
+ *
  * Structure:
  * - Root redirect (/)
  * - Public routes (/login, /register)
@@ -125,12 +125,20 @@ const router = createBrowserRouter([
         element: <Receipts />,
       },
       {
-        path: "expenses",
-        element: <Expenses />,
+        path: "employees",
+        element: <Employees />,
       },
       {
         path: "payroll",
         element: <Payroll />,
+      },
+      {
+        path: "vendors",
+        element: <Vendors />,
+      },
+      {
+        path: "expenses",
+        element: <Expenses />,
       },
       {
         path: "accounting",
@@ -158,7 +166,7 @@ const router = createBrowserRouter([
       },
       {
         path: "users",
-        
+
         element: <DirectorApprovals />,
       },
       {
@@ -193,8 +201,7 @@ const router = createBrowserRouter([
           <p className="text-lg text-slate-600 mb-8">Page not found</p>
           <a
             href="/dashboard"
-            className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
+            className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
             Go to Dashboard
           </a>
         </div>

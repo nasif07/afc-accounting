@@ -38,8 +38,7 @@ export default function Sidebar({
       <aside
         className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-slate-200 bg-white shadow-xl transition-all duration-300 ease-in-out lg:shadow-none ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0 ${desktopOpen ? "lg:w-64" : "lg:w-20"} w-[280px]`}
-      >
+        } lg:translate-x-0 ${desktopOpen ? "lg:w-64" : "lg:w-20"} w-[280px]`}>
         {/* Logo/Header */}
         <div className="relative flex min-h-[72px] items-center justify-center border-b border-slate-200 px-4 py-4">
           {/* Mobile close */}
@@ -47,8 +46,7 @@ export default function Sidebar({
             onClick={onClose}
             className="absolute left-3 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 lg:hidden"
             aria-label="Close sidebar"
-            type="button"
-          >
+            type="button">
             <X size={18} />
           </button>
 
@@ -95,8 +93,7 @@ export default function Sidebar({
                         isActive
                           ? "bg-slate-100 text-slate-900"
                           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                      } ${!desktopOpen ? "lg:justify-center" : ""}`}
-                    >
+                      } ${!desktopOpen ? "lg:justify-center" : ""}`}>
                       {isActive && (
                         <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-[#DA002E]" />
                       )}
@@ -115,8 +112,7 @@ export default function Sidebar({
                         <span
                           className={`truncate ${
                             isActive ? "font-semibold" : "font-medium"
-                          }`}
-                        >
+                          }`}>
                           {item.title}
                         </span>
                       )}
@@ -133,8 +129,7 @@ export default function Sidebar({
           <div
             className={`flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5 ${
               !desktopOpen ? "lg:justify-center" : ""
-            }`}
-          >
+            }`}>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold uppercase text-slate-700">
               {user?.name?.[0] || "U"}
             </div>

@@ -30,12 +30,14 @@ The Alliance Accounting App has been comprehensively audited across **backend se
 **File:** `backend/src/modules/chartOfAccounts/coa.service.js`
 
 **Problem:** No validation to prevent circular references in account hierarchy
+
 ```javascript
 // BEFORE: Could create A → B → C → A (circular)
 // AFTER: Validates with wouldCreateCircularReference()
 ```
 
 **Fix Applied:**
+
 ```javascript
 wouldCreateCircularReference(accountId, newParentId) {
   // Traverse up the hierarchy to check for cycles
@@ -57,15 +59,20 @@ wouldCreateCircularReference(accountId, newParentId) {
 **File:** `backend/src/modules/chartOfAccounts/coa.service.js`
 
 **Problem:** Leaf node filtering used N+1 queries (one query per account)
+
 ```javascript
 // BEFORE: For each account, query all children
-const isLeaf = await Account.countDocuments({ parentAccount: acc._id }) === 0;
+const isLeaf = (await Account.countDocuments({ parentAccount: acc._id })) === 0;
 
 // AFTER: Single aggregation pipeline
 const leafAccounts = await Account.aggregate([
-  { $match: { status: 'active' } },
-  { $lookup: { /* check children */ } },
-  { $match: { children: { $size: 0 } } }
+  { $match: { status: "active" } },
+  {
+    $lookup: {
+      /* check children */
+    },
+  },
+  { $match: { children: { $size: 0 } } },
 ]);
 ```
 
@@ -78,13 +85,14 @@ const leafAccounts = await Account.aggregate([
 **File:** `backend/src/modules/accounting/accounting.service.js`
 
 **Problem:** Income statement used balance difference instead of period entries
+
 ```javascript
 // BEFORE: Used opening - closing balance (incorrect)
 const revenue = openingBalance - closingBalance;
 
 // AFTER: Queries entries within period
 const periodEntries = await JournalEntry.find({
-  voucherDate: { $gte: startDate, $lte: endDate }
+  voucherDate: { $gte: startDate, $lte: endDate },
 });
 ```
 
@@ -97,14 +105,15 @@ const periodEntries = await JournalEntry.find({
 **File:** `backend/src/modules/accounting/accounting.service.js`
 
 **Problem:** Retained earnings not calculated correctly
+
 ```javascript
 // BEFORE: Hardcoded calculation
 const retainedEarnings = netIncome - dividends;
 
 // AFTER: Uses actual Retained Earnings account if exists
 const retainedEarningsAccount = await Account.findOne({
-  accountCode: '3000', // Standard retained earnings code
-  accountType: 'equity'
+  accountCode: "3000", // Standard retained earnings code
+  accountType: "equity",
 });
 ```
 
@@ -114,16 +123,16 @@ const retainedEarningsAccount = await Account.findOne({
 
 ### Backend Validation Status
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Double-entry validation | ✅ Working | Debit = Credit enforced |
-| Leaf account enforcement | ✅ Working | Only leaf accounts in transactions |
-| Account status checks | ✅ Working | Only active accounts allowed |
-| Circular reference prevention | ✅ Fixed | New validation added |
-| Balance calculation | ✅ Working | Calculated from journal entries |
-| Soft delete | ✅ Working | Uses `deletedAt` and `deletedBy` |
-| Approval workflow | ✅ Working | Pending → Approved → Posted |
-| Reports | ✅ Working | Trial Balance, Income Statement, Balance Sheet |
+| Feature                       | Status     | Notes                                          |
+| ----------------------------- | ---------- | ---------------------------------------------- |
+| Double-entry validation       | ✅ Working | Debit = Credit enforced                        |
+| Leaf account enforcement      | ✅ Working | Only leaf accounts in transactions             |
+| Account status checks         | ✅ Working | Only active accounts allowed                   |
+| Circular reference prevention | ✅ Fixed   | New validation added                           |
+| Balance calculation           | ✅ Working | Calculated from journal entries                |
+| Soft delete                   | ✅ Working | Uses `deletedAt` and `deletedBy`               |
+| Approval workflow             | ✅ Working | Pending → Approved → Posted                    |
+| Reports                       | ✅ Working | Trial Balance, Income Statement, Balance Sheet |
 
 ---
 
@@ -136,10 +145,11 @@ const retainedEarningsAccount = await Account.findOne({
 **File:** `frontend/src/components/journal/DynamicJournalForm.jsx`
 
 **Problem:** Missing `import React, { useState }`
+
 ```javascript
 // BEFORE: ❌ Component would crash
 // AFTER: ✅ Added React import
-import React, { useState } from 'react';
+import React, { useState } from "react";
 ```
 
 **Impact:** ✅ Form now renders without errors
@@ -151,12 +161,16 @@ import React, { useState } from 'react';
 **File:** `frontend/src/components/journal/DynamicJournalForm.jsx`
 
 **Problem:** Balance validation allowed empty entries
+
 ```javascript
 // BEFORE: ❌ Only required totalDebit > 0
 const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
 
 // AFTER: ✅ Requires both debit AND credit > 0
-const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0 && totalCredit > 0;
+const isBalanced =
+  Math.abs(totalDebit - totalCredit) < 0.01 &&
+  totalDebit > 0 &&
+  totalCredit > 0;
 ```
 
 **Impact:** ✅ Prevents invalid entries with only debits or only credits
@@ -168,6 +182,7 @@ const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0 &
 **File:** `frontend/src/components/journal/BookEntryRow.jsx`
 
 **Problem:** Empty string handling inconsistent
+
 ```javascript
 // BEFORE: ❌ Mixed empty string and 0
 debit: value === '' ? '' : Number(value),
@@ -186,6 +201,7 @@ debit: numValue,
 **File:** `frontend/src/pages/Ledger.jsx`
 
 **Problem:** No null check for transactions array
+
 ```javascript
 // BEFORE: ❌ Could crash if undefined
 {ledgerData.transactions.length > 0 ? (
@@ -203,9 +219,12 @@ debit: numValue,
 **File:** `frontend/src/components/coa/COATreeView.jsx` & `COATreeNode.jsx`
 
 **Problem:** Tree view displayed balance not in API response
+
 ```javascript
 // BEFORE: ❌ Showed undefined balance
-{formatBalance(displayBalance, displayBalanceType)}
+{
+  formatBalance(displayBalance, displayBalanceType);
+}
 
 // AFTER: ✅ Removed from tree, kept in detail view
 // Balance display removed from tree component
@@ -217,15 +236,15 @@ debit: numValue,
 
 ### Frontend Validation Status
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Form validation | ✅ Fixed | All validations working |
-| Numeric input handling | ✅ Fixed | Proper coercion |
-| Tree view rendering | ✅ Fixed | No missing data errors |
-| Ledger display | ✅ Fixed | Safe navigation added |
-| Account selection | ✅ Working | Leaf accounts only |
-| Error messages | ✅ Working | Clear user feedback |
-| Loading states | ✅ Working | Spinners show during fetch |
+| Feature                | Status     | Notes                      |
+| ---------------------- | ---------- | -------------------------- |
+| Form validation        | ✅ Fixed   | All validations working    |
+| Numeric input handling | ✅ Fixed   | Proper coercion            |
+| Tree view rendering    | ✅ Fixed   | No missing data errors     |
+| Ledger display         | ✅ Fixed   | Safe navigation added      |
+| Account selection      | ✅ Working | Leaf accounts only         |
+| Error messages         | ✅ Working | Clear user feedback        |
+| Loading states         | ✅ Working | Spinners show during fetch |
 
 ---
 
@@ -233,24 +252,24 @@ debit: numValue,
 
 ### Endpoint Verification
 
-| Endpoint | Method | Status | Notes |
-|----------|--------|--------|-------|
-| `/accounting/journal-entries` | POST | ✅ | Create journal entry |
-| `/accounting/journal-entries` | GET | ✅ | List entries with filters |
-| `/accounting/journal-entries/:id` | GET | ✅ | Get single entry |
-| `/accounting/journal-entries/:id` | PUT | ✅ | Update entry |
-| `/accounting/journal-entries/:id` | DELETE | ✅ | Delete entry |
-| `/accounting/journal-entries/:id/approve` | PATCH | ✅ | Approve entry |
-| `/accounting/journal-entries/:id/reject` | PATCH | ✅ | Reject entry |
-| `/accounting/journal-entries/pending-approvals` | GET | ✅ | Get pending approvals |
-| `/accounting/journal-entries/ledger/:accountId` | GET | ✅ | Get general ledger |
-| `/accounting/journal-entries/balance/:accountId` | GET | ✅ | Get account balance |
-| `/accounting/journal-entries/trial-balance` | GET | ✅ | Trial balance report |
-| `/accounting/journal-entries/income-statement` | GET | ✅ | Income statement |
-| `/accounting/journal-entries/balance-sheet` | GET | ✅ | Balance sheet |
-| `/accounts/tree` | GET | ✅ | COA hierarchy |
-| `/accounts/leaf-nodes` | GET | ✅ | Leaf accounts only |
-| `/accounts` | GET/POST/PUT/DELETE | ✅ | COA CRUD |
+| Endpoint                                         | Method              | Status | Notes                     |
+| ------------------------------------------------ | ------------------- | ------ | ------------------------- |
+| `/accounting/journal-entries`                    | POST                | ✅     | Create journal entry      |
+| `/accounting/journal-entries`                    | GET                 | ✅     | List entries with filters |
+| `/accounting/journal-entries/:id`                | GET                 | ✅     | Get single entry          |
+| `/accounting/journal-entries/:id`                | PUT                 | ✅     | Update entry              |
+| `/accounting/journal-entries/:id`                | DELETE              | ✅     | Delete entry              |
+| `/accounting/journal-entries/:id/approve`        | PATCH               | ✅     | Approve entry             |
+| `/accounting/journal-entries/:id/reject`         | PATCH               | ✅     | Reject entry              |
+| `/accounting/journal-entries/pending-approvals`  | GET                 | ✅     | Get pending approvals     |
+| `/accounting/journal-entries/ledger/:accountId`  | GET                 | ✅     | Get general ledger        |
+| `/accounting/journal-entries/balance/:accountId` | GET                 | ✅     | Get account balance       |
+| `/accounting/journal-entries/trial-balance`      | GET                 | ✅     | Trial balance report      |
+| `/accounting/journal-entries/income-statement`   | GET                 | ✅     | Income statement          |
+| `/accounting/journal-entries/balance-sheet`      | GET                 | ✅     | Balance sheet             |
+| `/accounts/tree`                                 | GET                 | ✅     | COA hierarchy             |
+| `/accounts/leaf-nodes`                           | GET                 | ✅     | Leaf accounts only        |
+| `/accounts`                                      | GET/POST/PUT/DELETE | ✅     | COA CRUD                  |
 
 ---
 
@@ -423,6 +442,7 @@ debit: numValue,
 ## Final Rating: 8/10
 
 **Strengths:**
+
 - ✅ Solid accounting logic foundation
 - ✅ Proper validation and error handling
 - ✅ Clean separation of concerns
@@ -430,6 +450,7 @@ debit: numValue,
 - ✅ Responsive UI
 
 **Areas for Improvement:**
+
 - ⚠️ Limited financial reporting (no detailed P&L breakdown)
 - ⚠️ No multi-currency support
 - ⚠️ No budget functionality
@@ -462,4 +483,3 @@ debit: numValue,
    - [ ] Multi-currency support
    - [ ] Intercompany transactions
    - [ ] Advanced reporting
-

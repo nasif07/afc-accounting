@@ -1,32 +1,58 @@
-import { Plus, Edit2, Trash2, Search, Loader, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import toast from 'react-hot-toast';
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
+  Loader,
+  X,
+  Store,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  User,
+  ClipboardList,
+  ShieldCheck,
+  Power,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import {
   fetchVendors,
   createVendor,
   updateVendor,
   deleteVendor,
-  clearError,
   clearSuccess,
-} from '../store/slices/vendorSlice';
+} from "../store/slices/vendorSlice";
+import SectionHeader from "../components/common/SectionHeader";
+
+const PAYMENT_TERMS = [
+  "net-15",
+  "net-30",
+  "net-60",
+  "due-on-receipt",
+  "custom",
+];
 
 export default function Vendors() {
   const dispatch = useDispatch();
-  const { items, loading, error, success } = useSelector((state) => state.vendors);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { items, loading, success } = useSelector((state) => state.vendors);
+  const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Synced with Mongoose Schema
   const [formData, setFormData] = useState({
-    vendorName: '',
-    vendorCode: '',
-    email: '',
-    phone: '',
-    address: '',
-    gstNumber: '',
-    bankAccountNumber: '',
-    bankName: '',
-    ifscCode: '',
+    vendorCode: "",
+    vendorName: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    address: "",
+    paymentTerms: "net-30",
+    taxId: "",
+    isActive: true,
   });
 
   useEffect(() => {
@@ -35,39 +61,44 @@ export default function Vendors() {
 
   useEffect(() => {
     if (success) {
-      toast.success(editingId ? 'Vendor updated successfully!' : 'Vendor created successfully!');
-      dispatch(clearSuccess());
+      toast.success(
+        editingId ? "Vendor Profile Updated" : "Vendor Registered Successfully",
+      );
       setShowModal(false);
       resetForm();
       dispatch(fetchVendors());
+      dispatch(clearSuccess());
     }
   }, [success, dispatch, editingId]);
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error);
-      dispatch(clearError());
-    }
-  }, [error, dispatch]);
-
   const resetForm = () => {
     setFormData({
-      vendorName: '',
-      vendorCode: '',
-      email: '',
-      phone: '',
-      address: '',
-      gstNumber: '',
-      bankAccountNumber: '',
-      bankName: '',
-      ifscCode: '',
+      vendorCode: "",
+      vendorName: "",
+      contactPerson: "",
+      email: "",
+      phone: "",
+      address: "",
+      paymentTerms: "net-30",
+      taxId: "",
+      isActive: true,
     });
     setEditingId(null);
   };
 
   const handleOpenModal = (vendor = null) => {
     if (vendor) {
-      setFormData(vendor);
+      setFormData({
+        vendorCode: vendor.vendorCode || "",
+        vendorName: vendor.vendorName || "",
+        contactPerson: vendor.contactPerson || "",
+        email: vendor.email || "",
+        phone: vendor.phone || "",
+        address: vendor.address || "",
+        paymentTerms: vendor.paymentTerms || "net-30",
+        taxId: vendor.taxId || "",
+        isActive: vendor.isActive ?? true,
+      });
       setEditingId(vendor._id);
     } else {
       resetForm();
@@ -75,257 +106,295 @@ export default function Vendors() {
     setShowModal(true);
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false);
-    resetForm();
-  };
-
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (editingId) {
-      dispatch(updateVendor({ id: editingId, data: formData }));
-    } else {
-      dispatch(createVendor(formData));
-    }
+    editingId
+      ? dispatch(updateVendor({ id: editingId, data: formData }))
+      : dispatch(createVendor(formData));
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this vendor?')) {
-      dispatch(deleteVendor(id));
-      toast.success('Vendor deleted successfully!');
-    }
-  };
-
-  const filteredVendors = items.filter(
-    (vendor) =>
-      vendor.vendorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vendor.vendorCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vendor.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredItems = items.filter(
+    (v) =>
+      v.vendorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      v.vendorCode?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Vendors Management</h1>
-          <p className="text-gray-600 mt-1">Manage vendor information and details</p>
+    <div className="space-y-4">
+      <SectionHeader
+        icon={Store}
+        title="Vendor Management"
+        description="Manage supplier profiles, payment terms, and tax documentation."
+        buttonText="Add Vendor"
+        onButtonClick={() => handleOpenModal()}
+        buttonIcon={Plus}
+      />
+
+      {/* Search Toolbar */}
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+        <div className="relative w-full md:w-96 group">
+          <Search
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors"
+            size={18}
+          />
+          <input
+            type="text"
+            placeholder="Search vendor name or code..."
+            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all outline-none"
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition"
-        >
-          <Plus size={20} /> Add Vendor
-        </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search by vendor name, code, or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader className="animate-spin text-blue-600" size={32} />
-          </div>
-        )}
-
-        {!loading && filteredVendors.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>No vendors found. Create a new vendor to get started.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Vendor Name</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Code</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Email</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Phone</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">GST Number</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredVendors.map((vendor) => (
-                  <tr key={vendor._id} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                    <td className="py-3 px-4 font-medium text-gray-900">{vendor.vendorName}</td>
-                    <td className="py-3 px-4 text-gray-600">{vendor.vendorCode}</td>
-                    <td className="py-3 px-4 text-gray-600">{vendor.email}</td>
-                    <td className="py-3 px-4 text-gray-600">{vendor.phone}</td>
-                    <td className="py-3 px-4 text-gray-600">{vendor.gstNumber}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleOpenModal(vendor)}
-                          className="text-blue-600 hover:text-blue-700 transition"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(vendor._id)}
-                          className="text-red-600 hover:text-red-700 transition"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+      {/* Table Section */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-bold">
+                <th className="px-6 py-4">Vendor & Code</th>
+                <th className="px-6 py-4">Contact Person</th>
+                <th className="px-6 py-4">Payment Terms</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredItems.map((vendor) => (
+                <tr
+                  key={vendor._id}
+                  className="hover:bg-blue-50/20 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold border border-slate-200">
+                        {vendor.vendorName.charAt(0)}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      <div>
+                        <p className="font-bold text-slate-900 text-sm">
+                          {vendor.vendorName}
+                        </p>
+                        <p className="text-[11px] font-mono text-slate-500 uppercase">
+                          {vendor.vendorCode}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-slate-700">
+                      {vendor.contactPerson || "—"}
+                    </div>
+                    <div className="text-xs text-slate-500">{vendor.email}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600 uppercase border border-slate-200">
+                      {vendor.paymentTerms}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div
+                      className={`flex items-center gap-1.5 text-xs font-bold ${vendor.isActive ? "text-emerald-600" : "text-slate-400"}`}>
+                      <div
+                        className={`h-2 w-2 rounded-full ${vendor.isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-300"}`}
+                      />
+                      {vendor.isActive ? "ACTIVE" : "INACTIVE"}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleOpenModal(vendor)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => dispatch(deleteVendor(vendor._id))}
+                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
+      {/* Modal - Synced with Mongoose Schema */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">
-                {editingId ? 'Edit Vendor' : 'Add New Vendor'}
-              </h2>
-              <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
-                <X size={24} />
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-800 tracking-tight">
+                    {editingId
+                      ? "Update Vendor Profile"
+                      : "Vendor Registration"}
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Synced with Master Database
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Name *</label>
-                  <input
-                    type="text"
-                    name="vendorName"
-                    value={formData.vendorName}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+            {/* Form Content */}
+            <form
+              onSubmit={handleSubmit}
+              className="p-8 overflow-y-auto space-y-8 custom-scrollbar">
+              {/* SECTION 1: BUSINESS IDENTITY */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-blue-600 font-bold text-[11px] uppercase tracking-[0.2em]">
+                  <Store size={14} /> Identity & Registration
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Code *</label>
-                  <input
-                    type="text"
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <Input
+                    label="Vendor Code *"
                     name="vendorCode"
                     value={formData.vendorCode}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="VND-001"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
+                  <Input
+                    label="Business Name *"
+                    name="vendorName"
+                    value={formData.vendorName}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                    placeholder="Company Ltd."
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
+                  <Input
+                    label="Tax ID / GSTIN"
+                    name="taxId"
+                    value={formData.taxId}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">GST Number</label>
-                  <input
-                    type="text"
-                    name="gstNumber"
-                    value={formData.gstNumber}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Bank Account Number</label>
-                  <input
-                    type="text"
-                    name="bankAccountNumber"
-                    value={formData.bankAccountNumber}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Bank Name</label>
-                  <input
-                    type="text"
-                    name="bankName"
-                    value={formData.bankName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">IFSC Code</label>
-                  <input
-                    type="text"
-                    name="ifscCode"
-                    value={formData.ifscCode}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    rows="3"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Optional"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              {/* SECTION 2: POINT OF CONTACT */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-indigo-600 font-bold text-[11px] uppercase tracking-[0.2em]">
+                  <User size={14} /> Contact Person Details
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <Input
+                    label="Full Name"
+                    name="contactPerson"
+                    value={formData.contactPerson}
+                    onChange={handleChange}
+                    placeholder="Manager Name"
+                  />
+                  <Input
+                    label="Email Address"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="vendor@email.com"
+                  />
+                  <Input
+                    label="Phone Number"
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+1..."
+                  />
+                </div>
+              </div>
+
+              {/* SECTION 3: CONTRACTUAL TERMS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-slate-600 font-bold text-[11px] uppercase tracking-[0.2em]">
+                    <ClipboardList size={14} /> Payment Terms
+                  </div>
+                  <select
+                    name="paymentTerms"
+                    value={formData.paymentTerms}
+                    onChange={handleChange}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all uppercase font-bold">
+                    {PAYMENT_TERMS.map((term) => (
+                      <option key={term} value={term}>
+                        {term.replace(/-/g, " ")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-emerald-600 font-bold text-[11px] uppercase tracking-[0.2em]">
+                    <Power size={14} /> Account Status
+                  </div>
+                  <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      name="isActive"
+                      checked={formData.isActive}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-bold text-slate-700">
+                      Vendor is Active and Verified
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Address Field */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1 tracking-wider">
+                  Business Address
+                </label>
+                <textarea
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  rows="3"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  placeholder="Full physical address..."
+                />
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex gap-4 pt-6 border-t border-slate-100">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader className="animate-spin" size={20} /> : null}
-                  {loading ? 'Saving...' : editingId ? 'Update Vendor' : 'Create Vendor'}
+                  className="flex-[2] bg-slate-900 hover:bg-black text-white font-black py-4 rounded-2xl shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-3 tracking-widest text-xs">
+                  {loading ? (
+                    <Loader className="animate-spin" size={20} />
+                  ) : (
+                    <Plus size={20} />
+                  )}
+                  {editingId ? "UPDATE RECORD" : "CREATE VENDOR"}
                 </button>
                 <button
                   type="button"
-                  onClick={handleCloseModal}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg transition"
-                >
-                  Cancel
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl transition-all text-xs tracking-widest">
+                  CANCEL
                 </button>
               </div>
             </form>
@@ -335,3 +404,15 @@ export default function Vendors() {
     </div>
   );
 }
+
+const Input = ({ label, ...props }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-[11px] font-bold text-slate-500 uppercase ml-1 tracking-wider">
+      {label}
+    </label>
+    <input
+      {...props}
+      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all"
+    />
+  </div>
+);
