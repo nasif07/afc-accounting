@@ -463,6 +463,45 @@ class AccountingService {
     };
   }
 
+
+  /**
+   * Validate that accounts have sufficient balance for the proposed transaction
+   * For asset/cash accounts, prevent negative balances
+   * @param {Array} bookEntries - The journal entry lines to validate
+   * @returns {Promise<Array>} - Array of error messages
+   */
+  static async validateSufficientBalance(bookEntries) {
+    const errors = [];
+    const assetTypes = ["Asset", "Expense"];
+
+    for (const entry of bookEntries) {
+      const accountId = entry.account || entry.accountId;
+      if (!accountId) continue;
+
+      const account = await ChartOfAccounts.findById(accountId);
+      if (!account || account.deletedAt) continue;
+
+      // Only check balance for asset/cash accounts
+      if (!assetTypes.includes(account.accountType)) continue;
+
+      // Get current balance
+      const balanceData = await this.calculateAccountBalance(accountId);
+      const currentBalance = balanceData.balance || 0;
+
+      // Check if credit entry would result in negative balance
+      if (entry.credit > 0) {
+        const projectedBalance = currentBalance - entry.credit;
+        if (projectedBalance < 0) {
+          errors.push(
+            `Account ${account.accountCode} (${account.accountName}) has insufficient balance. Current: ${currentBalance}, Required: ${entry.credit}`,
+          );
+        }
+      }
+    }
+
+    return errors;
+  }
+
   static async createJournalEntry(entryData) {
     if (!entryData?.bookEntries || !Array.isArray(entryData.bookEntries)) {
       throw new Error("Book entries are required");
@@ -473,6 +512,12 @@ class AccountingService {
     const accountErrors = await this.validateAccounts(entryData.bookEntries);
     if (accountErrors.length > 0) {
       throw new Error(`Invalid accounts: ${accountErrors.join(", ")}`);
+    }
+
+    // Validate sufficient balance for asset/cash accounts
+    const balanceErrors = await this.validateSufficientBalance(entryData.bookEntries);
+    if (balanceErrors.length > 0) {
+      throw new Error(`Insufficient balance: ${balanceErrors.join(", ")}`);
     }
 
     const session = await mongoose.startSession();

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Info, Search, Tag } from "lucide-react";
 import COATreeNode from "./COATreeNode";
+import AccountDetailsModal from "./AccountDetailsModal";
 import { toast } from "sonner";
 
 const COATreeView = ({
@@ -11,6 +12,8 @@ const COATreeView = ({
   onStatusChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const treeData = useMemo(() => {
     const map = {};
@@ -83,9 +86,8 @@ const COATreeView = ({
   }, [treeData, searchTerm]);
 
   const handleViewAccount = (account) => {
-    toast.info(
-      `${account.accountCode} - ${account.accountName} (${account.accountType})`,
-    );
+    setSelectedAccount(account);
+    setIsModalOpen(true);
   };
 
   return (
@@ -132,6 +134,16 @@ const COATreeView = ({
           )}
         </div>
       </div>
+
+      {/* Account Details Modal */}
+      <AccountDetailsModal
+        account={selectedAccount}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedAccount(null);
+        }}
+      />
 
       {/* Legend / Info Section - Responsive Grid/Flex */}
       <div className="mt-4 flex flex-col gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
