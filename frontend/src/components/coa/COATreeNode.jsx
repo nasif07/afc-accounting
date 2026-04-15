@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useState } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -165,7 +164,7 @@ const COATreeNode = ({
                 }`}>
                 <Power size={14} />
                 <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider">
-                  {status === "active" ? "Off" : "On"}
+                  {status === "active" ? "Deactivate" : "Activate"}
                 </span>
               </button>
 

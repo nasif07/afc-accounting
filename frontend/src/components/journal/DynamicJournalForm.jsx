@@ -6,6 +6,10 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../../services/api";
 import { toast } from "sonner";
 
+import Input from "../common/Input";
+import Select from "../common/Select";
+import Button from "../common/Button";
+
 const DynamicJournalForm = ({
   onSubmit,
   onCancel,
@@ -29,7 +33,6 @@ const DynamicJournalForm = ({
   );
   const [errors, setErrors] = useState({});
 
-  // Fetch leaf accounts
   const { data: leafAccounts = [], isLoading: isLoadingAccounts } = useQuery({
     queryKey: ["leafAccounts"],
     queryFn: async () => {
@@ -38,7 +41,6 @@ const DynamicJournalForm = ({
     },
   });
 
-  // Calculate totals
   const totalDebit = bookEntries.reduce(
     (sum, entry) => sum + (parseFloat(entry.debit) || 0),
     0,
@@ -47,24 +49,21 @@ const DynamicJournalForm = ({
     (sum, entry) => sum + (parseFloat(entry.credit) || 0),
     0,
   );
-  // FIXED: Both debit and credit must be > 0 for a balanced entry
+
   const isBalanced =
     Math.abs(totalDebit - totalCredit) < 0.01 &&
     totalDebit > 0 &&
     totalCredit > 0;
 
-  // Validate form
   const validateForm = () => {
     const newErrors = {};
     let isValid = true;
 
-    // Check if at least 2 entries
     if (bookEntries.length < 2) {
       toast.error("Journal entry must have at least 2 line items");
       return false;
     }
 
-    // Validate each entry
     bookEntries.forEach((entry, idx) => {
       const entryErrors = [];
 
@@ -91,7 +90,6 @@ const DynamicJournalForm = ({
       }
     });
 
-    // Check if balanced
     if (!isBalanced) {
       if (totalDebit === 0) {
         toast.error("Journal entry cannot be empty");
@@ -105,24 +103,20 @@ const DynamicJournalForm = ({
     return isValid;
   };
 
-  // Handle row update
   const handleRowUpdate = (rowIndex, updatedEntry) => {
     const newEntries = [...bookEntries];
     newEntries[rowIndex] = updatedEntry;
     setBookEntries(newEntries);
   };
 
-  // Handle row removal
   const handleRowRemove = (rowIndex) => {
     if (bookEntries.length <= 2) {
       toast.error("Journal entry must have at least 2 line items");
       return;
     }
-    const newEntries = bookEntries.filter((_, idx) => idx !== rowIndex);
-    setBookEntries(newEntries);
+    setBookEntries(bookEntries.filter((_, idx) => idx !== rowIndex));
   };
 
-  // Handle add row
   const handleAddRow = () => {
     setBookEntries([
       ...bookEntries,
@@ -130,13 +124,9 @@ const DynamicJournalForm = ({
     ]);
   };
 
-  // Handle submit
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     const payload = {
       voucherDate,
@@ -150,81 +140,69 @@ const DynamicJournalForm = ({
 
   if (isLoadingAccounts) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader className="animate-spin text-blue-600" size={24} />
-        <span className="ml-2 text-gray-600">Loading accounts...</span>
+      <div className="flex items-center justify-center p-6">
+        <Loader className="animate-spin text-red-600" size={20} />
+        <span className="ml-2 text-sm text-slate-600">
+          Loading accounts...
+        </span>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 relative">
+    <form onSubmit={handleSubmit} className="space-y-4 relative">
       {onCancel && (
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onCancel}
-          className="absolute top-0 right-0 text-gray-400 hover:text-gray-600">
-          <X size={20} />
-        </button>
+          className="absolute right-2 top-2"
+        >
+          <X size={16} />
+        </Button>
       )}
 
-      {/* Voucher Details */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      {/* Voucher Section */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <h2 className="text-sm font-bold text-slate-900 mb-3">
           Voucher Details
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Voucher Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Voucher Date *
-            </label>
-            <input
-              type="date"
-              value={voucherDate}
-              onChange={(e) => setVoucherDate(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Input
+            label="Voucher Date"
+            type="date"
+            value={voucherDate}
+            onChange={(e) => setVoucherDate(e.target.value)}
+            required
+          />
 
-          {/* Transaction Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Transaction Type *
-            </label>
-            <select
-              value={transactionType}
-              onChange={(e) => setTransactionType(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-              <option value="journal-entry">Journal Entry</option>
-              <option value="receipt">Receipt</option>
-              <option value="payment">Payment</option>
-              <option value="transfer">Transfer</option>
-            </select>
-          </div>
+          <Select
+            label="Transaction Type"
+            value={transactionType}
+            onChange={(e) => setTransactionType(e.target.value)}
+            required
+            options={[
+              { value: "journal-entry", label: "Journal Entry" },
+              { value: "receipt", label: "Receipt" },
+              { value: "payment", label: "Payment" },
+              { value: "transfer", label: "Transfer" },
+            ]}
+          />
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Voucher Description
-            </label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter description"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-          </div>
+          <Input
+            label="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Enter description"
+          />
         </div>
       </div>
 
-      {/* Book Entries */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      {/* Entries */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <h2 className="text-sm font-bold text-slate-900 mb-3">
           Book Entries
         </h2>
 
@@ -242,44 +220,40 @@ const DynamicJournalForm = ({
           ))}
         </div>
 
-        {/* Add Row Button */}
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={handleAddRow}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition mt-2 text-sm font-medium">
-          <Plus size={18} />
+          className="mt-3"
+          icon={Plus}
+        >
           Add Row
-        </button>
+        </Button>
       </div>
 
-      {/* Balance Summary */}
       <BalanceSummary
         totalDebit={totalDebit}
         totalCredit={totalCredit}
         isBalanced={isBalanced}
       />
 
-      {/* Submit Button */}
-      <div className="flex gap-3 justify-end">
+      {/* Actions */}
+      <div className="flex flex-col sm:flex-row gap-2 justify-end">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition font-medium">
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         )}
-        <button
+
+        <Button
           type="submit"
+          variant="primary"
           disabled={!isBalanced || isSubmitting}
-          className={`px-6 py-2 rounded-md font-medium transition flex items-center gap-2 ${
-            isBalanced && !isSubmitting
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}>
-          {isSubmitting && <Loader className="animate-spin" size={18} />}
-          {isSubmitting ? "Submitting..." : "Create Journal Entry"}
-        </button>
+          loading={isSubmitting}
+        >
+          Create Journal Entry
+        </Button>
       </div>
     </form>
   );

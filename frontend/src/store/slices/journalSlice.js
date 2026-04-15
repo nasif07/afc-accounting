@@ -8,15 +8,48 @@ export const fetchJournalEntries = createAsyncThunk(
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await api.get("/accounting/journal-entries", { params });
-      // Handle paginated response format
-      if (response.data.data && response.data.pagination) {
+
+      const payload = response?.data?.data ?? response?.data;
+
+      // Expected paginated shape:
+      // {
+      //   data: [...],
+      //   pagination: { total, page, limit, pages, hasNextPage, hasPrevPage }
+      // }
+
+      if (payload?.data && payload?.pagination) {
         return {
-          entries: response.data.data,
-          pagination: response.data.pagination,
+          entries: Array.isArray(payload.data) ? payload.data : [],
+          pagination: payload.pagination,
         };
       }
-      // Fallback for non-paginated responses
-      return response.data.data || response.data.entries || response.data;
+
+      // Fallback for plain array responses
+      if (Array.isArray(payload)) {
+        return {
+          entries: sortEntries(payload),
+          pagination: {
+            total: payload.length,
+            page: 1,
+            limit: payload.length || 20,
+            pages: 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        };
+      }
+
+      return {
+        entries: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: 20,
+          pages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      };
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message || "Failed to fetch entries",
@@ -39,10 +72,6 @@ export const createJournalEntry = createAsyncThunk(
   },
 );
 
-/**
- * Added Update Thunk
- * Expects an object with { id, ...data }
- */
 export const updateJournalEntry = createAsyncThunk(
   "journals/updateJournalEntry",
   async ({ id, ...updateData }, { rejectWithValue }) => {
@@ -109,83 +138,59 @@ const journalSlice = createSlice({
     },
     clearJournalState: (state) => {
       state.entries = [];
+      state.pagination = initialState.pagination;
       state.isLoading = false;
       state.error = null;
     },
   },
   extraReducers: (builder) => {
     builder
-      // Fetch Entries
       .addCase(fetchJournalEntries.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
       .addCase(fetchJournalEntries.fulfilled, (state, action) => {
         state.isLoading = false;
-        if (action.payload && action.payload.entries) {
-          // Paginated response
-          state.entries = Array.isArray(action.payload.entries)
-            ? action.payload.entries
-            : [];
-          state.pagination = action.payload.pagination || state.pagination;
-        } else {
-          // Non-paginated response
-          state.entries = Array.isArray(action.payload)
-            ? sortEntries(action.payload)
-            : [];
-        }
+        state.entries = Array.isArray(action.payload?.entries)
+          ? action.payload.entries
+          : [];
+        state.pagination = action.payload?.pagination || initialState.pagination;
       })
       .addCase(fetchJournalEntries.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
 
-      // Create Entry
       .addCase(createJournalEntry.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(createJournalEntry.fulfilled, (state, action) => {
+      .addCase(createJournalEntry.fulfilled, (state) => {
         state.isLoading = false;
-        if (action.payload?._id) {
-          state.entries = sortEntries([...state.entries, action.payload]);
-        }
       })
       .addCase(createJournalEntry.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
 
-      // Update Entry (New)
       .addCase(updateJournalEntry.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(updateJournalEntry.fulfilled, (state, action) => {
+      .addCase(updateJournalEntry.fulfilled, (state) => {
         state.isLoading = false;
-        const index = state.entries.findIndex(
-          (e) => e._id === action.payload._id,
-        );
-        if (index !== -1) {
-          state.entries[index] = action.payload;
-          state.entries = sortEntries(state.entries);
-        }
       })
       .addCase(updateJournalEntry.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
 
-      // Delete Entry
       .addCase(deleteJournalEntry.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(deleteJournalEntry.fulfilled, (state, action) => {
+      .addCase(deleteJournalEntry.fulfilled, (state) => {
         state.isLoading = false;
-        state.entries = state.entries.filter(
-          (entry) => entry._id !== action.payload,
-        );
       })
       .addCase(deleteJournalEntry.rejected, (state, action) => {
         state.isLoading = false;

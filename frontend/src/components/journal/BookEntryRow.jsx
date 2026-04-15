@@ -1,5 +1,8 @@
-import React from 'react';
-import { Trash2, AlertCircle } from 'lucide-react';
+import React from "react";
+import { Trash2, AlertCircle } from "lucide-react";
+import Input from "../common/Input";
+import Select from "../common/Select";
+import Button from "../common/Button";
 
 const BookEntryRow = ({
   rowIndex,
@@ -25,7 +28,7 @@ const BookEntryRow = ({
 
   const handleDebitChange = (e) => {
     const value = e.target.value;
-    const numValue = value === '' ? 0 : Number(value);
+    const numValue = value === "" ? 0 : Number(value);
 
     onUpdate(rowIndex, {
       ...entry,
@@ -36,7 +39,7 @@ const BookEntryRow = ({
 
   const handleCreditChange = (e) => {
     const value = e.target.value;
-    const numValue = value === '' ? 0 : Number(value);
+    const numValue = value === "" ? 0 : Number(value);
 
     onUpdate(rowIndex, {
       ...entry,
@@ -48,86 +51,81 @@ const BookEntryRow = ({
   const rowError = errors[rowIndex];
   const hasError = rowError && rowError.length > 0;
 
-  return (
-    <div className={`border rounded-lg p-4 mb-3 ${hasError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-2">
-        <div className="col-span-1 md:col-span-3">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Account *
-          </label>
-          <select
-            value={entry.account ?? ''}
-            onChange={handleAccountChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select Account</option>
-            {leafAccounts?.map((account) => (
-              <option key={account._id} value={account._id}>
-                {account.accountCode} - {account.accountName}
-              </option>
-            ))}
-          </select>
-        </div>
+  const accountOptions = (leafAccounts || []).map((account) => ({
+    value: account._id,
+    label: `${account.accountCode} - ${account.accountName}`,
+  }));
 
-        <div className="col-span-1 md:col-span-3">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Description
-          </label>
-          <input
-            type="text"
-            value={entry.description ?? ''}
-            onChange={handleDescriptionChange}
-            placeholder="Row description"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+  return (
+    <div
+      className={`mb-3 rounded-xl border p-3 sm:p-4 ${
+        hasError ? "border-red-300 bg-red-50/60" : "border-slate-200 bg-white"
+      }`}
+    >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+        <div className="md:col-span-3">
+          <Select
+            label="Account"
+            value={entry.account ?? ""}
+            onChange={handleAccountChange}
+            options={accountOptions}
+            placeholder="Select Account"
+            required
+            className={hasError && !entry.account ? "border-red-300" : ""}
           />
         </div>
 
-        <div className="col-span-1 md:col-span-2">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Debit
-          </label>
-          <input
+        <div className="md:col-span-3">
+          <Input
+            label="Description"
+            type="text"
+            value={entry.description ?? ""}
+            onChange={handleDescriptionChange}
+            placeholder="Row description"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <Input
+            label="Debit"
             type="number"
-            value={entry.debit ?? ''}
+            value={entry.debit ?? ""}
             onChange={handleDebitChange}
             placeholder="0.00"
             step="0.01"
             min="0"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
-        <div className="col-span-1 md:col-span-2">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Credit
-          </label>
-          <input
+        <div className="md:col-span-2">
+          <Input
+            label="Credit"
             type="number"
-            value={entry.credit ?? ''}
+            value={entry.credit ?? ""}
             onChange={handleCreditChange}
             placeholder="0.00"
             step="0.01"
             min="0"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
-        <div className="col-span-1 md:col-span-2 flex items-end">
-          <button
+        <div className="md:col-span-2 flex items-end">
+          <Button
             type="button"
+            variant="outline"
             onClick={() => onRemove(rowIndex)}
-            className="w-full px-3 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition flex items-center justify-center gap-2 text-sm"
+            className="w-full border-red-200 text-red-600 hover:bg-red-50"
+            icon={Trash2}
           >
-            <Trash2 size={16} />
             Remove
-          </button>
+          </Button>
         </div>
       </div>
 
       {hasError && (
-        <div className="flex gap-2 text-red-700 text-xs mt-2">
-          <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-          <div>
+        <div className="mt-3 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          <div className="space-y-0.5">
             {rowError.map((error, idx) => (
               <p key={idx}>{error}</p>
             ))}

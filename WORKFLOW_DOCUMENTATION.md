@@ -457,7 +457,6 @@ Payment of ৳5,000 salary:
    - Bank Name
    - Account Number
    - Account Holder
-   - IFSC Code
    - Branch
    - Account Type (Savings, Current)
    - Opening Balance

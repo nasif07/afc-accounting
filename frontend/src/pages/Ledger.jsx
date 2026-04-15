@@ -13,9 +13,11 @@ import { accountingAPI, coaAPI } from "../services/apiMethods";
 import { formatCurrency } from "../utils/currency";
 import { toast } from "sonner";
 import Card from "../components/common/Card";
-import Button from "../components/common/Button";
 import Badge from "../components/common/Badge";
 import SectionHeader from "../components/common/SectionHeader";
+import Input from "../components/common/Input";
+import Select from "../components/common/Select";
+import Button from "../components/common/Button";
 
 const Ledger = () => {
   const [accounts, setAccounts] = useState([]);
@@ -81,56 +83,44 @@ const Ledger = () => {
       />
 
       {/* Filters */}
-      <Card className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-          <div className="md:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Account
-            </label>
-            <select
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-              disabled={loadingAccounts}>
-              <option value="">-- Select Account --</option>
-              {accounts.map((acc) => (
-                <option key={acc._id} value={acc._id}>
-                  {acc.accountCode} - {acc.accountName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-            />
-          </div>
+      <Card className="p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4 items-end">
+          {/* Account Select */}
+          <Select
+            label="Select Account"
+            value={selectedAccount}
+            onChange={(e) => setSelectedAccount(e.target.value)}
+            disabled={loadingAccounts}
+            options={accounts.map((acc) => ({
+              value: acc._id,
+              label: `${acc.accountCode} - ${acc.accountName}`,
+            }))}
+            placeholder="-- Select Account --"
+          />
+
+          {/* From Date */}
+          <Input
+            label="From Date"
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+
+          {/* To Date */}
+          <Input
+            label="To Date"
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+
+          {/* Button */}
           <Button
             onClick={handleFetchLedger}
             disabled={loading || !selectedAccount}
-            className="w-full">
-            {loading ? (
-              <Loader className="animate-spin mr-2" size={18} />
-            ) : (
-              <Filter size={18} className="mr-2" />
-            )}
+            className="py-3"
+            icon={loading ? null : Filter}
+            loading={loading}>
             Generate Ledger
           </Button>
         </div>

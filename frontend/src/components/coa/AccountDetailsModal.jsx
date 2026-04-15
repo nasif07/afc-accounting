@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { X, Loader2, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { coaAPI } from "../../services/apiMethods";
 import { toast } from "sonner";
+import Button from "../common/Button";
 
 const AccountDetailsModal = ({ account, isOpen, onClose }) => {
   const [balance, setBalance] = useState(null);
@@ -17,11 +18,9 @@ const AccountDetailsModal = ({ account, isOpen, onClose }) => {
   const fetchAccountDetails = async () => {
     setIsLoading(true);
     try {
-      // Fetch balance
       const balanceResponse = await coaAPI.getBalance(account._id);
       setBalance(balanceResponse.data.data?.balance || 0);
 
-      // Fetch transactions
       const transactionsResponse = await coaAPI.getTransactions(account._id, {
         limit: 20,
         offset: 0,
@@ -38,17 +37,17 @@ const AccountDetailsModal = ({ account, isOpen, onClose }) => {
   if (!isOpen || !account) return null;
 
   const isDebitNormal = ["asset", "expense"].includes(
-    String(account.accountType || "").toLowerCase()
+    String(account.accountType || "").toLowerCase(),
   );
-  const balanceAmount = balance || 0;
-  const isPositive = (isDebitNormal && balanceAmount > 0) || (!isDebitNormal && balanceAmount < 0);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(Math.abs(amount));
-  };
+  const balanceAmount = balance || 0;
+  const isPositive =
+    (isDebitNormal && balanceAmount > 0) ||
+    (!isDebitNormal && balanceAmount < 0);
+
+const formatCurrency = (amount) => {
+  return `৳ ${Number(amount || 0).toLocaleString("en-BD")}`;
+};
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -58,175 +57,185 @@ const AccountDetailsModal = ({ account, isOpen, onClose }) => {
     });
   };
 
+  const getStatusDot = (status) => {
+    if (status === "active") return "bg-green-500";
+    if (status === "inactive") return "bg-amber-500";
+    return "bg-slate-400";
+  };
+
+  const getTxnStatusClass = (status) => {
+    if (status === "posted") return "bg-green-100 text-green-700";
+    if (status === "draft") return "bg-slate-100 text-slate-700";
+    return "bg-amber-100 text-amber-700";
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-lg shadow-xl flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 p-6">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Account Details</h2>
-            <p className="text-sm text-slate-500 mt-1">
+    <div className="fixed inset-0 z-50 flex items-center justify-center  bg-slate-900/40 backdrop-blur-sm sm:p-4">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg">
+              Account Details
+            </h2>
+            <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
               {account.accountCode} - {account.accountName}
             </p>
           </div>
-          <button
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-slate-500" />
-          </button>
+            className="ml-3 shrink-0 border-slate-200 px-2 py-2 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
+            <X size={16} />
+          </Button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 size={32} className="text-slate-400 animate-spin" />
+            <div className="flex h-52 items-center justify-center sm:h-64">
+              <Loader2 size={30} className="animate-spin text-slate-400" />
             </div>
           ) : (
-            <div className="p-6 space-y-6">
-              {/* Account Info Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+            <div className="space-y-4 p-4 sm:space-y-5 sm:p-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Account Code
                   </p>
-                  <p className="text-lg font-mono font-bold text-slate-900">
+                  <p className="text-base font-bold text-slate-900 sm:text-lg">
                     {account.accountCode}
                   </p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Account Type
                   </p>
-                  <p className="text-lg font-bold text-slate-900 capitalize">
+                  <p className="text-base font-semibold capitalize text-slate-900 sm:text-lg">
                     {String(account.accountType || "").toLowerCase()}
                   </p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Status
                   </p>
                   <div className="flex items-center gap-2">
-                    <div
-                      className={`h-2 w-2 rounded-full ${
-                        account.status === "active"
-                          ? "bg-green-500"
-                          : account.status === "inactive"
-                            ? "bg-amber-500"
-                            : "bg-slate-400"
-                      }`}
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${getStatusDot(account.status)}`}
                     />
-                    <p className="text-lg font-bold text-slate-900 capitalize">
+                    <p className="text-base font-semibold capitalize text-slate-900 sm:text-lg">
                       {account.status}
                     </p>
                   </div>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Normal Balance
                   </p>
-                  <p className="text-lg font-bold text-slate-900 capitalize">
+                  <p className="text-base font-semibold capitalize text-slate-900 sm:text-lg">
                     {isDebitNormal ? "Debit" : "Credit"}
                   </p>
                 </div>
               </div>
 
-              {/* Balance Section */}
-              <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-6 rounded-lg border border-slate-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <DollarSign size={18} className="text-slate-600" />
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-4 sm:p-5">
+                <div className="mb-2 flex items-center gap-2">
+                  ৳
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Current Balance
                   </p>
                 </div>
-                <div className="flex items-baseline gap-2">
+
+                <div className="flex flex-wrap items-center gap-2">
                   <p
-                    className={`text-3xl font-bold ${
+                    className={`text-2xl font-bold sm:text-3xl ${
                       isPositive ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
+                    }`}>
                     {isPositive ? "+" : "-"} {formatCurrency(balanceAmount)}
                   </p>
+
                   {isPositive ? (
-                    <TrendingUp size={20} className="text-green-600" />
+                    <TrendingUp size={18} className="text-green-600" />
                   ) : (
-                    <TrendingDown size={20} className="text-red-600" />
+                    <TrendingDown size={18} className="text-red-600" />
                   )}
                 </div>
               </div>
 
-              {/* Description */}
               {account.description && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Description
                   </p>
-                  <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded border border-slate-200">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                     {account.description}
-                  </p>
+                  </div>
                 </div>
               )}
 
-              {/* Recent Transactions */}
               <div>
-                <h3 className="text-sm font-bold text-slate-900 mb-3 uppercase tracking-wider">
-                  Recent Transactions ({transactions.length})
-                </h3>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">
+                    Recent Transactions
+                  </h3>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    {transactions.length}
+                  </span>
+                </div>
+
                 {transactions.length > 0 ? (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="space-y-2">
                     {transactions.map((txn, idx) => (
                       <div
                         key={idx}
-                        className="bg-slate-50 p-3 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-mono text-sm font-bold text-slate-900">
-                            {txn.voucherNumber}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatDate(txn.voucherDate)}
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-slate-600">
-                            {txn.description || "No description"}
-                          </p>
-                          <div className="flex gap-2">
-                            {txn.bookEntries?.map((entry, entryIdx) => (
-                              <div key={entryIdx} className="text-right">
-                                {entry.debit > 0 && (
-                                  <p className="text-xs font-bold text-blue-600">
-                                    Dr: {formatCurrency(entry.debit)}
-                                  </p>
-                                )}
-                                {entry.credit > 0 && (
-                                  <p className="text-xs font-bold text-red-600">
-                                    Cr: {formatCurrency(entry.credit)}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
+                        className="rounded-xl border border-slate-200 bg-white p-3 transition-colors hover:bg-slate-50">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-sm font-bold text-slate-900">
+                              {txn.voucherNumber}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {formatDate(txn.voucherDate)}
+                            </p>
                           </div>
-                        </div>
-                        <div className="mt-1">
+
                           <span
-                            className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider ${
-                              txn.status === "posted"
-                                ? "bg-green-100 text-green-700"
-                                : txn.status === "draft"
-                                  ? "bg-slate-100 text-slate-700"
-                                  : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
+                            className={`inline-flex w-fit rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${getTxnStatusClass(txn.status)}`}>
                             {txn.status}
                           </span>
+                        </div>
+
+                        <p className="mt-2 text-xs text-slate-600 sm:text-sm">
+                          {txn.description || "No description"}
+                        </p>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {txn.bookEntries?.map((entry, entryIdx) => (
+                            <div
+                              key={entryIdx}
+                              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
+                              {entry.debit > 0 && (
+                                <p className="font-semibold text-blue-600">
+                                  Dr: {formatCurrency(entry.debit)}
+                                </p>
+                              )}
+                              {entry.credit > 0 && (
+                                <p className="font-semibold text-red-600">
+                                  Cr: {formatCurrency(entry.credit)}
+                                </p>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-slate-50 p-6 rounded border border-slate-200 text-center">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center">
                     <p className="text-sm text-slate-500">
                       No transactions found for this account
                     </p>
@@ -237,14 +246,14 @@ const AccountDetailsModal = ({ account, isOpen, onClose }) => {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-slate-200 p-4 flex justify-end">
-          <button
+        <div className="flex justify-end border-t border-slate-200 px-4 py-3 sm:px-5">
+          <Button
+            type="button"
+            variant="outline"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors"
-          >
+            className="border-slate-300 text-slate-700 hover:bg-slate-50">
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>

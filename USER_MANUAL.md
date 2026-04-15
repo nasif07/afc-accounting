@@ -458,7 +458,6 @@ Left sidebar with menu items:
    - **Phone**
    - **Address**
    - **Bank Account** (Optional)
-   - **IFSC Code** (Optional)
    - **Tax ID** (Optional)
 4. Click **Save**
 
@@ -509,7 +508,6 @@ Left sidebar with menu items:
    - **Phone**
    - **Address**
    - **Bank Account** (For salary transfer)
-   - **IFSC Code**
 4. Click **Save**
 
 #### How to View Employee Details

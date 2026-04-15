@@ -68,11 +68,6 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    ifscCode: {
-      type: String,
-      trim: true,
-      uppercase: true,
-    },
     paymentTerms: {
       type: String,
       trim: true,

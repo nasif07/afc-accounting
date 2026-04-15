@@ -1,31 +1,41 @@
-import { Loader } from 'lucide-react';
+import { Loader } from "lucide-react";
 
 export default function Button({
   children,
   onClick,
-  type = 'button',
-  variant = 'primary',
-  size = 'md',
+  type = "button",
+  variant = "primary",
+  size = "md",
   disabled = false,
   loading = false,
   icon: Icon = null,
-  className = '',
+  className = "",
   ...props
 }) {
-  const baseStyles = 'font-medium rounded-lg transition duration-200 flex items-center justify-center gap-2';
+  const baseStyles =
+    "inline-flex items-center justify-center gap-2 font-medium rounded-xl transition focus:outline-none focus:ring-4";
 
   const variants = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-400',
-    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-900 disabled:bg-gray-100',
-    danger: 'bg-red-600 hover:bg-red-700 text-white disabled:bg-red-400',
-    success: 'bg-green-600 hover:bg-green-700 text-white disabled:bg-green-400',
-    outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50 disabled:border-blue-400 disabled:text-blue-400'
+    primary:
+      "bg-red-600 text-white hover:bg-red-700 focus:ring-red-100 disabled:bg-red-400",
+
+    secondary:
+      "bg-slate-200 text-slate-900 hover:bg-slate-300 focus:ring-slate-100 disabled:bg-slate-100",
+
+    danger:
+      "bg-red-600 text-white hover:bg-red-700 focus:ring-red-100 disabled:bg-red-400",
+
+    success:
+      "bg-green-600 text-white hover:bg-green-700 focus:ring-green-100 disabled:bg-green-400",
+
+    outline:
+      "border border-red-600 text-red-600 hover:bg-red-50 focus:ring-red-100 disabled:border-red-300 disabled:text-red-300",
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg'
+    sm: "px-3 py-1.5 text-sm",
+    md: "px-4 py-2 text-sm",
+    lg: "px-6 py-3 text-base",
   };
 
   return (
@@ -37,10 +47,11 @@ export default function Button({
       {...props}
     >
       {loading ? (
-        <Loader size={18} className="animate-spin" />
+        <Loader size={16} className="animate-spin" />
       ) : Icon ? (
-        <Icon size={18} />
+        <Icon size={16} />
       ) : null}
+
       {children}
     </button>
   );
