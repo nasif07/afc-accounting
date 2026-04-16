@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.use(auth);
 
-// Static routes
+// Tree / utility
 router.get("/tree", COAController.getAccountTree);
 router.get("/leaf-nodes", COAController.getLeafNodes);
 

@@ -14,25 +14,83 @@ class COAController {
         description,
         openingBalance,
         openingBalanceType,
+        openingDate,
         parentAccount,
       } = req.body;
 
       if (!accountCode || !accountName || !accountType) {
         return ApiResponse.badRequest(
           res,
-          "Account code, name, and type are required"
+          "Account code, name, and type are required",
         );
       }
 
+      if (
+        openingBalance !== undefined &&
+        (Number.isNaN(Number(openingBalance)) || Number(openingBalance) < 0)
+      ) {
+        return ApiResponse.badRequest(
+          res,
+          "Opening balance must be a valid non-negative number",
+        );
+      }
+
+      if (
+        openingBalanceType &&
+        !["debit", "credit"].includes(String(openingBalanceType).toLowerCase())
+      ) {
+        return ApiResponse.badRequest(
+          res,
+          "Opening balance type must be either debit or credit",
+        );
+      }
+
+      if (parentAccount) {
+        const parent = await COAService.getAccountById(parentAccount);
+
+        if (!parent) {
+          return ApiResponse.notFound(res, "Parent account not found");
+        }
+
+        if (parent.status !== "active") {
+          return ApiResponse.badRequest(
+            res,
+            "Only active accounts can be used as parent accounts",
+          );
+        }
+
+        if (parent.hasTransactions) {
+          return ApiResponse.badRequest(
+            res,
+            "An account with transactions cannot be used as a parent account",
+          );
+        }
+
+        if (
+          parent.accountType &&
+          String(parent.accountType).toLowerCase() !==
+            String(accountType).toLowerCase()
+        ) {
+          return ApiResponse.badRequest(
+            res,
+            "Parent account type must match child account type",
+          );
+        }
+      }
+
       const accountData = {
-        accountCode,
-        accountName,
-        accountType: accountType.toLowerCase(),
-        description,
-        openingBalance: openingBalance || 0,
-        openingBalanceType: openingBalanceType,
+        accountCode: String(accountCode).trim(),
+        accountName: String(accountName).trim(),
+        accountType: String(accountType).toLowerCase().trim(),
+        description: description ? String(description).trim() : "",
+        openingBalance:
+          openingBalance !== undefined ? Number(openingBalance) : 0,
+        openingBalanceType: openingBalanceType
+          ? String(openingBalanceType).toLowerCase()
+          : "debit",
+        openingDate: openingDate || new Date(),
         parentAccount: parentAccount || null,
-        status: 'active',  // FIXED: Ensure accounts are created as active
+        status: "active",
         createdBy: req.user.userId,
       };
 
@@ -53,7 +111,7 @@ class COAController {
 
       const filters = {};
 
-      if (accountType) filters.accountType = accountType.toLowerCase();
+      if (accountType) filters.accountType = String(accountType).toLowerCase();
       if (status) filters.status = status;
       if (leafNodesOnly === "true") filters.leafNodesOnly = true;
       if (includeDeleted === "true") filters.includeDeleted = true;
@@ -63,7 +121,7 @@ class COAController {
       return ApiResponse.success(
         res,
         accounts,
-        "Accounts retrieved successfully"
+        "Accounts retrieved successfully",
       );
     } catch (error) {
       next(error);
@@ -86,7 +144,7 @@ class COAController {
       return ApiResponse.success(
         res,
         account,
-        "Account retrieved successfully"
+        "Account retrieved successfully",
       );
     } catch (error) {
       next(error);
@@ -100,6 +158,12 @@ class COAController {
     try {
       const { id } = req.params;
 
+      const existing = await COAService.getAccountById(id);
+
+      if (!existing) {
+        return ApiResponse.notFound(res, "Account not found");
+      }
+
       const allowedFields = [
         "accountCode",
         "accountName",
@@ -107,6 +171,7 @@ class COAController {
         "description",
         "openingBalance",
         "openingBalanceType",
+        "openingDate",
         "parentAccount",
         "status",
       ];
@@ -115,18 +180,143 @@ class COAController {
 
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
-          updateData[field] =
-            field === "accountType"
-              ? req.body[field].toLowerCase()
-              : req.body[field];
+          if (field === "accountType") {
+            updateData[field] = String(req.body[field]).toLowerCase().trim();
+          } else if (
+            ["accountCode", "accountName", "description"].includes(field) &&
+            req.body[field] !== null
+          ) {
+            updateData[field] = String(req.body[field]).trim();
+          } else if (field === "openingBalance") {
+            const amount = Number(req.body[field]);
+
+            if (Number.isNaN(amount) || amount < 0) {
+              return ApiResponse.badRequest(
+                res,
+                "Opening balance must be a valid non-negative number",
+              );
+            }
+
+            updateData[field] = amount;
+          } else if (field === "openingBalanceType") {
+            const balanceType = String(req.body[field]).toLowerCase();
+
+            if (!["debit", "credit"].includes(balanceType)) {
+              return ApiResponse.badRequest(
+                res,
+                "Opening balance type must be either debit or credit",
+              );
+            }
+
+            updateData[field] = balanceType;
+          } else {
+            updateData[field] = req.body[field];
+          }
         }
       }
 
-      const account = await COAService.updateAccount(id, updateData, req.user.userId);
-
-      if (!account) {
-        return ApiResponse.notFound(res, "Account not found");
+      // Block account type change after transactions exist
+      if (
+        existing.hasTransactions &&
+        updateData.accountType &&
+        updateData.accountType !== existing.accountType
+      ) {
+        return ApiResponse.badRequest(
+          res,
+          "Cannot change account type after transactions exist",
+        );
       }
+
+      // Block parent change after transactions exist
+      const existingParentId = existing.parentAccount
+        ? String(existing.parentAccount)
+        : null;
+
+      const nextParentId =
+        updateData.parentAccount !== undefined
+          ? updateData.parentAccount
+            ? String(updateData.parentAccount)
+            : null
+          : existingParentId;
+
+      if (existing.hasTransactions && nextParentId !== existingParentId) {
+        return ApiResponse.badRequest(
+          res,
+          "Cannot change parent account after transactions exist",
+        );
+      }
+
+      // IMPORTANT: allow opening fields update only before transactions
+      if (existing.hasTransactions) {
+        if (updateData.openingBalance !== undefined) {
+          return ApiResponse.badRequest(
+            res,
+            "Opening balance cannot be updated after transactions exist",
+          );
+        }
+
+        if (updateData.openingBalanceType !== undefined) {
+          return ApiResponse.badRequest(
+            res,
+            "Opening balance type cannot be updated after transactions exist",
+          );
+        }
+
+        if (updateData.openingDate !== undefined) {
+          return ApiResponse.badRequest(
+            res,
+            "Opening date cannot be updated after transactions exist",
+          );
+        }
+      }
+
+      if (nextParentId) {
+        if (String(id) === String(nextParentId)) {
+          return ApiResponse.badRequest(
+            res,
+            "Account cannot be its own parent",
+          );
+        }
+
+        const parent = await COAService.getAccountById(nextParentId);
+
+        if (!parent) {
+          return ApiResponse.notFound(res, "Parent account not found");
+        }
+
+        if (parent.status !== "active") {
+          return ApiResponse.badRequest(
+            res,
+            "Only active accounts can be used as parent accounts",
+          );
+        }
+
+        if (parent.hasTransactions) {
+          return ApiResponse.badRequest(
+            res,
+            "An account with transactions cannot be used as a parent account",
+          );
+        }
+
+        const targetType = updateData.accountType || existing.accountType;
+
+        if (
+          parent.accountType &&
+          String(parent.accountType).toLowerCase() !==
+            String(targetType).toLowerCase()
+        ) {
+          return ApiResponse.badRequest(
+            res,
+            "Parent account type must match child account type",
+          );
+        }
+      }
+
+      const account = await COAService.updateAccount(
+        id,
+        updateData,
+        req.user.userId,
+      );
 
       return ApiResponse.success(res, account, "Account updated successfully");
     } catch (error) {
@@ -148,11 +338,17 @@ class COAController {
         return ApiResponse.badRequest(res, "Invalid status value");
       }
 
-      const account = await COAService.updateAccountStatus(id, status, req.user.userId);
+      const existing = await COAService.getAccountById(id);
 
-      if (!account) {
+      if (!existing) {
         return ApiResponse.notFound(res, "Account not found");
       }
+
+      const account = await COAService.updateAccountStatus(
+        id,
+        status,
+        req.user.userId,
+      );
 
       return ApiResponse.success(res, account, "Status updated successfully");
     } catch (error) {
@@ -210,7 +406,7 @@ class COAController {
       return ApiResponse.success(
         res,
         { balance },
-        "Account balance retrieved successfully"
+        "Account balance retrieved successfully",
       );
     } catch (error) {
       next(error);
@@ -226,14 +422,14 @@ class COAController {
 
       const filters = {};
 
-      if (accountType) filters.accountType = accountType.toLowerCase();
+      if (accountType) filters.accountType = String(accountType).toLowerCase();
 
       const leafNodes = await COAService.getLeafNodes(filters);
 
       return ApiResponse.success(
         res,
         leafNodes,
-        "Leaf nodes retrieved successfully"
+        "Leaf nodes retrieved successfully",
       );
     } catch (error) {
       next(error);
@@ -248,16 +444,19 @@ class COAController {
       const { id } = req.params;
       const { limit = 20, offset = 0 } = req.query;
 
+      const parsedLimit = Number.parseInt(limit, 10);
+      const parsedOffset = Number.parseInt(offset, 10);
+
       const transactions = await COAService.getAccountTransactions(
         id,
-        parseInt(limit),
-        parseInt(offset)
+        Number.isNaN(parsedLimit) ? 20 : parsedLimit,
+        Number.isNaN(parsedOffset) ? 0 : parsedOffset,
       );
 
       return ApiResponse.success(
         res,
         transactions,
-        "Account transactions retrieved successfully"
+        "Account transactions retrieved successfully",
       );
     } catch (error) {
       next(error);
@@ -279,7 +478,7 @@ class COAController {
       return ApiResponse.success(
         res,
         tree,
-        "Account tree retrieved successfully"
+        "Account tree retrieved successfully",
       );
     } catch (error) {
       next(error);
