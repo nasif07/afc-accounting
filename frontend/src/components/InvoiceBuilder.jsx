@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Trash2, Plus, Eye, EyeOff } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Modal, Input, Select, FormField, Button, Badge } from './ui/index';
-import { formatCurrency, parseCurrencyInput, centsToDecimal } from '../utils/currency';
+import { formatCurrency, parseCurrencyInput } from '../utils/currency';
 
 const InvoiceBuilder = React.forwardRef(
   (

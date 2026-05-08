@@ -100,6 +100,14 @@ export default function JournalEntries() {
   };
 
   const handleEdit = (entry) => {
+    const isApproved =
+      entry.status === "posted" || entry.approvalStatus === "approved";
+
+    if (isApproved) {
+      toast.error("Approved entries cannot be edited");
+      return;
+    }
+
     setEditingEntry(entry);
     setShowForm(true);
   };
@@ -109,10 +117,18 @@ export default function JournalEntries() {
     setEditingEntry(null);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (entry) => {
+    const isApproved =
+      entry.status === "posted" || entry.approvalStatus === "approved";
+
+    if (isApproved) {
+      toast.error("Approved entries cannot be deleted");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this entry?")) return;
 
-    const result = await dispatch(deleteJournalEntry(id));
+    const result = await dispatch(deleteJournalEntry(entry._id));
 
     if (result?.error) {
       toast.error(result.payload || "Failed to delete entry");
@@ -145,7 +161,7 @@ export default function JournalEntries() {
 
     if (isApproved) {
       return (
-        <span className="flex items-center gap-1.5 text-emerald-600 font-bold text-[10px] uppercase tracking-wider">
+        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
           <CheckCircle size={12} /> Approved
         </span>
       );
@@ -153,14 +169,14 @@ export default function JournalEntries() {
 
     if (isRejected) {
       return (
-        <span className="flex items-center gap-1.5 text-rose-600 font-bold text-[10px] uppercase tracking-wider">
+        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-rose-600">
           <XCircle size={12} /> Rejected
         </span>
       );
     }
 
     return (
-      <span className="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider">
+      <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
         Pending
       </span>
     );
@@ -250,116 +266,148 @@ export default function JournalEntries() {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {entries.map((entry) => (
-                    <tr
-                      key={entry._id}
-                      className="transition-colors hover:bg-slate-50/50">
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
-                        {new Date(
-                          entry.voucherDate || entry.date,
-                        ).toLocaleDateString()}
-                      </td>
+                  {entries.map((entry) => {
+                    const isApproved =
+                      entry.status === "posted" ||
+                      entry.approvalStatus === "approved";
 
-                      <td className="px-6 py-4 font-mono text-sm font-bold tracking-tighter text-blue-600">
-                        {entry.voucherNumber || "---"}
-                      </td>
+                    return (
+                      <tr
+                        key={entry._id}
+                        className="transition-colors hover:bg-slate-50/50">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
+                          {new Date(
+                            entry.voucherDate || entry.date,
+                          ).toLocaleDateString()}
+                        </td>
 
-                      <td className="max-w-xs truncate px-6 py-4 text-sm text-slate-700">
-                        {entry.description || "---"}
-                      </td>
+                        <td className="px-6 py-4 font-mono text-sm font-bold tracking-tighter text-blue-600">
+                          {entry.voucherNumber || "---"}
+                        </td>
 
-                      <td className="px-6 py-4 text-right font-mono text-sm font-medium text-slate-900">
-                        {Number(entry.totalDebit || 0).toLocaleString()}
-                      </td>
+                        <td className="max-w-xs truncate px-6 py-4 text-sm text-slate-700">
+                          {entry.description || "---"}
+                        </td>
 
-                      <td className="px-6 py-4 text-right font-mono text-sm font-medium text-slate-900">
-                        {Number(entry.totalCredit || 0).toLocaleString()}
-                      </td>
+                        <td className="px-6 py-4 text-right font-mono text-sm font-medium text-slate-900">
+                          ৳{Number(entry.totalDebit || 0).toLocaleString()}
+                        </td>
 
-                      <td className="px-6 py-4">{getStatusDisplay(entry)}</td>
+                        <td className="px-6 py-4 text-right font-mono text-sm font-medium text-slate-900">
+                          ৳{Number(entry.totalCredit || 0).toLocaleString()}
+                        </td>
 
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center gap-2">
-                          <button
-                            onClick={() => handleEdit(entry)}
-                            className="rounded-lg border border-slate-100 p-2 text-slate-400 transition-all hover:border-blue-100 hover:text-blue-600">
-                            <Edit2 size={14} />
-                          </button>
+                        <td className="px-6 py-4">{getStatusDisplay(entry)}</td>
 
-                          <button
-                            onClick={() => handleDelete(entry._id)}
-                            className="rounded-lg border border-slate-100 p-2 text-slate-400 transition-all hover:border-rose-100 hover:text-rose-600">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center gap-2">
+                            <button
+                              onClick={() => handleEdit(entry)}
+                              disabled={isApproved}
+                              className={`rounded-lg border p-2 transition-all ${
+                                isApproved
+                                  ? "cursor-not-allowed border-slate-100 text-slate-300 opacity-50"
+                                  : "border-slate-100 text-slate-400 hover:border-blue-100 hover:text-blue-600"
+                              }`}>
+                              <Edit2 size={14} />
+                            </button>
+
+                            <button
+                              onClick={() => handleDelete(entry)}
+                              disabled={isApproved}
+                              className={`rounded-lg border p-2 transition-all ${
+                                isApproved
+                                  ? "cursor-not-allowed border-slate-100 text-slate-300 opacity-50"
+                                  : "border-slate-100 text-slate-400 hover:border-rose-100 hover:text-rose-600"
+                              }`}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             <div className="divide-y divide-slate-100 lg:hidden">
-              {entries.map((entry) => (
-                <div key={entry._id} className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 font-mono text-xs font-bold uppercase text-blue-600">
-                        <Hash size={12} /> {entry.voucherNumber}
+              {entries.map((entry) => {
+                const isApproved =
+                  entry.status === "posted" ||
+                  entry.approvalStatus === "approved";
+
+                return (
+                  <div key={entry._id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 font-mono text-xs font-bold uppercase text-blue-600">
+                          <Hash size={12} /> {entry.voucherNumber}
+                        </div>
+
+                        <div className="break-words text-sm font-bold leading-tight text-slate-900">
+                          {entry.description || "---"}
+                        </div>
                       </div>
 
-                      <div className="break-words text-sm font-bold leading-tight text-slate-900">
-                        {entry.description || "---"}
+                      {getStatusDisplay(entry)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 border-y border-slate-50 py-2">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Debit
+                        </div>
+                        <div className="font-mono text-sm font-bold tracking-tight text-slate-800">
+                          ৳{Number(entry.totalDebit || 0).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Credit
+                        </div>
+                        <div className="font-mono text-sm font-bold tracking-tight text-slate-800">
+                          ৳{Number(entry.totalCredit || 0).toLocaleString()}
+                        </div>
                       </div>
                     </div>
 
-                    {getStatusDisplay(entry)}
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <Calendar size={12} />
+                        {new Date(
+                          entry.voucherDate || entry.date,
+                        ).toLocaleDateString()}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(entry)}
+                          disabled={isApproved}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-bold uppercase ${
+                            isApproved
+                              ? "cursor-not-allowed border-slate-200 text-slate-300 opacity-50"
+                              : "border-slate-200 text-slate-600"
+                          }`}>
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(entry)}
+                          disabled={isApproved}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-bold uppercase ${
+                            isApproved
+                              ? "cursor-not-allowed border-slate-200 text-slate-300 opacity-50"
+                              : "border-rose-100 text-rose-600"
+                          }`}>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4 border-y border-slate-50 py-2">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Debit
-                      </div>
-                      <div className="font-mono text-sm font-bold tracking-tight text-slate-800">
-                        ৳{Number(entry.totalDebit || 0).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Credit
-                      </div>
-                      <div className="font-mono text-sm font-bold tracking-tight text-slate-800">
-                        ৳{Number(entry.totalCredit || 0).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <Calendar size={12} />
-                      {new Date(
-                        entry.voucherDate || entry.date,
-                      ).toLocaleDateString()}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(entry)}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold uppercase text-slate-600">
-                        Edit
-                      </button>
-
-                      <button
-                        onClick={() => handleDelete(entry._id)}
-                        className="rounded-lg border border-rose-100 px-3 py-1.5 text-xs font-bold uppercase text-rose-600">
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {entries.length > 0 && (
@@ -394,6 +442,7 @@ export default function JournalEntries() {
                   <div className="px-3 py-2 text-sm font-semibold text-slate-700">
                     Page {pagination.page || 1} of {pagination.pages || 1}
                   </div>
+          
 
                   <button
                     onClick={() =>

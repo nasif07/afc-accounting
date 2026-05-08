@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Loader, X } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchLeafAccounts } from "../../store/slices/accountSlice";
 import BookEntryRow from "./BookEntryRow";
 import BalanceSummary from "./BalanceSummary";
-import { useQuery } from "@tanstack/react-query";
-import api from "../../services/api";
 import { toast } from "sonner";
 
 import Input from "../common/Input";
@@ -16,38 +16,43 @@ const DynamicJournalForm = ({
   isLoading: isSubmitting = false,
   initialData = null,
 }) => {
+  const dispatch = useDispatch();
+
+  // ✅ USE REDUX LEAF ACCOUNTS (FINAL FIX)
+  const { leafAccounts, isLoading: isLoadingAccounts } = useSelector(
+    (state) => state.accounts
+  );
+
+  // ✅ fetch leaf accounts from backend
+  useEffect(() => {
+    dispatch(fetchLeafAccounts());
+  }, [dispatch]);
+
   const [voucherDate, setVoucherDate] = useState(
-    initialData?.voucherDate || new Date().toISOString().split("T")[0],
+    initialData?.voucherDate || new Date().toISOString().split("T")[0]
   );
   const [transactionType, setTransactionType] = useState(
-    initialData?.transactionType || "journal-entry",
+    initialData?.transactionType || "journal-entry"
   );
   const [description, setDescription] = useState(
-    initialData?.description || "",
+    initialData?.description || ""
   );
   const [bookEntries, setBookEntries] = useState(
     initialData?.bookEntries || [
       { account: "", debit: 0, credit: 0, description: "" },
       { account: "", debit: 0, credit: 0, description: "" },
-    ],
+    ]
   );
   const [errors, setErrors] = useState({});
 
-  const { data: leafAccounts = [], isLoading: isLoadingAccounts } = useQuery({
-    queryKey: ["leafAccounts"],
-    queryFn: async () => {
-      const response = await api.get("/accounts/leaf-nodes");
-      return response.data.data || [];
-    },
-  });
-
   const totalDebit = bookEntries.reduce(
     (sum, entry) => sum + (parseFloat(entry.debit) || 0),
-    0,
+    0
   );
+
   const totalCredit = bookEntries.reduce(
     (sum, entry) => sum + (parseFloat(entry.credit) || 0),
-    0,
+    0
   );
 
   const isBalanced =
@@ -163,26 +168,22 @@ const DynamicJournalForm = ({
         </Button>
       )}
 
-      {/* Voucher Section */}
+      {/* Voucher */}
       <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <h2 className="text-sm font-bold text-slate-900 mb-3">
-          Voucher Details
-        </h2>
+        <h2 className="text-sm font-bold mb-3">Voucher Details</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid md:grid-cols-3 gap-3">
           <Input
             label="Voucher Date"
             type="date"
             value={voucherDate}
             onChange={(e) => setVoucherDate(e.target.value)}
-            required
           />
 
           <Select
             label="Transaction Type"
             value={transactionType}
             onChange={(e) => setTransactionType(e.target.value)}
-            required
             options={[
               { value: "journal-entry", label: "Journal Entry" },
               { value: "receipt", label: "Receipt" },
@@ -195,35 +196,29 @@ const DynamicJournalForm = ({
             label="Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter description"
           />
         </div>
       </div>
 
       {/* Entries */}
       <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <h2 className="text-sm font-bold text-slate-900 mb-3">
-          Book Entries
-        </h2>
+        <h2 className="text-sm font-bold mb-3">Book Entries</h2>
 
-        <div className="space-y-1">
-          {bookEntries.map((entry, idx) => (
-            <BookEntryRow
-              key={idx}
-              rowIndex={idx}
-              entry={entry}
-              leafAccounts={leafAccounts}
-              onUpdate={handleRowUpdate}
-              onRemove={handleRowRemove}
-              errors={errors}
-            />
-          ))}
-        </div>
+        {bookEntries.map((entry, idx) => (
+          <BookEntryRow
+            key={idx}
+            rowIndex={idx}
+            entry={entry}
+            leafAccounts={leafAccounts}
+            onUpdate={handleRowUpdate}
+            onRemove={handleRowRemove}
+            errors={errors}
+          />
+        ))}
 
         <Button
           type="button"
           variant="outline"
-          size="sm"
           onClick={handleAddRow}
           className="mt-3"
           icon={Plus}
@@ -238,21 +233,9 @@ const DynamicJournalForm = ({
         isBalanced={isBalanced}
       />
 
-      {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-2 justify-end">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={!isBalanced || isSubmitting}
-          loading={isSubmitting}
-        >
-          Create Journal Entry
+      <div className="flex justify-end gap-2">
+        <Button type="submit" disabled={!isBalanced || isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Entry"}
         </Button>
       </div>
     </form>

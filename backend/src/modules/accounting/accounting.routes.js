@@ -16,9 +16,13 @@ router.post(
   accountantOrDirector,
   AccountingController.createJournalEntry,
 );
-router.get("/journal-entries", AccountingController.getAllEntries);
+router.get(
+  "/journal-entries",
+  accountantOrDirector,
+  AccountingController.getAllEntries,
+);
 
-// Static/special routes before :id
+// Static / special routes
 router.get(
   "/journal-entries/pending-approvals",
   directorOnly,
@@ -61,7 +65,11 @@ router.get(
 );
 
 // Single entry routes
-router.get("/journal-entries/:id", AccountingController.getEntryById);
+router.get(
+  "/journal-entries/:id",
+  accountantOrDirector,
+  AccountingController.getEntryById,
+);
 router.put(
   "/journal-entries/:id",
   accountantOrDirector,

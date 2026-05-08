@@ -4,7 +4,6 @@ import {
   Edit2,
   Trash2,
   Eye,
-  Search,
   ChevronLeft,
   ChevronRight,
   Users,
@@ -22,7 +21,7 @@ import {
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
 import EmptyState from "../components/EmptyState";
-import { Card, CardContent } from "../components/ui/Card";
+import { Card } from "../components/ui/Card";
 import { formatCurrency } from "../utils/currency";
 import StudentFormModal from "../components/students/StudentFormModal";
 import StudentDetailsModal from "../components/students/StudentDetailsModal";
@@ -39,7 +38,6 @@ export default function Students() {
   const [localSearch, setLocalSearch] = useState(searchTerm);
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
-
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingStudent, setViewingStudent] = useState(null);
 
@@ -65,19 +63,32 @@ export default function Students() {
   const bulkMutation = useBulkCreateStudents();
 
   // Debounced search
+  // Only reset page when search text changes
   useEffect(() => {
     const timeout = setTimeout(() => {
+      const currentSearch = searchParams.get("search") || "";
+      const trimmedSearch = localSearch.trim();
+
+      if (currentSearch === trimmedSearch) return;
+
       const currentParams = Object.fromEntries(searchParams.entries());
 
-      setSearchParams({
-        ...currentParams,
-        search: localSearch.trim(),
-        page: "1",
-      });
+      if (trimmedSearch) {
+        setSearchParams({
+          ...currentParams,
+          search: trimmedSearch,
+          page: "1",
+        });
+      } else {
+        const newParams = { ...currentParams };
+        delete newParams.search;
+        newParams.page = "1";
+        setSearchParams(newParams);
+      }
     }, 500);
 
     return () => clearTimeout(timeout);
-  }, [localSearch, searchParams, setSearchParams]);
+  }, [localSearch, setSearchParams]); // removed searchParams from dependency
 
   const handlePageChange = (newPage) => {
     const currentParams = Object.fromEntries(searchParams.entries());
@@ -115,7 +126,7 @@ export default function Students() {
 
   const handleDelete = async (id) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this student record?",
+      "Are you sure you want to delete this student record?"
     );
 
     if (!confirmed) return;
@@ -161,7 +172,8 @@ export default function Students() {
           <span
             className={
               pending > 0 ? "font-medium text-red-600" : "text-emerald-600"
-            }>
+            }
+          >
             {formatCurrency(pending)}
           </span>
         );
@@ -185,7 +197,8 @@ export default function Students() {
             type="button"
             onClick={() => handleViewStudent(row)}
             className="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100"
-            title="View">
+            title="View"
+          >
             <Eye size={16} />
           </button>
 
@@ -193,7 +206,8 @@ export default function Students() {
             type="button"
             onClick={() => handleEditStudent(row)}
             className="rounded-lg p-2 text-amber-600 transition hover:bg-amber-50"
-            title="Edit">
+            title="Edit"
+          >
             <Edit2 size={16} />
           </button>
 
@@ -201,7 +215,8 @@ export default function Students() {
             type="button"
             onClick={() => handleDelete(id)}
             className="rounded-lg p-2 text-red-600 transition hover:bg-red-50"
-            title="Delete">
+            title="Delete"
+          >
             <Trash2 size={16} />
           </button>
         </div>
@@ -225,24 +240,6 @@ export default function Students() {
         onButtonClick={handleAddStudent}
         buttonIcon={Plus}
       />
-      {/* 
-      <Card className="border-neutral-200/60">
-        <CardContent className="p-3">
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="Search by name, roll number, or email..."
-              className="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-2.5 pl-10 pr-4 outline-none transition focus:ring-2 focus:ring-neutral-200"
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card> */}
 
       <Card className="overflow-hidden border-neutral-200/60">
         {isLoading ? (
@@ -265,7 +262,8 @@ export default function Students() {
                   type="button"
                   disabled={page <= 1}
                   onClick={() => handlePageChange(page - 1)}
-                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50">
+                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50"
+                >
                   <ChevronLeft size={18} />
                 </button>
 
@@ -273,7 +271,8 @@ export default function Students() {
                   type="button"
                   disabled={page >= (pagination.totalPages || 1)}
                   onClick={() => handlePageChange(page + 1)}
-                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50">
+                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50"
+                >
                   <ChevronRight size={18} />
                 </button>
               </div>

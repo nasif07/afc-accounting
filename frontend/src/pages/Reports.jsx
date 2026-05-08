@@ -14,6 +14,7 @@ import TrialBalanceReport from "../components/reports/TrialBalanceReport";
 import IncomeStatementReport from "../components/reports/IncomeStatementReport";
 import BalanceSheetReport from "../components/reports/BalanceSheetReport";
 import CashFlowReport from "../components/reports/CashFlowReport";
+import GeneralLedgerReport from "../components/reports/GeneralLedgerReport"; // ✅ add this
 import { toast } from "sonner";
 import api from "../services/api";
 import SectionHeader from "../components/common/SectionHeader";
@@ -27,6 +28,7 @@ export default function Reports() {
     endDate: "",
     asOfDate: new Date().toISOString().split("T")[0],
     viewType: "detailed",
+    accountId: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -66,13 +68,12 @@ export default function Reports() {
           break;
 
         case "general-ledger":
-          // FIXED: Add general-ledger support
           if (!filters.accountId) {
-            throw new Error(
-              "Please select an account for General Ledger report",
-            );
+            toast.error("Please select an account for General Ledger report");
+            setLoading(false);
+            return;
           }
-          endpoint += "/ledger/" + filters.accountId;
+          endpoint += `/ledger/${filters.accountId}`;
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
@@ -115,6 +116,7 @@ export default function Reports() {
       endDate: "",
       asOfDate: new Date().toISOString().split("T")[0],
       viewType: "detailed",
+      accountId: "",
     });
     setReportData(null);
     setError(null);
@@ -164,8 +166,9 @@ export default function Reports() {
       printWindow.print();
     }, 500);
   };
-
   const handleDownloadPDF = async () => {
+    let clone = null;
+
     try {
       const source = printRef.current;
       if (!source) {
@@ -173,80 +176,242 @@ export default function Reports() {
         return;
       }
 
-      const html2pdfModule = await import("html2pdf.js");
-      const html2pdf = html2pdfModule.default || html2pdfModule;
+      toast.info("Preparing PDF...");
 
-      // Create a clean export container
-      const exportWrapper = document.createElement("div");
-      exportWrapper.style.position = "fixed";
-      exportWrapper.style.left = "0";
-      exportWrapper.style.top = "0";
-      exportWrapper.style.width = "794px"; // A4-ish content width in px
-      exportWrapper.style.background = "#ffffff";
-      exportWrapper.style.color = "#111827";
-      exportWrapper.style.padding = "24px";
-      exportWrapper.style.zIndex = "-1";
-      exportWrapper.style.opacity = "1";
-      exportWrapper.style.pointerEvents = "none";
+      const [html2canvasModule, jsPDFModule] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
 
-      // Clone the report content
-      const clone = source.cloneNode(true);
-      exportWrapper.appendChild(clone);
-      document.body.appendChild(exportWrapper);
+      const html2canvas = html2canvasModule.default;
+      const { jsPDF } = jsPDFModule;
 
-      // Force plain export-safe styling
-      const all = exportWrapper.querySelectorAll("*");
-      all.forEach((node) => {
-        if (!(node instanceof HTMLElement)) return;
+      clone = source.cloneNode(true);
+      clone.style.position = "fixed";
+      clone.style.top = "0";
+      clone.style.left = "0";
+      clone.style.width = "794px";
+      clone.style.zIndex = "-9999";
+      clone.style.pointerEvents = "none";
+      clone.style.opacity = "1";
+      clone.style.backgroundColor = "#ffffff";
+      clone.style.background = "#ffffff";
+      clone.style.overflow = "visible";
 
-        node.style.boxShadow = "none";
-        node.style.textShadow = "none";
-        node.style.filter = "none";
-        node.style.backdropFilter = "none";
-        node.style.borderColor = "#d1d5db";
+      // ✅ Remove buttons and icons from clone
+      clone.querySelectorAll("button, svg").forEach((el) => el.remove());
 
-        const text = window.getComputedStyle(node).color;
-        const bg = window.getComputedStyle(node).backgroundColor;
+      // ✅ Collect all CSS from document stylesheets and replace oklch
+      const oklchRegex = /oklch\([^)]+\)/g;
 
-        if (text && text.includes("oklch")) {
-          node.style.color = "#111827";
+      const replaceOklch = (cssText) => {
+        return cssText.replace(oklchRegex, (match) => {
+          try {
+            const parts = match
+              .replace("oklch(", "")
+              .replace(")", "")
+              .split(/[\s,\/]+/)
+              .map((p) => p.trim())
+              .filter(Boolean);
+
+            const lightness = parseFloat(parts[0]);
+            const l = lightness > 1 ? lightness / 100 : lightness;
+            const gray = Math.round(l * 255);
+            const hex = gray.toString(16).padStart(2, "0");
+            return `#${hex}${hex}${hex}`;
+          } catch {
+            return "#888888";
+          }
+        });
+      };
+
+      let allCSS = "";
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          const rules = Array.from(sheet.cssRules || []);
+          for (const rule of rules) {
+            allCSS += rule.cssText + "\n";
+          }
+        } catch {
+          // cross-origin sheets — skip
         }
+      }
 
-        if (bg && bg.includes("oklch")) {
-          node.style.backgroundColor = "#ffffff";
+      const safeCSSText = replaceOklch(allCSS);
+      const styleTag = document.createElement("style");
+      styleTag.textContent = safeCSSText;
+      clone.prepend(styleTag);
+
+      document.body.appendChild(clone);
+
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      // ✅ Fix oklch on individual nodes using computed styles from original
+      const originalNodes = Array.from(source.querySelectorAll("*"));
+      const cloneNodes = Array.from(clone.querySelectorAll("*"));
+
+      originalNodes.forEach((origEl, i) => {
+        const cloneEl = cloneNodes[i];
+        if (!(cloneEl instanceof HTMLElement)) return;
+
+        const computed = window.getComputedStyle(origEl);
+        const props = [
+          ["color", "#111827"],
+          ["backgroundColor", "#ffffff"],
+          ["borderColor", "#d1d5db"],
+          ["borderTopColor", "#d1d5db"],
+          ["borderBottomColor", "#d1d5db"],
+          ["borderLeftColor", "#d1d5db"],
+          ["borderRightColor", "#d1d5db"],
+          ["outlineColor", "transparent"],
+          ["fill", "#111827"],
+          ["stroke", "none"],
+          ["boxShadow", "none"],
+          ["textDecorationColor", "#111827"],
+          ["caretColor", "#111827"],
+          ["columnRuleColor", "#d1d5db"],
+        ];
+
+        props.forEach(([prop, fallback]) => {
+          const val = computed[prop];
+          if (val && val.includes("oklch")) {
+            cloneEl.style[prop] = fallback;
+          }
+        });
+      });
+
+      // ✅ Fix table backgrounds
+      clone.querySelectorAll("tr").forEach((tr) => {
+        tr.style.backgroundColor = "#ffffff";
+        tr.style.background = "#ffffff";
+      });
+
+      clone.querySelectorAll("thead tr").forEach((tr) => {
+        tr.style.backgroundColor = "#f9fafb";
+        tr.style.background = "#f9fafb";
+      });
+
+      clone.querySelectorAll("tfoot tr").forEach((tr) => {
+        tr.style.backgroundColor = "#f9fafb";
+        tr.style.background = "#f9fafb";
+      });
+
+      clone.querySelectorAll("td, th").forEach((cell) => {
+        if (!(cell instanceof HTMLElement)) return;
+        cell.style.backgroundColor = "transparent";
+        cell.style.background = "transparent";
+      });
+
+      // ✅ Fix remaining oklch backgrounds
+      clone.querySelectorAll("*").forEach((el) => {
+        if (!(el instanceof HTMLElement)) return;
+        if (el.style.backgroundColor?.includes("oklch")) {
+          el.style.backgroundColor = "#ffffff";
+        }
+        if (el.style.background?.includes("oklch")) {
+          el.style.background = "#ffffff";
         }
       });
 
-      // Give the browser a moment to render the clone
+      // ❌ Remove report title badge (black background pill)
+clone.querySelectorAll(".rounded-full.bg-neutral-900").forEach((el) => {
+  el.remove();
+});
+      // ✅ Fix badge pill centering
+
+
+      // ✅ Collapse large min-heights
+      clone.querySelectorAll("*").forEach((el) => {
+        if (!(el instanceof HTMLElement)) return;
+        const computed = window.getComputedStyle(el);
+        const minH = parseFloat(computed.minHeight);
+        if (minH >= 100) {
+          el.style.setProperty("min-height", "0", "important");
+          el.style.setProperty("height", "auto", "important");
+        }
+      });
+
+      // ✅ Force root clone background
+      clone.style.backgroundColor = "#ffffff";
+      clone.style.background = "#ffffff";
+
+      // ✅ Wait for layout to settle
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const options = {
-        margin: 10,
-        filename: `${reportType}-${new Date().toISOString().split("T")[0]}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-        },
-        jsPDF: {
-          unit: "mm",
-          format: "a4",
-          orientation: "portrait",
-        },
-        pagebreak: { mode: ["css", "legacy"] },
-      };
+      // ✅ Crop to actual content height using bounding rects
+      const allChildren = Array.from(clone.querySelectorAll("*"));
+      let maxBottom = 0;
+      allChildren.forEach((el) => {
+        if (!(el instanceof HTMLElement)) return;
+        const r = el.getBoundingClientRect();
+        if (r.bottom > maxBottom) maxBottom = r.bottom;
+      });
 
-      await html2pdf().set(options).from(exportWrapper).save();
+      const contentHeight = Math.min(clone.scrollHeight, maxBottom + 32);
 
-      document.body.removeChild(exportWrapper);
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 794,
+        windowHeight: contentHeight,
+        height: contentHeight,
+        width: 794,
+        x: 0,
+        y: 0,
+      });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.98);
+
+      const pdf = new jsPDF({
+        unit: "mm",
+        format: "a4",
+        orientation: "portrait",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      // ✅ Single page — no blank second page
+      if (imgHeight <= pageHeight) {
+        pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
+      } else {
+        let yOffset = 0;
+        let remainingHeight = imgHeight;
+
+        while (remainingHeight > 0) {
+          pdf.addImage(
+            imgData,
+            "JPEG",
+            0,
+            yOffset === 0 ? 0 : -yOffset,
+            imgWidth,
+            imgHeight,
+          );
+          remainingHeight -= pageHeight;
+          if (remainingHeight > 0) {
+            pdf.addPage();
+            yOffset += pageHeight;
+          }
+        }
+      }
+
+      pdf.save(`${reportType}-${new Date().toISOString().split("T")[0]}.pdf`);
       toast.success("Report downloaded successfully");
     } catch (err) {
       console.error("PDF export error:", err);
-      toast.error(
-        typeof err?.message === "string" ? err.message : "Failed to export PDF",
-      );
+      toast.error(err?.message || "Failed to export PDF");
+    } finally {
+      if (clone && document.body.contains(clone)) {
+        document.body.removeChild(clone);
+      }
     }
   };
 
@@ -327,6 +492,26 @@ export default function Reports() {
             title: "Status",
             value: reportData.isBalanced ? "Balanced" : "Unbalanced",
             color: reportData.isBalanced ? "green" : "red",
+            format: "text",
+          },
+        ];
+
+      case "general-ledger":
+        return [
+          {
+            title: "Opening Balance",
+            value: reportData.openingBalance || 0,
+            color: "blue",
+          },
+          {
+            title: "Closing Balance",
+            value: reportData.closingBalance || 0,
+            color: "green",
+          },
+          {
+            title: "Transactions",
+            value: reportData.entries?.length || 0,
+            color: "purple",
             format: "text",
           },
         ];
@@ -420,18 +605,23 @@ export default function Reports() {
                   Financial Management System
                 </p>
 
-                <div className="mt-6 inline-block rounded-full bg-neutral-900 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white">
-                  {reportType === "trial-balance" && "Trial Balance"}
-                  {reportType === "income-statement" &&
-                    "Profit & Loss Statement"}
-                  {reportType === "balance-sheet" && "Balance Sheet"}
-                  {reportType === "cash-flow" && "Cash Flow Statement"}
+                {/* ✅ Changed: wrap in flex div instead of inline-block */}
+                <div className="mt-6 flex justify-center">
+                  <div className="rounded-full bg-neutral-900 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white">
+                    {reportType === "trial-balance" && "Trial Balance"}
+                    {reportType === "income-statement" &&
+                      "Profit & Loss Statement"}
+                    {reportType === "balance-sheet" && "Balance Sheet"}
+                    {reportType === "cash-flow" && "Cash Flow Statement"}
+                    {reportType === "general-ledger" && "General Ledger"}
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-col items-center gap-1">
                   {(filters.startDate || filters.endDate) &&
                     (reportType === "income-statement" ||
-                      reportType === "cash-flow") && (
+                      reportType === "cash-flow" ||
+                      reportType === "general-ledger") && (
                       <p className="text-sm text-neutral-600">
                         <span className="font-semibold">Period:</span>{" "}
                         {filters.startDate
@@ -480,6 +670,14 @@ export default function Reports() {
 
                 {reportType === "cash-flow" && (
                   <CashFlowReport
+                    data={reportData}
+                    startDate={filters.startDate}
+                    endDate={filters.endDate}
+                  />
+                )}
+
+                {reportType === "general-ledger" && (
+                  <GeneralLedgerReport
                     data={reportData}
                     startDate={filters.startDate}
                     endDate={filters.endDate}

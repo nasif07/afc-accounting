@@ -1,8 +1,95 @@
 const JournalEntry = require("./accounting.model");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
+const COAService = require("../chartOfAccounts/coa.service");
 const mongoose = require("mongoose");
 
 class AccountingService {
+  static getDebitNatureTypes() {
+    return ["asset", "expense"];
+  }
+
+  static getCreditNatureTypes() {
+    return ["liability", "equity", "income", "revenue"];
+  }
+
+  static normalizeAccountType(accountType) {
+    return String(accountType || "")
+      .trim()
+      .toLowerCase();
+  }
+
+  static isDebitNature(accountType) {
+    return this.getDebitNatureTypes().includes(
+      this.normalizeAccountType(accountType),
+    );
+  }
+
+  static isCreditNature(accountType) {
+    return this.getCreditNatureTypes().includes(
+      this.normalizeAccountType(accountType),
+    );
+  }
+
+  static calculateSignedBalance(
+    accountType,
+    openingBalance,
+    openingBalanceType,
+  ) {
+    const balance = Number(openingBalance || 0);
+    const type = String(openingBalanceType || "").toLowerCase();
+
+    if (this.isDebitNature(accountType)) {
+      return type === "credit" ? -balance : balance;
+    }
+
+    if (this.isCreditNature(accountType)) {
+      return type === "debit" ? -balance : balance;
+    }
+
+    return type === "credit" ? -balance : balance;
+  }
+
+  static applyLineToSignedBalance(
+    accountType,
+    currentSignedBalance,
+    debit,
+    credit,
+  ) {
+    const numericDebit = Number(debit || 0);
+    const numericCredit = Number(credit || 0);
+
+    if (this.isDebitNature(accountType)) {
+      return currentSignedBalance + numericDebit - numericCredit;
+    }
+
+    if (this.isCreditNature(accountType)) {
+      return currentSignedBalance + numericCredit - numericDebit;
+    }
+
+    return currentSignedBalance + numericDebit - numericCredit;
+  }
+
+  static signedToDisplayBalance(accountType, signedBalance) {
+    if (this.isDebitNature(accountType)) {
+      return {
+        balance: Math.abs(signedBalance),
+        balanceType: signedBalance >= 0 ? "debit" : "credit",
+      };
+    }
+
+    if (this.isCreditNature(accountType)) {
+      return {
+        balance: Math.abs(signedBalance),
+        balanceType: signedBalance >= 0 ? "credit" : "debit",
+      };
+    }
+
+    return {
+      balance: Math.abs(signedBalance),
+      balanceType: signedBalance >= 0 ? "debit" : "credit",
+    };
+  }
+
   static async generateTrialBalance(asOfDate = new Date()) {
     const accounts = await ChartOfAccounts.find({
       deletedAt: null,
@@ -18,53 +105,39 @@ class AccountingService {
         account._id,
         asOfDate,
       );
-      const balance = balanceData.balance;
 
-      if (balance === 0) continue;
+      if (!balanceData.balance) continue;
 
-      const isDebit =
-        account.accountType === "Asset" || account.accountType === "Expense";
+      const row = {
+        accountCode: balanceData.accountCode,
+        accountName: balanceData.accountName,
+        accountType: balanceData.accountType,
+        debit: balanceData.balanceType === "debit" ? balanceData.balance : 0,
+        credit: balanceData.balanceType === "credit" ? balanceData.balance : 0,
+      };
 
-      if (isDebit) {
-        balances.push({
-          accountCode: account.accountCode,
-          accountName: account.accountName,
-          debit: balance > 0 ? balance : 0,
-          credit: balance < 0 ? Math.abs(balance) : 0,
-        });
-
-        if (balance > 0) totalDebits += balance;
-        else totalCredits += Math.abs(balance);
-      } else {
-        balances.push({
-          accountCode: account.accountCode,
-          accountName: account.accountName,
-          debit: balance < 0 ? Math.abs(balance) : 0,
-          credit: balance > 0 ? balance : 0,
-        });
-
-        if (balance > 0) totalCredits += balance;
-        else totalDebits += Math.abs(balance);
-      }
+      balances.push(row);
+      totalDebits += row.debit;
+      totalCredits += row.credit;
     }
 
     return {
       balances,
       totalDebits,
       totalCredits,
-      isBalanced: Math.abs(totalDebits - totalCredits) < 1,
+      isBalanced: Math.abs(totalDebits - totalCredits) < 0.01,
     };
   }
 
   static async generateIncomeStatement(startDate, endDate) {
     const revenues = await ChartOfAccounts.find({
-      accountType: "Income",
+      accountType: { $in: ["income", "revenue", "Income", "Revenue"] },
       deletedAt: null,
       status: "active",
     });
 
     const expenses = await ChartOfAccounts.find({
-      accountType: "Expense",
+      accountType: { $in: ["expense", "Expense"] },
       deletedAt: null,
       status: "active",
     });
@@ -79,15 +152,13 @@ class AccountingService {
         endDate,
       );
 
-      const displayAmount = -periodAmount;
-
-      if (displayAmount !== 0) {
+      if (periodAmount !== 0) {
         revenueList.push({
           accountCode: account.accountCode,
           accountName: account.accountName,
-          amount: displayAmount,
+          amount: periodAmount,
         });
-        totalRevenue += displayAmount;
+        totalRevenue += periodAmount;
       }
     }
 
@@ -122,19 +193,19 @@ class AccountingService {
 
   static async generateBalanceSheet(asOfDate = new Date()) {
     const assets = await ChartOfAccounts.find({
-      accountType: "Asset",
+      accountType: { $in: ["asset", "Asset"] },
       deletedAt: null,
       status: "active",
     });
 
     const liabilities = await ChartOfAccounts.find({
-      accountType: "Liability",
+      accountType: { $in: ["liability", "Liability"] },
       deletedAt: null,
       status: "active",
     });
 
     const equity = await ChartOfAccounts.find({
-      accountType: "Equity",
+      accountType: { $in: ["equity", "Equity"] },
       deletedAt: null,
       status: "active",
     });
@@ -166,15 +237,14 @@ class AccountingService {
         account._id,
         asOfDate,
       );
-      const displayAmount = -balanceData.balance;
 
-      if (displayAmount !== 0) {
+      if (balanceData.balance !== 0) {
         liabilityList.push({
           accountCode: account.accountCode,
           accountName: account.accountName,
-          amount: displayAmount,
+          amount: balanceData.balance,
         });
-        totalLiabilities += displayAmount;
+        totalLiabilities += balanceData.balance;
       }
     }
 
@@ -186,15 +256,14 @@ class AccountingService {
         account._id,
         asOfDate,
       );
-      const displayAmount = -balanceData.balance;
 
-      if (displayAmount !== 0) {
+      if (balanceData.balance !== 0) {
         equityList.push({
           accountCode: account.accountCode,
           accountName: account.accountName,
-          amount: displayAmount,
+          amount: balanceData.balance,
         });
-        totalEquity += displayAmount;
+        totalEquity += balanceData.balance;
       }
     }
 
@@ -211,7 +280,7 @@ class AccountingService {
         retainedEarningsAccount._id,
         asOfDate,
       );
-      retainedEarnings = -reData.balance;
+      retainedEarnings = reData.balance;
     } else {
       const fiscalYearStart = new Date(asOfDate.getFullYear(), 0, 1);
       const incomeStatement = await this.generateIncomeStatement(
@@ -236,7 +305,8 @@ class AccountingService {
       totalLiabilities,
       equity: equityList,
       totalEquity,
-      isBalanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1,
+      isBalanced:
+        Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01,
     };
   }
 
@@ -244,6 +314,7 @@ class AccountingService {
     const cashAccounts = await ChartOfAccounts.find({
       accountName: { $regex: /cash|bank/i },
       deletedAt: null,
+      status: "active",
     });
 
     const cashAccountIds = cashAccounts.map((a) => a._id);
@@ -263,8 +334,11 @@ class AccountingService {
       ),
     );
 
-    const totalStart = startBalance.reduce((sum, b) => sum + b.balance, 0);
-    const totalEnd = endBalance.reduce((sum, b) => sum + b.balance, 0);
+    const totalStart = startBalance.reduce(
+      (sum, item) => sum + item.balance,
+      0,
+    );
+    const totalEnd = endBalance.reduce((sum, item) => sum + item.balance, 0);
 
     const entries = await JournalEntry.find({
       "bookEntries.account": { $in: cashAccountIds },
@@ -284,28 +358,28 @@ class AccountingService {
     for (const entry of entries) {
       const jsonEntry = entry.toJSON();
 
-      const cashLines = jsonEntry.bookEntries.filter((be) =>
+      const cashLines = (jsonEntry.bookEntries || []).filter((bookEntry) =>
         cashAccountIds.some(
-          (id) => id.toString() === be.account._id.toString(),
+          (id) => id.toString() === bookEntry.account._id.toString(),
         ),
       );
 
-      for (const cl of cashLines) {
-        if (cl.debit > 0) {
-          totalInflow += cl.debit;
+      for (const line of cashLines) {
+        if (line.debit > 0) {
+          totalInflow += line.debit;
           inflows.push({
             date: jsonEntry.voucherDate,
             description: jsonEntry.description,
-            amount: cl.debit,
+            amount: line.debit,
           });
         }
 
-        if (cl.credit > 0) {
-          totalOutflow += cl.credit;
+        if (line.credit > 0) {
+          totalOutflow += line.credit;
           outflows.push({
             date: jsonEntry.voucherDate,
             description: jsonEntry.description,
-            amount: cl.credit,
+            amount: line.credit,
           });
         }
       }
@@ -350,23 +424,40 @@ class AccountingService {
       .populate("bookEntries.account", "accountName accountCode accountType")
       .sort({ voucherDate: 1, createdAt: 1 });
 
-    let runningBalance = openingBalanceData.balance;
+    let runningSignedBalance = this.calculateSignedBalance(
+      account.accountType,
+      openingBalanceData.balance,
+      openingBalanceData.balanceType,
+    );
+
     let totalDebit = 0;
     let totalCredit = 0;
 
     const transactions = entries.map((entry) => {
       const jsonEntry = entry.toJSON();
 
-      const relevantBookEntry = jsonEntry.bookEntries.find(
-        (be) => be.account._id.toString() === accountId.toString(),
+      const relevantBookEntry = (jsonEntry.bookEntries || []).find(
+        (bookEntry) =>
+          bookEntry.account._id.toString() === accountId.toString(),
       );
 
-      const debit = relevantBookEntry?.debit || 0;
-      const credit = relevantBookEntry?.credit || 0;
+      const debit = Number(relevantBookEntry?.debit || 0);
+      const credit = Number(relevantBookEntry?.credit || 0);
 
       totalDebit += debit;
       totalCredit += credit;
-      runningBalance += debit - credit;
+
+      runningSignedBalance = this.applyLineToSignedBalance(
+        account.accountType,
+        runningSignedBalance,
+        debit,
+        credit,
+      );
+
+      const runningDisplay = this.signedToDisplayBalance(
+        account.accountType,
+        runningSignedBalance,
+      );
 
       return {
         date: jsonEntry.voucherDate,
@@ -376,24 +467,41 @@ class AccountingService {
         reference: jsonEntry.referenceNumber,
         debit,
         credit,
-        runningBalance,
+        runningBalance: runningDisplay.balance,
+        runningBalanceType: runningDisplay.balanceType,
         journalEntryId: jsonEntry._id,
       };
     });
+
+    const closingDisplay = this.signedToDisplayBalance(
+      account.accountType,
+      runningSignedBalance,
+    );
 
     return {
       accountName: account.accountName,
       accountCode: account.accountCode,
       accountType: account.accountType,
       openingBalance: openingBalanceData.balance,
+      openingBalanceType: openingBalanceData.balanceType,
       totalDebit,
       totalCredit,
-      closingBalance: runningBalance,
+      closingBalance: closingDisplay.balance,
+      closingBalanceType: closingDisplay.balanceType,
       transactions,
     };
   }
 
   static async calculatePeriodAmount(accountId, startDate, endDate) {
+    const account = await ChartOfAccounts.findOne({
+      _id: accountId,
+      deletedAt: null,
+    });
+
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
     const entries = await JournalEntry.find({
       "bookEntries.account": accountId,
       status: "posted",
@@ -404,20 +512,29 @@ class AccountingService {
       },
     });
 
-    let amount = 0;
+    let signedAmount = 0;
 
     for (const entry of entries) {
       const jsonEntry = entry.toJSON();
 
-      for (const line of jsonEntry.bookEntries) {
-        if (line.account.toString() === accountId.toString()) {
-          amount += line.debit || 0;
-          amount -= line.credit || 0;
+      for (const line of jsonEntry.bookEntries || []) {
+        const lineAccountId =
+          typeof line.account === "object" && line.account !== null
+            ? line.account._id?.toString()
+            : line.account?.toString();
+
+        if (lineAccountId === accountId.toString()) {
+          signedAmount = this.applyLineToSignedBalance(
+            account.accountType,
+            signedAmount,
+            line.debit || 0,
+            line.credit || 0,
+          );
         }
       }
     }
 
-    return amount;
+    return Math.abs(signedAmount);
   }
 
   static async calculateAccountBalance(accountId, asOfDate = new Date()) {
@@ -430,7 +547,11 @@ class AccountingService {
       throw new Error("Account not found");
     }
 
-    let balance = account.openingBalance || 0;
+    let signedBalance = this.calculateSignedBalance(
+      account.accountType,
+      account.openingBalance || 0,
+      account.openingBalanceType || "debit",
+    );
 
     const entries = await JournalEntry.find({
       "bookEntries.account": accountId,
@@ -442,119 +563,39 @@ class AccountingService {
     for (const entry of entries) {
       const jsonEntry = entry.toJSON();
 
-      for (const line of jsonEntry.bookEntries) {
-        if (line.account.toString() === accountId.toString()) {
-          balance += line.debit || 0;
-          balance -= line.credit || 0;
+      for (const line of jsonEntry.bookEntries || []) {
+        const lineAccountId =
+          typeof line.account === "object" && line.account !== null
+            ? line.account._id?.toString()
+            : line.account?.toString();
+
+        if (lineAccountId === accountId.toString()) {
+          signedBalance = this.applyLineToSignedBalance(
+            account.accountType,
+            signedBalance,
+            line.debit || 0,
+            line.credit || 0,
+          );
         }
       }
     }
+
+    const display = this.signedToDisplayBalance(
+      account.accountType,
+      signedBalance,
+    );
 
     return {
       accountId: account._id,
       accountCode: account.accountCode,
       accountName: account.accountName,
       accountType: account.accountType,
-      balance,
-      naturalBalanceType:
-        account.accountType === "Asset" || account.accountType === "Expense"
-          ? "debit"
-          : "credit",
+      balance: display.balance,
+      balanceType: display.balanceType,
+      naturalBalanceType: this.isDebitNature(account.accountType)
+        ? "debit"
+        : "credit",
     };
-  }
-
-
-  /**
-   * Validate that accounts have sufficient balance for the proposed transaction
-   * For asset/cash accounts, prevent negative balances
-   * @param {Array} bookEntries - The journal entry lines to validate
-   * @returns {Promise<Array>} - Array of error messages
-   */
-  static async validateSufficientBalance(bookEntries) {
-    const errors = [];
-    const assetTypes = ["Asset", "Expense"];
-
-    for (const entry of bookEntries) {
-      const accountId = entry.account || entry.accountId;
-      if (!accountId) continue;
-
-      const account = await ChartOfAccounts.findById(accountId);
-      if (!account || account.deletedAt) continue;
-
-      // Only check balance for asset/cash accounts
-      if (!assetTypes.includes(account.accountType)) continue;
-
-      // Get current balance
-      const balanceData = await this.calculateAccountBalance(accountId);
-      const currentBalance = balanceData.balance || 0;
-
-      // Check if credit entry would result in negative balance
-      if (entry.credit > 0) {
-        const projectedBalance = currentBalance - entry.credit;
-        if (projectedBalance < 0) {
-          errors.push(
-            `Account ${account.accountCode} (${account.accountName}) has insufficient balance. Current: ${currentBalance}, Required: ${entry.credit}`,
-          );
-        }
-      }
-    }
-
-    return errors;
-  }
-
-  static async createJournalEntry(entryData) {
-    if (!entryData?.bookEntries || !Array.isArray(entryData.bookEntries)) {
-      throw new Error("Book entries are required");
-    }
-
-    this.validateDoubleEntry(entryData.bookEntries);
-
-    const accountErrors = await this.validateAccounts(entryData.bookEntries);
-    if (accountErrors.length > 0) {
-      throw new Error(`Invalid accounts: ${accountErrors.join(", ")}`);
-    }
-
-    // Validate sufficient balance for asset/cash accounts
-    const balanceErrors = await this.validateSufficientBalance(entryData.bookEntries);
-    if (balanceErrors.length > 0) {
-      throw new Error(`Insufficient balance: ${balanceErrors.join(", ")}`);
-    }
-
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const [entry] = await JournalEntry.create([entryData], { session });
-
-      const uniqueAccountIds = [
-        ...new Set(
-          entryData.bookEntries
-            .map((e) => (e.account || e.accountId)?.toString())
-            .filter(Boolean),
-        ),
-      ];
-
-      if (uniqueAccountIds.length > 0) {
-        await ChartOfAccounts.updateMany(
-          { _id: { $in: uniqueAccountIds } },
-          { $set: { hasTransactions: true } },
-          { session },
-        );
-      }
-
-      await session.commitTransaction();
-
-      const createdEntry = await JournalEntry.findById(entry._id)
-        .populate("createdBy", "name email")
-        .populate("bookEntries.account", "accountName accountCode accountType");
-
-      return createdEntry.toJSON();
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
   }
 
   static validateDoubleEntry(bookEntries) {
@@ -566,8 +607,8 @@ class AccountingService {
     let totalCredits = 0;
 
     for (const entry of bookEntries) {
-      const debit = entry.debit || 0;
-      const credit = entry.credit || 0;
+      const debit = Number(entry.debit || 0);
+      const credit = Number(entry.credit || 0);
 
       if (debit > 0 && credit > 0) {
         throw new Error("A line cannot contain both debit and credit");
@@ -593,7 +634,7 @@ class AccountingService {
     const accountIds = [
       ...new Set(
         bookEntries
-          .map((e) => (e.account || e.accountId)?.toString())
+          .map((entry) => (entry.account || entry.accountId)?.toString())
           .filter(Boolean),
       ),
     ];
@@ -607,7 +648,9 @@ class AccountingService {
       deletedAt: null,
     }).lean();
 
-    const accountMap = new Map(accounts.map((a) => [a._id.toString(), a]));
+    const accountMap = new Map(
+      accounts.map((account) => [account._id.toString(), account]),
+    );
 
     const childRows = await ChartOfAccounts.aggregate([
       {
@@ -652,8 +695,6 @@ class AccountingService {
         errors.push(`Account ${account.accountCode} is not active`);
       }
 
-      // CRITICAL FIX: Store whether account is currently a leaf
-      // This prevents retroactive validation failures if hierarchy changes later
       const isCurrentlyLeaf = !parentSet.has(accountId);
       entry.wasLeafAtCreation = isCurrentlyLeaf;
 
@@ -665,6 +706,41 @@ class AccountingService {
     }
 
     return [...new Set(errors)];
+  }
+
+  static async createJournalEntry(entryData) {
+    if (!entryData?.bookEntries || !Array.isArray(entryData.bookEntries)) {
+      throw new Error("Book entries are required");
+    }
+
+    this.validateDoubleEntry(entryData.bookEntries);
+
+    const accountErrors = await this.validateAccounts(entryData.bookEntries);
+    if (accountErrors.length > 0) {
+      throw new Error(`Invalid accounts: ${accountErrors.join(", ")}`);
+    }
+
+    // No insufficient balance blocking for general journal entry
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const [entry] = await JournalEntry.create([entryData], { session });
+
+      await session.commitTransaction();
+
+      const createdEntry = await JournalEntry.findById(entry._id)
+        .populate("createdBy", "name email")
+        .populate("bookEntries.account", "accountName accountCode accountType");
+
+      return createdEntry.toJSON();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   static async getAllEntries(filters = {}) {
@@ -681,20 +757,16 @@ class AccountingService {
       if (filters.dateTo) query.voucherDate.$lte = new Date(filters.dateTo);
     }
 
-    // Pagination
-    const page = Math.max(1, parseInt(filters.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(filters.limit) || 20));
+    const page = Math.max(1, parseInt(filters.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 20));
     const skip = (page - 1) * limit;
 
-    // Sorting - support voucherDate, voucherNumber, totalDebit, totalCredit
-    const sortField = filters.sortBy || 'voucherDate';
-    const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
+    const sortField = filters.sortBy || "voucherDate";
+    const sortOrder = filters.sortOrder === "asc" ? 1 : -1;
     const sort = { [sortField]: sortOrder, _id: -1 };
 
-    // Get total count for pagination
     const total = await JournalEntry.countDocuments(query);
 
-    // Fetch entries with pagination and sorting
     const entries = await JournalEntry.find(query)
       .populate("createdBy", "name email")
       .populate("bookEntries.account", "accountName accountCode accountType")
@@ -793,18 +865,20 @@ class AccountingService {
 
     if (!entry) throw new Error("Entry not found");
     if (entry.status === "posted") throw new Error("Already posted");
+    if (entry.approvalStatus === "rejected") {
+      throw new Error("Rejected entry cannot be approved");
+    }
 
-    // CRITICAL FIX: Validate accounts at approval time, not creation time
-    // Check if accounts were leaf accounts at creation time (stored in wasLeafAtCreation)
-    // OR if they are still leaf accounts now (in case hierarchy hasn't changed)
-    const accountIds = entry.bookEntries.map(e => e.account).filter(Boolean);
-    
+    const accountIds = entry.bookEntries
+      .map((entryLine) => entryLine.account)
+      .filter(Boolean);
+
     if (accountIds.length > 0) {
       const childRows = await ChartOfAccounts.aggregate([
         {
           $match: {
             parentAccount: {
-              $in: accountIds.map(id => new mongoose.Types.ObjectId(id)),
+              $in: accountIds.map((id) => new mongoose.Types.ObjectId(id)),
             },
             deletedAt: null,
             status: { $ne: "archived" },
@@ -818,14 +892,15 @@ class AccountingService {
         },
       ]);
 
-      const currentParentSet = new Set(childRows.map(row => row._id.toString()));
+      const currentParentSet = new Set(
+        childRows.map((row) => row._id.toString()),
+      );
 
       for (const bookEntry of entry.bookEntries) {
         const accountId = bookEntry.account?.toString();
         if (!accountId) continue;
 
-        // Account must have been a leaf at creation time OR still be a leaf now
-        const wasLeafAtCreation = bookEntry.wasLeafAtCreation !== false; // default true for backward compat
+        const wasLeafAtCreation = bookEntry.wasLeafAtCreation !== false;
         const isCurrentlyLeaf = !currentParentSet.has(accountId);
 
         if (!wasLeafAtCreation && !isCurrentlyLeaf) {
@@ -837,47 +912,104 @@ class AccountingService {
       }
     }
 
-    entry.approvalStatus = "approved";
-    entry.status = "posted";
-    entry.isLocked = true;
-    entry.approvedBy = approvedBy;
-    entry.approvalDate = new Date();
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    await entry.save();
+    try {
+      for (const line of entry.bookEntries) {
+        const debit = Number(line.debit || 0);
+        const credit = Number(line.credit || 0);
 
-    const populatedEntry = await JournalEntry.findById(entry._id).populate(
-      "bookEntries.account",
-    );
+        if (debit > 0) {
+          await COAService.applyBalanceChange(line.account, "debit", debit);
+        }
 
-    return populatedEntry.toJSON();
+        if (credit > 0) {
+          await COAService.applyBalanceChange(line.account, "credit", credit);
+        }
+
+        await COAService.markAccountAsTransactional(line.account);
+      }
+
+      entry.approvalStatus = "approved";
+      entry.status = "posted";
+      entry.isLocked = true;
+      entry.approvedBy = approvedBy;
+      entry.approvalDate = new Date();
+
+      await entry.save({ session });
+
+      await session.commitTransaction();
+
+      const populatedEntry = await JournalEntry.findById(entry._id)
+        .populate("createdBy", "name email")
+        .populate("approvedBy", "name email")
+        .populate("bookEntries.account", "accountCode accountName accountType");
+
+      return populatedEntry.toJSON();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   static async rejectEntry(entryId, rejectedBy, rejectionReason) {
-    const entry = await JournalEntry.findOne({ _id: entryId, deletedAt: null });
+    const entry = await JournalEntry.findOne({
+      _id: entryId,
+      deletedAt: null,
+    });
+
     if (!entry) throw new Error("Entry not found");
-    if (entry.status === "posted")
+    if (entry.status === "posted") {
       throw new Error("Cannot reject already posted entry");
-    if (entry.approvalStatus !== "pending")
+    }
+    if (entry.approvalStatus !== "pending") {
       throw new Error("Entry is not pending approval");
+    }
 
     entry.approvalStatus = "rejected";
-    entry.status = "rejected";
+    entry.rejectionReason = rejectionReason;
+    entry.isLocked = true;
     entry.rejectedBy = rejectedBy;
     entry.rejectionDate = new Date();
-    entry.rejectionReason = rejectionReason;
 
     await entry.save();
-    return entry.populate("bookEntries.account");
+
+    const populatedEntry = await JournalEntry.findById(entry._id)
+      .populate("createdBy", "name email")
+      .populate("bookEntries.account", "accountCode accountName accountType");
+
+    return populatedEntry ? populatedEntry.toJSON() : null;
   }
 
   static async getPendingApprovals() {
-    return await JournalEntry.find({
+    const entries = await JournalEntry.find({
       approvalStatus: "pending",
       deletedAt: null,
     })
       .populate("createdBy", "name email")
       .populate("bookEntries.account", "accountCode accountName accountType")
       .sort({ voucherDate: -1 });
+
+    return entries.map((entry) => entry.toJSON());
+  }
+
+  static async getEntriesByAccount(accountId) {
+    const entries = await JournalEntry.find({
+      "bookEntries.account": accountId,
+      deletedAt: null,
+    })
+      .populate("createdBy", "name email")
+      .populate("bookEntries.account", "accountCode accountName accountType")
+      .sort({ voucherDate: -1, createdAt: -1 });
+
+    return entries.map((entry) => entry.toJSON());
+  }
+
+  static async getTrialBalance() {
+    return this.generateTrialBalance(new Date());
   }
 }
 

@@ -20,8 +20,7 @@ export default function Select({
       {label && (
         <label
           htmlFor={name}
-          className="mb-2 block text-sm font-medium text-slate-700"
-        >
+          className="mb-2 block text-sm font-medium text-slate-700">
           {label}
           {required && <span className="ml-1 text-red-500">*</span>}
         </label>
@@ -45,8 +44,7 @@ export default function Select({
           disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500
           ${className}
         `}
-        {...props}
-      >
+        {...props}>
         <option value="" className="text-slate-400">
           {placeholder}
         </option>

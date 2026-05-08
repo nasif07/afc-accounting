@@ -28,6 +28,7 @@ const Ledger = () => {
   const [loading, setLoading] = useState(false);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
 
+
   // Fetch leaf accounts for selection
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -58,6 +59,7 @@ const Ledger = () => {
 
       const response = await accountingAPI.getLedger(selectedAccount, params);
       setLedgerData(response.data.data);
+      console.log(response.data.data);
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Failed to fetch ledger data",
@@ -77,7 +79,7 @@ const Ledger = () => {
         icon={BookOpen}
         title="Ledger Overview"
         description="Generate a detailed ledger report for any account and date range"
-        buttonText={"Export PDF"}
+        buttonText={"Print Report"}
         onButtonClick={() => window.print()}
         buttonIcon={Download}
       />
@@ -198,7 +200,7 @@ const Ledger = () => {
                       Opening Balance
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 text-right">
-                      {formatCurrency(ledgerData.openingBalance)}
+                      {formatCurrency(ledgerData.openingBalance)} {ledgerData.openingBalanceType === "debit" ? "Dr" : "Cr"}
                     </td>
                   </tr>
 
@@ -228,7 +230,7 @@ const Ledger = () => {
                           {tx.credit > 0 ? formatCurrency(tx.credit) : "-"}
                         </td>
                         <td className="px-6 py-4 text-sm text-right font-bold text-gray-900">
-                          {formatCurrency(tx.runningBalance)}
+                          {formatCurrency(tx.runningBalance)} {tx.runningBalanceType === "debit" ? "Dr" : "Cr"}
                         </td>
                       </tr>
                     ))
@@ -248,7 +250,7 @@ const Ledger = () => {
                       Closing Balance
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                      {formatCurrency(ledgerData.closingBalance)}
+                      {formatCurrency(ledgerData.closingBalance)} {ledgerData.closingBalanceType === "debit" ? "Dr" : "Cr"}
                     </td>
                   </tr>
                 </tbody>

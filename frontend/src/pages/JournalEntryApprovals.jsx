@@ -3,7 +3,15 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import toast from "react-hot-toast";
-import { Check, X, Loader, ChevronDown, Eye, AlertCircle, CheckCircle } from "lucide-react";
+import {
+  Check,
+  X,
+  Loader,
+  ChevronDown,
+  Eye,
+  AlertCircle,
+  CheckCircle,
+} from "lucide-react";
 import Card from "../components/common/Card";
 import Badge from "../components/common/Badge";
 import SectionHeader from "../components/common/SectionHeader";
@@ -94,10 +102,9 @@ export default function JournalEntryApprovals() {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount || 0);
+    return `৳ ${new Intl.NumberFormat("en-BD", {
+      minimumFractionDigits: 2,
+    }).format(amount || 0)}`;
   };
 
   const formatDate = (date) => {

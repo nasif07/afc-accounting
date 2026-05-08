@@ -5,6 +5,9 @@ const {
 } = require("../../config/constants");
 const generateVoucherNumber = require("../../utils/generateVoucherNumber");
 
+const toMinorUnit = (v) => Math.round(Number(v || 0) * 100);
+const fromMinorUnit = (v) => Number(v || 0) / 100;
+
 const bookEntrySchema = new mongoose.Schema(
   {
     account: {
@@ -12,35 +15,38 @@ const bookEntrySchema = new mongoose.Schema(
       ref: "ChartOfAccounts",
       required: [true, "Account is required"],
     },
+
     debit: {
       type: Number,
       default: 0,
       min: [0, "Debit cannot be negative"],
-      get: (v) => v / 100,
-      set: (v) => Math.round((v || 0) * 100),
+      get: fromMinorUnit,
+      set: toMinorUnit,
     },
+
     credit: {
       type: Number,
       default: 0,
       min: [0, "Credit cannot be negative"],
-      get: (v) => v / 100,
-      set: (v) => Math.round((v || 0) * 100),
+      get: fromMinorUnit,
+      set: toMinorUnit,
     },
+
     description: {
       type: String,
       trim: true,
       default: "",
     },
+
     wasLeafAtCreation: {
       type: Boolean,
       default: true,
-      description: "Whether the account was a leaf account when this entry was created. Used to prevent retroactive validation failures if hierarchy changes.",
     },
   },
   {
     _id: false,
-    toJSON: { getters: false },
-    toObject: { getters: false },
+    toJSON: { getters: true },
+    toObject: { getters: true },
   },
 );
 
@@ -51,13 +57,16 @@ bookEntrySchema.pre("validate", async function (next) {
       return next(new Error("Account is required for each line item"));
     }
 
-    if (this.debit > 0 && this.credit > 0) {
+    const debit = Number(this.debit || 0);
+    const credit = Number(this.credit || 0);
+
+    if (debit > 0 && credit > 0) {
       return next(
         new Error("Cannot have both debit and credit in the same line item"),
       );
     }
 
-    if (this.debit === 0 && this.credit === 0) {
+    if (debit === 0 && credit === 0) {
       return next(
         new Error(
           "Amount cannot be zero - each line must have either a debit or credit",
@@ -92,6 +101,8 @@ bookEntrySchema.pre("validate", async function (next) {
       );
     }
 
+    this.wasLeafAtCreation = !hasChildren;
+
     next();
   } catch (error) {
     next(error);
@@ -101,21 +112,24 @@ bookEntrySchema.pre("validate", async function (next) {
 const journalEntrySchema = new mongoose.Schema(
   {
     voucherNumber: {
-      required: [true, "Voucher number is required"],
       type: String,
+      required: [true, "Voucher number is required"],
       unique: true,
       trim: true,
     },
+
     voucherDate: {
       type: Date,
       required: [true, "Voucher date is required"],
       default: Date.now,
     },
+
     transactionType: {
       type: String,
       enum: Object.values(TRANSACTION_TYPES),
       required: [true, "Transaction type is required"],
     },
+
     bookEntries: {
       type: [bookEntrySchema],
       required: [true, "Book entries are required"],
@@ -126,79 +140,95 @@ const journalEntrySchema = new mongoose.Schema(
         message: "Journal entry must have at least 2 line items",
       },
     },
+
     totalDebit: {
       type: Number,
       default: 0,
-      set: (v) => Math.round((v || 0) * 100),
-      get: (v) => v / 100,
+      get: fromMinorUnit,
+      set: toMinorUnit,
     },
+
     totalCredit: {
       type: Number,
       default: 0,
-      set: (v) => Math.round((v || 0) * 100),
-      get: (v) => v / 100,
+      get: fromMinorUnit,
+      set: toMinorUnit,
     },
+
     isBalanced: {
       type: Boolean,
       default: false,
     },
+
     description: {
       type: String,
       trim: true,
       default: "",
     },
+
     referenceNumber: {
       type: String,
       trim: true,
       default: "",
     },
+
     approvalStatus: {
       type: String,
       enum: Object.values(APPROVAL_STATUS),
       default: APPROVAL_STATUS.PENDING,
     },
+
     status: {
       type: String,
       enum: ["draft", "posted", "reversed", "deleted"],
       default: "draft",
     },
+
     isLocked: {
       type: Boolean,
       default: false,
     },
+
     reversalOf: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "JournalEntry",
       default: null,
     },
+
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
+
     approvalDate: {
       type: Date,
       default: null,
     },
+
     rejectionReason: {
       type: String,
       trim: true,
       default: "",
     },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Created by is required"],
     },
+
     deletedAt: {
       type: Date,
       default: null,
     },
+
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
+
     attachments: {
       type: [String],
       default: [],
@@ -206,8 +236,8 @@ const journalEntrySchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { getters: false },
-    toObject: { getters: false },
+    toJSON: { getters: true },
+    toObject: { getters: true },
   },
 );
 
@@ -230,28 +260,29 @@ journalEntrySchema.pre("save", function (next) {
       return next(new Error("Journal entry must have at least 2 line items"));
     }
 
-    const totalD = this.bookEntries.reduce(
-      (sum, entry) => sum + (entry.debit || 0),
-      0,
-    );
-    const totalC = this.bookEntries.reduce(
-      (sum, entry) => sum + (entry.credit || 0),
+    const totalDebitMinor = this.bookEntries.reduce(
+      (sum, entry) => sum + Number(entry.get("debit", null, { getters: false }) || 0),
       0,
     );
 
-    this.totalDebit = totalD;
-    this.totalCredit = totalC;
-    this.isBalanced = Math.abs(totalD - totalC) <= 1;
+    const totalCreditMinor = this.bookEntries.reduce(
+      (sum, entry) => sum + Number(entry.get("credit", null, { getters: false }) || 0),
+      0,
+    );
+
+    this.totalDebit = totalDebitMinor / 100;
+    this.totalCredit = totalCreditMinor / 100;
+    this.isBalanced = totalDebitMinor === totalCreditMinor;
 
     if (!this.isBalanced) {
       return next(
         new Error(
-          `Journal entry is not balanced. Debits: ${totalD / 100}, Credits: ${totalC / 100}`,
+          `Journal entry is not balanced. Debits: ${totalDebitMinor / 100}, Credits: ${totalCreditMinor / 100}`,
         ),
       );
     }
 
-    if (this.status === "posted" && this.approvalStatus !== "approved") {
+    if (this.status === "posted" && this.approvalStatus !== APPROVAL_STATUS.APPROVED) {
       return next(new Error("Cannot post a journal entry without approval"));
     }
 
@@ -262,7 +293,7 @@ journalEntrySchema.pre("save", function (next) {
 });
 
 // Prevent editing finalized entries
-journalEntrySchema.pre("findOneAndUpdate", async function (next) {
+async function preventEditingFinalized(next) {
   try {
     const doc = await this.model.findOne(this.getFilter());
 
@@ -277,34 +308,23 @@ journalEntrySchema.pre("findOneAndUpdate", async function (next) {
   } catch (error) {
     next(error);
   }
-});
+}
 
-journalEntrySchema.pre("findByIdAndUpdate", async function (next) {
-  try {
-    const doc = await this.model.findById(this.getFilter()._id);
-
-    if (
-      doc &&
-      (doc.isLocked || doc.status === "posted" || doc.status === "deleted")
-    ) {
-      return next(new Error("Cannot edit finalized journal entry"));
-    }
-
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
+journalEntrySchema.pre("findOneAndUpdate", preventEditingFinalized);
+journalEntrySchema.pre("findByIdAndUpdate", preventEditingFinalized);
 
 // Hide soft-deleted entries by default
 function excludeDeleted(next) {
-  if (!this.getQuery().includeDeleted) {
-    this.where({ deletedAt: null });
+  const query = this.getQuery();
+
+  if (query.includeDeleted) {
+    const nextQuery = { ...query };
+    delete nextQuery.includeDeleted;
+    this.setQuery(nextQuery);
   } else {
-    const query = this.getQuery();
-    delete query.includeDeleted;
-    this.setQuery(query);
+    this.where({ deletedAt: null });
   }
+
   next();
 }
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   fetchAccounts,
+  fetchLeafAccounts,
   createAccount,
   updateAccount,
   archiveAccount,
@@ -37,6 +37,7 @@ const INITIAL_FORM_DATA = {
   description: "",
   openingBalance: 0,
   openingBalanceType: "debit",
+  openingDate: "",
   parentAccount: "",
   status: "active",
 };
@@ -61,7 +62,6 @@ const ACCOUNT_STATUS_OPTIONS = [
 
 export default function Accounts() {
   const dispatch = useDispatch();
-  const queryClient = useQueryClient();
   const { accounts, isLoading, error } = useSelector((state) => state.accounts);
 
   const [showForm, setShowForm] = useState(false);
@@ -71,6 +71,7 @@ export default function Accounts() {
 
   useEffect(() => {
     dispatch(fetchAccounts({ includeDeleted: true }));
+    dispatch(fetchLeafAccounts());
   }, [dispatch]);
 
   useEffect(() => {
@@ -96,9 +97,7 @@ export default function Accounts() {
 
   const refreshAccountsUI = async () => {
     await dispatch(fetchAccounts({ includeDeleted: true }));
-    await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-    await queryClient.invalidateQueries({ queryKey: ["accounts"] });
-    await queryClient.invalidateQueries({ queryKey: ["leafAccounts"] });
+    await dispatch(fetchLeafAccounts());
   };
 
   const normalizedAccounts = useMemo(() => {
@@ -119,7 +118,10 @@ export default function Accounts() {
   const visibleAccounts = useMemo(() => {
     if (!Array.isArray(normalizedAccounts)) return [];
     if (statusFilter === "all") return normalizedAccounts;
-    return normalizedAccounts.filter((acc) => acc.status === statusFilter);
+
+    return normalizedAccounts.filter(
+      (acc) => String(acc.status || "").toLowerCase() === statusFilter,
+    );
   }, [normalizedAccounts, statusFilter]);
 
   const parentOptions = useMemo(() => {
@@ -181,6 +183,7 @@ export default function Accounts() {
         openingBalance === 0
           ? getDefaultBalanceType(accountType)
           : formData.openingBalanceType,
+      openingDate: formData.openingDate || undefined,
       parentAccount: formData.parentAccount || null,
       status,
     };
@@ -281,6 +284,9 @@ export default function Accounts() {
       openingBalance: Number(account.openingBalance) || 0,
       openingBalanceType:
         account.openingBalanceType || getDefaultBalanceType(accountType),
+      openingDate: account.openingDate
+        ? new Date(account.openingDate).toISOString().split("T")[0]
+        : "",
       status: account.status || "active",
     });
 
@@ -411,7 +417,7 @@ export default function Accounts() {
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <Input
                 label="Opening Balance"
                 name="openingBalance"
@@ -439,6 +445,19 @@ export default function Accounts() {
                 }
                 options={BALANCE_TYPE_OPTIONS}
                 disabled={Number(formData.openingBalance) === 0}
+              />
+
+              <Input
+                label="Opening Date"
+                name="openingDate"
+                type="date"
+                value={formData.openingDate}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    openingDate: e.target.value,
+                  }))
+                }
               />
 
               <Select

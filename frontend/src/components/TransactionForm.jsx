@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Trash2, Plus } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from './ui/Card';
 import { Modal, Input, Select, FormField, Button, Badge } from './ui/index';
-import { formatCurrencyForInput, parseCurrencyInput, centsToDecimal } from '../utils/currency';
+import { parseCurrencyInput } from '../utils/currency';
 
 const TransactionForm = React.forwardRef(
   (

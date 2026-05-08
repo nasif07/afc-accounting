@@ -1,9 +1,7 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { Info, Search, Tag } from "lucide-react";
 import COATreeNode from "./COATreeNode";
 import AccountDetailsModal from "./AccountDetailsModal";
-import { toast } from "sonner";
-import { coaAPI } from "../../services/apiMethods";
 
 const COATreeView = ({
   accounts = [],
@@ -15,61 +13,43 @@ const COATreeView = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [balances, setBalances] = useState({});
-
-  // Fetch balances for leaf accounts
-  useEffect(() => {
-    const fetchBalances = async () => {
-      if (!Array.isArray(accounts) || accounts.length === 0) return;
-      
-      const leafAccounts = accounts.filter((acc) => {
-        const parentId = typeof acc.parentAccount === "object" && acc.parentAccount !== null
-          ? acc.parentAccount._id
-          : acc.parentAccount || null;
-        return !parentId || !accounts.some((a) => a._id === parentId);
-      });
-
-      const newBalances = {};
-      for (const account of leafAccounts) {
-        try {
-          const response = await coaAPI.getBalance(account._id);
-          newBalances[account._id] = response.data.data?.balance || 0;
-        } catch (error) {
-          console.error(`Failed to fetch balance for ${account._id}:`, error);
-        }
-      }
-      setBalances(newBalances);
-    };
-
-    fetchBalances();
-  }, [accounts]);
 
   const treeData = useMemo(() => {
+    const safeAccounts = Array.isArray(accounts)
+      ? accounts.filter((acc) => acc && acc._id)
+      : [];
+
     const map = {};
     const roots = [];
 
-    accounts.forEach((acc) => {
-      map[acc._id] = { ...acc, children: [], balance: balances[acc._id] };
+    safeAccounts.forEach((acc) => {
+      map[acc._id] = {
+        ...acc,
+        children: [],
+        balance: Number(acc.currentBalance || 0),
+        balanceType: acc.currentBalanceType || "debit",
+      };
     });
 
-    accounts.forEach((acc) => {
+    safeAccounts.forEach((acc) => {
       const parentId =
         typeof acc.parentAccount === "object" && acc.parentAccount !== null
           ? acc.parentAccount._id
           : acc.parentAccount || null;
 
-      if (parentId && map[parentId]) {
+      if (parentId && map[parentId] && map[acc._id]) {
         map[parentId].children.push(map[acc._id]);
-      } else {
+      } else if (map[acc._id]) {
         roots.push(map[acc._id]);
       }
     });
 
     const sortTree = (nodes) =>
-      nodes
+      (Array.isArray(nodes) ? nodes : [])
+        .filter((node) => node && node._id)
         .sort((a, b) =>
-          String(a.accountCode).localeCompare(
-            String(b.accountCode),
+          String(a.accountCode || "").localeCompare(
+            String(b.accountCode || ""),
             undefined,
             {
               numeric: true,
@@ -89,6 +69,8 @@ const COATreeView = ({
     const search = searchTerm.trim().toLowerCase();
 
     const filterNode = (node) => {
+      if (!node || !node._id) return null;
+
       const matches =
         !search ||
         String(node.accountCode || "")
@@ -98,7 +80,9 @@ const COATreeView = ({
           .toLowerCase()
           .includes(search);
 
-      const filteredChildren = (node.children || [])
+      const filteredChildren = (
+        Array.isArray(node.children) ? node.children : []
+      )
         .map(filterNode)
         .filter(Boolean);
 
@@ -108,20 +92,24 @@ const COATreeView = ({
           children: filteredChildren,
         };
       }
+
       return null;
     };
 
-    return treeData.map(filterNode).filter(Boolean);
+    return (Array.isArray(treeData) ? treeData : [])
+      .map(filterNode)
+      .filter(Boolean);
   }, [treeData, searchTerm]);
 
   const handleViewAccount = (account) => {
+    console.log("CLICKED ACCOUNT:", account);
     setSelectedAccount(account);
     setIsModalOpen(true);
+    console.log("MODAL SHOULD OPEN");
   };
 
   return (
     <div className="w-full bg-white">
-      {/* Search Header - Responsive Padding */}
       <div className="relative mb-4 group">
         <Search
           className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"
@@ -136,24 +124,25 @@ const COATreeView = ({
         />
       </div>
 
-      {/* Tree Container - Horizontal scroll on tiny screens if needed */}
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <div className="min-w-full inline-block align-middle">
           {filteredTree.length ? (
-            filteredTree.map((node) => (
-              <COATreeNode
-                key={node._id}
-                node={node}
-                onEdit={onEditAccount}
-                onDelete={onDeleteAccount}
-                onRestore={onRestoreAccount}
-                onView={handleViewAccount}
-                onToggleStatus={onStatusChange}
-              />
-            ))
+            filteredTree
+              .filter((node) => node && node._id)
+              .map((node) => (
+                <COATreeNode
+                  key={node._id}
+                  node={node}
+                  onEdit={onEditAccount}
+                  onDelete={onDeleteAccount}
+                  onRestore={onRestoreAccount}
+                  onView={handleViewAccount}
+                  onToggleStatus={onStatusChange}
+                />
+              ))
           ) : (
             <div className="px-4 py-16 text-center">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400 mb-3">
+              <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
                 <Search size={20} />
               </div>
               <p className="text-sm font-medium text-slate-500">
@@ -164,21 +153,19 @@ const COATreeView = ({
         </div>
       </div>
 
-      {/* Account Details Modal */}
       <AccountDetailsModal
         account={selectedAccount}
         isOpen={isModalOpen}
+        allAccounts={accounts}
         onClose={() => {
           setIsModalOpen(false);
           setSelectedAccount(null);
         }}
       />
 
-      {/* Legend / Info Section - Responsive Grid/Flex */}
       <div className="mt-4 flex flex-col gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-        {/* Types Legend */}
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <Tag size={13} className="text-slate-400" />
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
               Account Types
@@ -205,12 +192,10 @@ const COATreeView = ({
           </div>
         </div>
 
-        {/* Separator - Visible only on Desktop */}
         <div className="hidden h-5 w-px bg-slate-200 lg:block" />
 
-        {/* Status Legend */}
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <Info size={13} className="text-slate-400" />
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
               Status Guide
