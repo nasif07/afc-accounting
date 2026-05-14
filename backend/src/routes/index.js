@@ -18,6 +18,7 @@ const vendorInvoiceRoutes = require('../modules/vendor/vendorInvoice.routes');
 const vendorPaymentRoutes = require('../modules/vendor/vendorPayment.routes');
 const settingsRoutes = require('../modules/settings/settings.routes');
 const searchRoutes = require('../modules/search/search.routes');
+const pettyCashRoutes = require('../modules/pettycash/pettycash.routes');
 
 // Register routes
 router.use('/auth', authRoutes);
@@ -36,5 +37,6 @@ router.use('/audit', auditRoutes);
 router.use('/vendor-invoices', vendorInvoiceRoutes);
 router.use('/vendor-payments', vendorPaymentRoutes);
 router.use('/search', searchRoutes);
+router.use('/petty-cash', pettyCashRoutes);
 
 module.exports = router;

@@ -9,9 +9,7 @@ import Account from "../modules/chartOfAccounts/coa.model.js";
 
 dotenv.config();
 
-// ========================================
 // DEFAULT CHART OF ACCOUNTS
-// ========================================
 
 const defaultAccounts = [
   // =========================
@@ -196,9 +194,7 @@ const defaultAccounts = [
   },
 ];
 
-// ========================================
 // SEED FUNCTION
-// ========================================
 
 async function seed() {
   try {
@@ -207,9 +203,7 @@ async function seed() {
 
     console.log("✅ Database Connected");
 
-    // ========================================
     // CREATE ADMIN
-    // ========================================
 
     let admin = await User.findOne({
       email: process.env.SEED_ADMIN_EMAIL,
@@ -233,9 +227,7 @@ async function seed() {
       console.log("✅ Admin Already Exists");
     }
 
-    // ========================================
     // SEED ACCOUNTS
-    // ========================================
 
     for (const account of defaultAccounts) {
       await Account.updateOne(

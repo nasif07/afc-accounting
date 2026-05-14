@@ -141,7 +141,9 @@ class AccountingController {
         referenceNumber,
         bookEntries,
         attachments,
+        requiresApproval,
       } = req.body;
+
 
       if (!voucherDate || !transactionType || !bookEntries) {
         return ApiResponse.badRequest(
@@ -179,27 +181,47 @@ class AccountingController {
         );
       }
 
+
       const entryData = {
         voucherDate,
         transactionType,
         description,
         referenceNumber,
         bookEntries,
+
         attachments: Array.isArray(attachments) ? attachments : [],
-        createdBy: req.user.userId,
+
+        createdBy: req.user.userId || req.user._id,
+
+        // ==============================
+        // APPROVAL LOGIC
+        // ==============================
+
+        requiresApproval: requiresApproval !== false,
+
+        sourceModule: "manual",
       };
 
+      // Optional voucher number
       if (voucherNumber) {
         entryData.voucherNumber = voucherNumber;
       }
 
+      // ==============================
+      // CREATE ENTRY
+      // ==============================
+
       const entry = await AccountingService.createJournalEntry(entryData);
 
-      return ApiResponse.created(
-        res,
-        entry,
-        "Journal entry created successfully",
-      );
+      // ==============================
+      // RESPONSE MESSAGE
+      // ==============================
+
+      const message = entryData.requiresApproval
+        ? "Journal entry created and sent for director approval"
+        : "Journal entry created and auto approved successfully";
+
+      return ApiResponse.created(res, entry, message);
     } catch (error) {
       next(error);
     }

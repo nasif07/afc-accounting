@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Loader, X } from "lucide-react";
+import { Plus, Loader, X, ShieldCheck } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchLeafAccounts } from "../../store/slices/accountSlice";
 import BookEntryRow from "./BookEntryRow";
@@ -18,47 +18,76 @@ const DynamicJournalForm = ({
 }) => {
   const dispatch = useDispatch();
 
-  // ✅ USE REDUX LEAF ACCOUNTS (FINAL FIX)
   const { leafAccounts, isLoading: isLoadingAccounts } = useSelector(
-    (state) => state.accounts
+    (state) => state.accounts,
   );
 
-  // ✅ fetch leaf accounts from backend
+  // Fetch leaf accounts
   useEffect(() => {
     dispatch(fetchLeafAccounts());
   }, [dispatch]);
 
+  // ==============================
+  // FORM STATES
+  // ==============================
+
   const [voucherDate, setVoucherDate] = useState(
-    initialData?.voucherDate || new Date().toISOString().split("T")[0]
+    initialData?.voucherDate || new Date().toISOString().split("T")[0],
   );
+
   const [transactionType, setTransactionType] = useState(
-    initialData?.transactionType || "journal-entry"
+    initialData?.transactionType || "journal-entry",
   );
+
   const [description, setDescription] = useState(
-    initialData?.description || ""
+    initialData?.description || "",
   );
+
+  const [requiresApproval, setRequiresApproval] = useState(
+    initialData ? initialData.approvalStatus === "pending" : true,
+  );
+
   const [bookEntries, setBookEntries] = useState(
     initialData?.bookEntries || [
-      { account: "", debit: 0, credit: 0, description: "" },
-      { account: "", debit: 0, credit: 0, description: "" },
-    ]
+      {
+        account: "",
+        debit: 0,
+        credit: 0,
+        description: "",
+      },
+      {
+        account: "",
+        debit: 0,
+        credit: 0,
+        description: "",
+      },
+    ],
   );
+
   const [errors, setErrors] = useState({});
+
+  // ==============================
+  // BALANCE CALCULATION
+  // ==============================
 
   const totalDebit = bookEntries.reduce(
     (sum, entry) => sum + (parseFloat(entry.debit) || 0),
-    0
+    0,
   );
 
   const totalCredit = bookEntries.reduce(
     (sum, entry) => sum + (parseFloat(entry.credit) || 0),
-    0
+    0,
   );
 
   const isBalanced =
     Math.abs(totalDebit - totalCredit) < 0.01 &&
     totalDebit > 0 &&
     totalCredit > 0;
+
+  // ==============================
+  // VALIDATION
+  // ==============================
 
   const validateForm = () => {
     const newErrors = {};
@@ -77,15 +106,15 @@ const DynamicJournalForm = ({
         isValid = false;
       }
 
-      const d = parseFloat(entry.debit) || 0;
-      const c = parseFloat(entry.credit) || 0;
+      const debit = parseFloat(entry.debit) || 0;
+      const credit = parseFloat(entry.credit) || 0;
 
-      if (d > 0 && c > 0) {
+      if (debit > 0 && credit > 0) {
         entryErrors.push("Cannot have both debit and credit");
         isValid = false;
       }
 
-      if (d === 0 && c === 0) {
+      if (debit === 0 && credit === 0) {
         entryErrors.push("Must have either debit or credit");
         isValid = false;
       }
@@ -99,14 +128,20 @@ const DynamicJournalForm = ({
       if (totalDebit === 0) {
         toast.error("Journal entry cannot be empty");
       } else {
-        toast.error("Journal entry must be balanced (Debits = Credits)");
+        toast.error("Journal entry must be balanced");
       }
+
       return false;
     }
 
     setErrors(newErrors);
+
     return isValid;
   };
+
+  // ==============================
+  // ROW HANDLERS
+  // ==============================
 
   const handleRowUpdate = (rowIndex, updatedEntry) => {
     const newEntries = [...bookEntries];
@@ -119,60 +154,79 @@ const DynamicJournalForm = ({
       toast.error("Journal entry must have at least 2 line items");
       return;
     }
+
     setBookEntries(bookEntries.filter((_, idx) => idx !== rowIndex));
   };
 
   const handleAddRow = () => {
     setBookEntries([
       ...bookEntries,
-      { account: "", debit: 0, credit: 0, description: "" },
+      {
+        account: "",
+        debit: 0,
+        credit: 0,
+        description: "",
+      },
     ]);
   };
 
+  // ==============================
+  // SUBMIT
+  // ==============================
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!validateForm()) return;
 
     const payload = {
       voucherDate,
       transactionType,
       description,
+      requiresApproval,
       bookEntries,
     };
 
     await onSubmit(payload);
   };
 
+  // ==============================
+  // LOADING
+  // ==============================
+
   if (isLoadingAccounts) {
     return (
       <div className="flex items-center justify-center p-6">
         <Loader className="animate-spin text-red-600" size={20} />
-        <span className="ml-2 text-sm text-slate-600">
-          Loading accounts...
-        </span>
+
+        <span className="ml-2 text-sm text-slate-600">Loading accounts...</span>
       </div>
     );
   }
 
+  // ==============================
+  // UI
+  // ==============================
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 relative">
+    <form onSubmit={handleSubmit} className="relative space-y-4">
+      {/* Close Button */}
       {onCancel && (
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={onCancel}
-          className="absolute right-2 top-2"
-        >
+          className="absolute right-2 top-2">
           <X size={16} />
         </Button>
       )}
 
-      {/* Voucher */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <h2 className="text-sm font-bold mb-3">Voucher Details</h2>
+      {/* Voucher Details */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-bold">Voucher Details</h2>
 
-        <div className="grid md:grid-cols-3 gap-3">
+        <div className="grid gap-3 md:grid-cols-3">
           <Input
             label="Voucher Date"
             type="date"
@@ -185,10 +239,22 @@ const DynamicJournalForm = ({
             value={transactionType}
             onChange={(e) => setTransactionType(e.target.value)}
             options={[
-              { value: "journal-entry", label: "Journal Entry" },
-              { value: "receipt", label: "Receipt" },
-              { value: "payment", label: "Payment" },
-              { value: "transfer", label: "Transfer" },
+              {
+                value: "journal-entry",
+                label: "Journal Entry",
+              },
+              {
+                value: "receipt",
+                label: "Receipt",
+              },
+              {
+                value: "payment",
+                label: "Payment",
+              },
+              {
+                value: "transfer",
+                label: "Transfer",
+              },
             ]}
           />
 
@@ -200,9 +266,9 @@ const DynamicJournalForm = ({
         </div>
       </div>
 
-      {/* Entries */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <h2 className="text-sm font-bold mb-3">Book Entries</h2>
+      {/* Book Entries */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-bold">Book Entries</h2>
 
         {bookEntries.map((entry, idx) => (
           <BookEntryRow
@@ -221,18 +287,49 @@ const DynamicJournalForm = ({
           variant="outline"
           onClick={handleAddRow}
           className="mt-3"
-          icon={Plus}
-        >
+          icon={Plus}>
           Add Row
         </Button>
       </div>
 
+      {/* Approval Settings */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <ShieldCheck size={18} className="text-blue-600" />
+
+          <h2 className="text-sm font-bold">Approval Settings</h2>
+        </div>
+
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={requiresApproval}
+            onChange={(e) => setRequiresApproval(e.target.checked)}
+            className="mt-1 h-4 w-4"
+          />
+
+          <div>
+            <p className="text-sm font-medium text-slate-700">
+              Require Director Approval
+            </p>
+
+            <p className="mt-1 text-xs text-slate-500">
+              If enabled, this journal entry will be sent for director approval
+              before posting. Otherwise it will be automatically approved and
+              posted instantly.
+            </p>
+          </div>
+        </label>
+      </div>
+
+      {/* Balance Summary */}
       <BalanceSummary
         totalDebit={totalDebit}
         totalCredit={totalCredit}
         isBalanced={isBalanced}
       />
 
+      {/* Submit */}
       <div className="flex justify-end gap-2">
         <Button type="submit" disabled={!isBalanced || isSubmitting}>
           {isSubmitting ? "Saving..." : "Save Entry"}

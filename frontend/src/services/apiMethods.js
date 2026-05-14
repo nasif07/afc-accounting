@@ -147,6 +147,32 @@ export const auditAPI = {
   getAll: (params) => api.get("/audit", { params }),
 };
 
+// ==================== PETTY CASH ====================
+export const pettyCashAPI = {
+  getAll: (params) => api.get("/petty-cash", { params }),
+
+  getById: (id) => api.get(`/petty-cash/${id}`),
+
+  create: (data) => api.post("/petty-cash", data),
+
+  update: (id, data) =>
+    api.put(`/petty-cash/${id}`, data),
+
+  delete: (id) =>
+    api.delete(`/petty-cash/${id}`),
+
+  getStats: (params) =>
+    api.get("/petty-cash/report/stats", { params }),
+
+  getReport: (params) =>
+    api.get("/petty-cash/report/detailed", { params }),
+
+  getByExpenseAccount: (expenseAccountId) =>
+    api.get(
+      `/petty-cash/expense-account/${expenseAccountId}`
+    ),
+};
+
 // ==================== SEARCH ====================
 export const searchAPI = {
   global: (query) => api.get("/search/global", { params: { query } }),

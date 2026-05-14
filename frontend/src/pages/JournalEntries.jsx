@@ -74,29 +74,68 @@ export default function JournalEntries() {
   const handleFormSubmit = async (payload) => {
     let result;
 
-    if (editingEntry) {
-      result = await dispatch(
-        updateJournalEntry({ id: editingEntry._id, ...payload }),
+    try {
+      // ==============================
+      // UPDATE ENTRY
+      // ==============================
+      if (editingEntry) {
+        result = await dispatch(
+          updateJournalEntry({
+            id: editingEntry._id,
+            data: payload,
+          }),
+        );
+
+        if (result?.error) {
+          toast.error(result.payload || "Failed to update journal entry");
+          return;
+        }
+
+        // Auto approval success message
+        if (payload.requiresApproval === false) {
+          toast.success("Journal entry updated and auto approved successfully");
+        } else {
+          toast.success("Journal entry updated successfully");
+        }
+      }
+
+      // ==============================
+      // CREATE ENTRY
+      // ==============================
+      else {
+        result = await dispatch(createJournalEntry(payload));
+
+        if (result?.error) {
+          toast.error(result.payload || "Failed to create journal entry");
+          return;
+        }
+
+        // Auto approval success message
+        if (payload.requiresApproval === false) {
+          toast.success("Journal entry created and auto approved successfully");
+        } else {
+          toast.success("Journal entry created and sent for approval");
+        }
+      }
+
+      // ==============================
+      // CLOSE FORM
+      // ==============================
+      handleCloseForm();
+
+      // ==============================
+      // REFRESH LIST
+      // ==============================
+      dispatch(
+        fetchJournalEntries({
+          page: currentPage,
+          limit,
+          search: searchTerm,
+        }),
       );
-    } else {
-      result = await dispatch(createJournalEntry(payload));
+    } catch (error) {
+      toast.error(error?.message || "Something went wrong");
     }
-
-    if (result?.error) {
-      toast.error(result.payload || "Operation failed");
-      return;
-    }
-
-    toast.success(`Entry ${editingEntry ? "updated" : "created"} successfully`);
-    handleCloseForm();
-
-    dispatch(
-      fetchJournalEntries({
-        page: currentPage,
-        limit,
-        search: searchTerm,
-      }),
-    );
   };
 
   const handleEdit = (entry) => {
@@ -442,7 +481,6 @@ export default function JournalEntries() {
                   <div className="px-3 py-2 text-sm font-semibold text-slate-700">
                     Page {pagination.page || 1} of {pagination.pages || 1}
                   </div>
-          
 
                   <button
                     onClick={() =>

@@ -315,11 +315,10 @@ export default function Reports() {
       });
 
       // ❌ Remove report title badge (black background pill)
-clone.querySelectorAll(".rounded-full.bg-neutral-900").forEach((el) => {
-  el.remove();
-});
+      clone.querySelectorAll(".rounded-full.bg-neutral-900").forEach((el) => {
+        el.remove();
+      });
       // ✅ Fix badge pill centering
-
 
       // ✅ Collapse large min-heights
       clone.querySelectorAll("*").forEach((el) => {

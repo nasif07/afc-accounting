@@ -14,6 +14,7 @@ import settingsReducer from "./slices/settingsSlice";
 import searchReducer from "./slices/searchSlice";
 import journalReducer from "./slices/journalSlice";
 import accountReducer from "./slices/accountSlice";
+import pettyCashReducer from "./slices/pettyCashSlice";
 
 export const store = configureStore({
   reducer: {
@@ -32,6 +33,7 @@ export const store = configureStore({
     search: searchReducer,
     journals: journalReducer,
     accounts: accountReducer,
+    pettyCash: pettyCashReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

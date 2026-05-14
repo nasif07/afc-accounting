@@ -172,6 +172,17 @@ const journalEntrySchema = new mongoose.Schema(
       default: "",
     },
 
+    sourceModule: {
+      type: String,
+      enum: ["manual", "petty_cash", "payroll", "receipt", "expense"],
+      default: "manual",
+    },
+
+    requiresApproval: {
+      type: Boolean,
+      default: true,
+    },
+
     approvalStatus: {
       type: String,
       enum: Object.values(APPROVAL_STATUS),
@@ -261,12 +272,14 @@ journalEntrySchema.pre("save", function (next) {
     }
 
     const totalDebitMinor = this.bookEntries.reduce(
-      (sum, entry) => sum + Number(entry.get("debit", null, { getters: false }) || 0),
+      (sum, entry) =>
+        sum + Number(entry.get("debit", null, { getters: false }) || 0),
       0,
     );
 
     const totalCreditMinor = this.bookEntries.reduce(
-      (sum, entry) => sum + Number(entry.get("credit", null, { getters: false }) || 0),
+      (sum, entry) =>
+        sum + Number(entry.get("credit", null, { getters: false }) || 0),
       0,
     );
 
@@ -282,7 +295,10 @@ journalEntrySchema.pre("save", function (next) {
       );
     }
 
-    if (this.status === "posted" && this.approvalStatus !== APPROVAL_STATUS.APPROVED) {
+    if (
+      this.status === "posted" &&
+      this.approvalStatus !== APPROVAL_STATUS.APPROVED
+    ) {
       return next(new Error("Cannot post a journal entry without approval"));
     }
 

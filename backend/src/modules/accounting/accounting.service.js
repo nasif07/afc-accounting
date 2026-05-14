@@ -708,40 +708,55 @@ class AccountingService {
     return [...new Set(errors)];
   }
 
-  static async createJournalEntry(entryData) {
-    if (!entryData?.bookEntries || !Array.isArray(entryData.bookEntries)) {
-      throw new Error("Book entries are required");
-    }
-
-    this.validateDoubleEntry(entryData.bookEntries);
-
-    const accountErrors = await this.validateAccounts(entryData.bookEntries);
-    if (accountErrors.length > 0) {
-      throw new Error(`Invalid accounts: ${accountErrors.join(", ")}`);
-    }
-
-    // No insufficient balance blocking for general journal entry
-
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const [entry] = await JournalEntry.create([entryData], { session });
-
-      await session.commitTransaction();
-
-      const createdEntry = await JournalEntry.findById(entry._id)
-        .populate("createdBy", "name email")
-        .populate("bookEntries.account", "accountName accountCode accountType");
-
-      return createdEntry.toJSON();
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+static async createJournalEntry(entryData) {
+  if (!entryData?.bookEntries || !Array.isArray(entryData.bookEntries)) {
+    throw new Error("Book entries are required");
   }
+
+  this.validateDoubleEntry(entryData.bookEntries);
+
+  const accountErrors = await this.validateAccounts(entryData.bookEntries);
+
+  if (accountErrors.length > 0) {
+    throw new Error(`Invalid accounts: ${accountErrors.join(", ")}`);
+  }
+
+  const requiresApproval = entryData.requiresApproval !== false;
+
+  entryData.sourceModule = entryData.sourceModule || "manual";
+
+  // Do NOT mark auto journal as approved here.
+  // Balance update happens inside approveEntry().
+  entryData.approvalStatus = "pending";
+  entryData.status = "draft";
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const [entry] = await JournalEntry.create([entryData], { session });
+
+    await session.commitTransaction();
+
+    // Auto approve + post system generated journals
+    // This will also update COA balance.
+    if (!requiresApproval) {
+      return await this.approveEntry(entry._id, entryData.createdBy);
+    }
+
+    const createdEntry = await JournalEntry.findById(entry._id)
+      .populate("createdBy", "name email")
+      .populate("approvedBy", "name email")
+      .populate("bookEntries.account", "accountName accountCode accountType");
+
+    return createdEntry.toJSON();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+}
 
   static async getAllEntries(filters = {}) {
     const query = { deletedAt: null };
