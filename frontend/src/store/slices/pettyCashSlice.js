@@ -80,27 +80,11 @@ export const deletePettyCash = createAsyncThunk(
   }
 );
 
-export const fetchPettyCashStats = createAsyncThunk(
-  "pettyCash/fetchPettyCashStats",
-  async (params = {}, { rejectWithValue }) => {
-    try {
-      const response = await pettyCashAPI.getStats(params);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(
-        getErrorMessage(error, "Failed to fetch petty cash statistics")
-      );
-    }
-  }
-);
-
 // ==================== INITIAL STATE ====================
 
 const initialState = {
   items: [],
   item: null,
-  stats: null,
-
   loading: false,
   error: null,
   success: false,
@@ -136,10 +120,6 @@ const pettyCashSlice = createSlice({
 
     clearItem: (state) => {
       state.item = null;
-    },
-
-    clearStats: (state) => {
-      state.stats = null;
     },
 
     resetPettyCashState: () => initialState,
@@ -241,19 +221,7 @@ const pettyCashSlice = createSlice({
         }
       })
 
-      .addCase(deletePettyCash.rejected, handleRejected)
-
-      // ==================== STATS ====================
-
-      .addCase(fetchPettyCashStats.pending, handlePending)
-
-      .addCase(fetchPettyCashStats.fulfilled, (state, action) => {
-        state.loading = false;
-
-        state.stats = getPayloadData(action.payload);
-      })
-
-      .addCase(fetchPettyCashStats.rejected, handleRejected);
+      .addCase(deletePettyCash.rejected, handleRejected);
   },
 });
 
@@ -263,7 +231,6 @@ export const {
   clearError,
   clearSuccess,
   clearItem,
-  clearStats,
   resetPettyCashState,
 } = pettyCashSlice.actions;
 
@@ -274,9 +241,6 @@ export const selectPettyCashItems = (state) =>
 
 export const selectPettyCashItem = (state) =>
   state.pettyCash.item;
-
-export const selectPettyCashStats = (state) =>
-  state.pettyCash.stats;
 
 export const selectPettyCashLoading = (state) =>
   state.pettyCash.loading;

@@ -37,7 +37,10 @@ class BankController {
       }
 
       // Validate opening balance if provided
-      if (openingBalance !== undefined && typeof openingBalance !== "number") {
+      if (
+        openingBalance !== undefined &&
+        Number.isNaN(Number(openingBalance))
+      ) {
         return ApiResponse.badRequest(res, "Opening balance must be a number");
       }
 
@@ -47,7 +50,7 @@ class BankController {
         accountHolderName: accountHolderName.trim(),
         branchName: branchName ? branchName.trim() : null,
         accountType,
-        openingBalance: openingBalance || 0,
+        openingBalance: Number(openingBalance || 0),
         coaAccount, // FIXED: Include coaAccount
         createdBy: req.user.userId,
       };
@@ -115,7 +118,13 @@ class BankController {
       }
 
       // Prevent updating immutable fields
-      const immutableFields = ["accountNumber", "coaAccount", "createdBy", "createdAt"];
+      const immutableFields = [
+        "accountNumber",
+        "coaAccount",
+        "openingBalance",
+        "createdBy",
+        "createdAt",
+      ];
       const attemptedImmutableUpdate = immutableFields.some((field) => field in updateData);
 
       if (attemptedImmutableUpdate) {
@@ -194,7 +203,13 @@ class BankController {
   static async reconcileBankAccount(req, res, next) {
     try {
       const { id } = req.params;
-      const { reconciledBalance, reconciledDate } = req.body;
+      const {
+        reconciledBalance,
+        reconciledDate,
+        reconciliationId,
+        statementReference,
+        transactionIds,
+      } = req.body;
 
       if (!id) {
         return ApiResponse.badRequest(res, "Bank account ID is required");
@@ -208,7 +223,7 @@ class BankController {
         return ApiResponse.badRequest(res, "Reconciliation date is required");
       }
 
-      if (typeof reconciledBalance !== "number") {
+      if (Number.isNaN(Number(reconciledBalance))) {
         return ApiResponse.badRequest(res, "Reconciled balance must be a number");
       }
 
@@ -220,12 +235,59 @@ class BankController {
 
       const account = await BankService.reconcileBankAccount(
         id,
-        reconciledBalance,
-        dateObj,
+        {
+          reconciledBalance: Number(reconciledBalance),
+          reconciledDate: dateObj,
+          reconciliationId,
+          statementReference,
+          transactionIds,
+        },
         req.user.userId
       );
 
       return ApiResponse.success(res, account, "Bank account reconciled successfully");
+    } catch (error) {
+      if (error.message === "Bank account not found") {
+        return ApiResponse.notFound(res, error.message);
+      }
+      next(error);
+    }
+  }
+
+  static async getBankTransactions(req, res, next) {
+    try {
+      const { id } = req.params;
+      const {
+        page,
+        limit,
+        startDate,
+        endDate,
+        status,
+        reconciliationStatus,
+        search,
+        referenceNumber,
+      } = req.query;
+
+      if (!id) {
+        return ApiResponse.badRequest(res, "Bank account ID is required");
+      }
+
+      const result = await BankService.getApprovedBankTransactions(id, {
+        page,
+        limit,
+        startDate,
+        endDate,
+        status,
+        reconciliationStatus,
+        search,
+        referenceNumber,
+      });
+
+      return ApiResponse.success(
+        res,
+        result,
+        "Bank transactions retrieved successfully",
+      );
     } catch (error) {
       if (error.message === "Bank account not found") {
         return ApiResponse.notFound(res, error.message);

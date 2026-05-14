@@ -5,9 +5,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
   const { isAuthenticated, loading, isPending } = useSelector((state) => state.auth);
   const user = useSelector((state) => state.auth.user);
 
-  // SHOW LOADING STATE ONLY IF NOT AUTHENTICATED
-  // (On first load with no token, we want to redirect immediately, not show spinner)
-  if (loading && isAuthenticated) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center">

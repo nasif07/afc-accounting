@@ -343,6 +343,7 @@ class AccountingService {
     const entries = await JournalEntry.find({
       "bookEntries.account": { $in: cashAccountIds },
       status: "posted",
+      approvalStatus: "approved",
       deletedAt: null,
       voucherDate: {
         $gte: new Date(startDate),
@@ -410,6 +411,7 @@ class AccountingService {
     const query = {
       "bookEntries.account": accountId,
       status: "posted",
+      approvalStatus: "approved",
       deletedAt: null,
     };
 
@@ -505,6 +507,7 @@ class AccountingService {
     const entries = await JournalEntry.find({
       "bookEntries.account": accountId,
       status: "posted",
+      approvalStatus: "approved",
       deletedAt: null,
       voucherDate: {
         $gte: new Date(startDate),
@@ -547,15 +550,25 @@ class AccountingService {
       throw new Error("Account not found");
     }
 
+    const hasApprovedOpeningJournal = !!(await JournalEntry.exists({
+      "bookEntries.account": accountId,
+      sourceModule: "OPENING_BALANCE",
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+      voucherDate: { $lte: asOfDate },
+    }));
+
     let signedBalance = this.calculateSignedBalance(
       account.accountType,
-      account.openingBalance || 0,
+      hasApprovedOpeningJournal ? 0 : account.openingBalance || 0,
       account.openingBalanceType || "debit",
     );
 
     const entries = await JournalEntry.find({
       "bookEntries.account": accountId,
       status: "posted",
+      approvalStatus: "approved",
       deletedAt: null,
       voucherDate: { $lte: asOfDate },
     });

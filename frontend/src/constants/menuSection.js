@@ -114,12 +114,6 @@ export const menuSections = [
         roles: ["director", "accountant"],
       },
       {
-        title: "Petty Cash Report",
-        path: "/dashboard/petty-cash-report",
-        icon: BarChart3,
-        roles: ["director", "accountant"],
-      },
-      {
         title: "Approvals",
         path: "/director/approvals",
         icon: CheckCircle2,

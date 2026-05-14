@@ -10,12 +10,7 @@ const router = express.Router();
 // All routes require authentication
 router.use(auth);
 
-/**
- * Reports / Statistics
- */
-router.get("/report/stats", PettyCashController.getPettyCashStats);
-
-router.get("/report/detailed", PettyCashController.generatePettyCashReport);
+router.get("/transactions", PettyCashController.getPettyCashTransactions);
 
 /**
  * Get petty cash by expense account

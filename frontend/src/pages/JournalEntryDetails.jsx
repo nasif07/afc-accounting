@@ -319,7 +319,7 @@ export default function JournalEntryDetails() {
                       <td className="px-6 py-4 text-sm font-bold uppercase">
                         Balance Summary
                       </td>
-                      <td className="px-6 py-4 text-right font-mono text-sm font-black text-blue-600">
+                      <td className="px-6 py-4 text-right font-mono text-sm       font-black text-blue-600">
                         {formatCurrency(totals.debit)}
                       </td>
                       <td className="px-6 py-4 text-right font-mono text-sm font-black text-blue-600">

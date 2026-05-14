@@ -1,11 +1,36 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 
+const normalizeAuthPayload = (payload) => {
+  const data = payload?.data || payload || {};
+
+  return {
+    user: data.user || payload?.user || null,
+    token: data.token || payload?.token || null,
+  };
+};
+
+const persistAuthSession = ({ user, token }) => {
+  if (token) localStorage.setItem("authToken", token);
+  if (user) localStorage.setItem("user", JSON.stringify(user));
+};
+
+const clearAuthSession = () => {
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+};
+
 export const register = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/register', userData);
-    // Token is set in httpOnly cookie by backend, not in response
-    return response.data;
+    const authData = normalizeAuthPayload(response.data);
+
+    if (authData.user?.status === "approved") {
+      persistAuthSession(authData);
+    }
+
+    return authData;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Registration failed');
   }
@@ -14,8 +39,10 @@ export const register = createAsyncThunk('auth/register', async (userData, { rej
 export const login = createAsyncThunk('auth/login', async (credentials, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/login', credentials);
-    // Token is set in httpOnly cookie by backend, not in response
-    return response.data;
+    const authData = normalizeAuthPayload(response.data);
+    persistAuthSession(authData);
+
+    return authData;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Login failed');
   }
@@ -25,9 +52,12 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
   try {
     const response = await api.get('/auth/me');
     // Handle both response formats: { user: {...} } or direct user object
-    return response.data?.user || response.data?.data?.user || response.data;
+    const user = response.data?.user || response.data?.data?.user || response.data;
+    if (user) localStorage.setItem("user", JSON.stringify(user));
+    return user;
   } catch (error) {
     // 401 is expected when no cookie exists - not an error
+    clearAuthSession();
     return null;
   }
 });
@@ -36,11 +66,13 @@ export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { reje
   try {
     await api.post('/auth/logout');
     // Cookie is cleared by backend
-    return null;
   } catch (error) {
     // Clear anyway
-    return null;
+  } finally {
+    clearAuthSession();
   }
+
+  return null;
 });
 
 const initialState = {
@@ -59,14 +91,16 @@ const authSlice = createSlice({
       state.user = null;
       state.isAuthenticated = false;
       state.isPending = false;
+      state.loading = false;
+      state.error = null;
     },
     clearError: (state) => {
       state.error = null;
     },
     setUser: (state, action) => {
       state.user = action.payload;
-      state.isAuthenticated = !!action.payload;
       state.isPending = action.payload?.status === 'pending';
+      state.isAuthenticated = action.payload?.status === 'approved';
     },
   },
   extraReducers: (builder) => {
@@ -93,7 +127,8 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-        state.isAuthenticated = true;
+        state.isPending = action.payload.user?.status === 'pending';
+        state.isAuthenticated = action.payload.user?.status === 'approved';
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -111,8 +146,8 @@ const authSlice = createSlice({
           state.isPending = false;
         } else {
           state.user = action.payload;
-          state.isAuthenticated = !!state.user;
           state.isPending = state.user?.status === 'pending';
+          state.isAuthenticated = state.user?.status === 'approved';
         }
       })
       .addCase(getCurrentUser.rejected, (state) => {
@@ -126,6 +161,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.isPending = false;
         state.loading = false;
+        state.error = null;
       });
   },
 });

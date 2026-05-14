@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
-import { login } from "../store/slices/authSlice";
-import toast from "react-hot-toast";
+import { getCurrentUser, login } from "../store/slices/authSlice";
+import { toast } from "sonner";
 import { Mail, Lock, Loader, ShieldCheck, Landmark } from "lucide-react";
 import logo from "/afc-logo.jpg"
 
@@ -25,6 +25,13 @@ export default function Login() {
         toast.error("Account pending financial controller approval.");
         return;
       }
+
+      if (result.user?.status !== "approved") {
+        toast.error("Your account is not approved for access.");
+        return;
+      }
+
+      await dispatch(getCurrentUser()).unwrap();
 
       toast.success("Ledger access granted.");
       navigate("/dashboard");

@@ -10,6 +10,7 @@ import {
   History,
   Loader,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import { bankAPI } from "../services/apiMethods";
 import api from "../services/api";
@@ -60,6 +61,19 @@ const BankCash = () => {
   const [reconcileData, setReconcileData] = useState({
     reconciledBalance: "",
     reconciledDate: new Date().toISOString().split("T")[0],
+    statementReference: "",
+    transactionIds: [],
+  });
+  const [bankTransactions, setBankTransactions] = useState([]);
+  const [transactionLoading, setTransactionLoading] = useState(false);
+  const [transactionSearch, setTransactionSearch] = useState("");
+  const [reconciliationStatus, setReconciliationStatus] =
+    useState("unreconciled");
+  const [transactionPagination, setTransactionPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
   });
 
   const [formData, setFormData] = useState(initialFormData);
@@ -207,6 +221,8 @@ const BankCash = () => {
       await bankAPI.reconcile(editingAccount._id, {
         reconciledBalance: Number(reconcileData.reconciledBalance) || 0,
         reconciledDate: reconcileData.reconciledDate,
+        statementReference: reconcileData.statementReference,
+        transactionIds: reconcileData.transactionIds,
       });
 
       toast.success("Account reconciled successfully");
@@ -217,6 +233,57 @@ const BankCash = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const fetchBankTransactions = async (account, page = 1) => {
+    if (!account?._id) return;
+
+    setTransactionLoading(true);
+
+    try {
+      const response = await bankAPI.getTransactions(account._id, {
+        page,
+        limit: 10,
+        search: transactionSearch || undefined,
+        reconciliationStatus,
+      });
+      const payload = response?.data?.data || {};
+
+      setBankTransactions(Array.isArray(payload.transactions) ? payload.transactions : []);
+      setTransactionPagination({
+        page: Number(payload.pagination?.page || 1),
+        limit: Number(payload.pagination?.limit || 10),
+        total: Number(payload.pagination?.total || 0),
+        totalPages: Number(payload.pagination?.totalPages || 1),
+      });
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to load bank transactions"));
+      setBankTransactions([]);
+    } finally {
+      setTransactionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showReconcileModal && editingAccount?._id) {
+      const timer = setTimeout(() => {
+        fetchBankTransactions(editingAccount, 1);
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showReconcileModal, editingAccount?._id, transactionSearch, reconciliationStatus]);
+
+  const toggleReconcileTransaction = (journalEntryId) => {
+    setReconcileData((prev) => {
+      const exists = prev.transactionIds.includes(journalEntryId);
+      return {
+        ...prev,
+        transactionIds: exists
+          ? prev.transactionIds.filter((id) => id !== journalEntryId)
+          : [...prev.transactionIds, journalEntryId],
+      };
+    });
   };
 
   const getAccountIcon = (type) => {
@@ -405,7 +472,11 @@ const BankCash = () => {
                       setReconcileData({
                         reconciledBalance: account.currentBalance || 0,
                         reconciledDate: new Date().toISOString().split("T")[0],
+                        statementReference: "",
+                        transactionIds: [],
                       });
+                      setTransactionSearch("");
+                      setReconciliationStatus("unreconciled");
                       setShowReconcileModal(true);
                     }}
                     className="border-red-200 text-red-600 hover:bg-red-50"
@@ -580,6 +651,135 @@ const BankCash = () => {
               })
             }
           />
+
+          <Input
+            label="Statement Reference"
+            value={reconcileData.statementReference}
+            onChange={(e) =>
+              setReconcileData({
+                ...reconcileData,
+                statementReference: e.target.value,
+              })
+            }
+            placeholder="Optional statement / reconciliation reference"
+          />
+
+          <div className="rounded-xl border border-slate-200">
+            <div className="grid grid-cols-1 gap-3 border-b border-slate-200 p-3 md:grid-cols-[1fr_180px]">
+              <div className="relative">
+                <Search
+                  size={15}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <Input
+                  value={transactionSearch}
+                  onChange={(e) => setTransactionSearch(e.target.value)}
+                  placeholder="Search approved ledger transactions"
+                  className="pl-9"
+                />
+              </div>
+
+              <Select
+                value={reconciliationStatus}
+                onChange={(e) => setReconciliationStatus(e.target.value)}
+                options={[
+                  { value: "unreconciled", label: "Unreconciled" },
+                  { value: "reconciled", label: "Reconciled" },
+                  { value: "all", label: "All Approved" },
+                ]}
+              />
+            </div>
+
+            {transactionLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader className="animate-spin text-red-600" size={24} />
+              </div>
+            ) : bankTransactions.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-slate-500">
+                No approved bank ledger transactions found.
+              </div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto">
+                {bankTransactions.map((transaction) => (
+                  <label
+                    key={transaction.journalEntryId}
+                    className="flex cursor-pointer items-start gap-3 border-b border-slate-100 p-3 last:border-b-0 hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={reconcileData.transactionIds.includes(
+                        transaction.journalEntryId,
+                      )}
+                      disabled={transaction.reconciliationStatus === "reconciled"}
+                      onChange={() =>
+                        toggleReconcileTransaction(transaction.journalEntryId)
+                      }
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-600">
+                          {transaction.voucherNumber}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-700">
+                          {formatCurrency(transaction.amount)}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-sm text-slate-700">
+                        {transaction.description || "Bank ledger transaction"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {new Date(transaction.date).toLocaleDateString()} ·{" "}
+                        {transaction.reconciliationStatus}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {transactionPagination.total > 0 && (
+              <div className="flex items-center justify-between border-t border-slate-200 p-3 text-sm">
+                <span className="text-slate-500">
+                  Page {transactionPagination.page} of{" "}
+                  {transactionPagination.totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={transactionPagination.page <= 1 || transactionLoading}
+                    onClick={() =>
+                      fetchBankTransactions(
+                        editingAccount,
+                        Math.max(1, transactionPagination.page - 1),
+                      )
+                    }>
+                    Prev
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={
+                      transactionPagination.page >=
+                        transactionPagination.totalPages || transactionLoading
+                    }
+                    onClick={() =>
+                      fetchBankTransactions(
+                        editingAccount,
+                        Math.min(
+                          transactionPagination.totalPages,
+                          transactionPagination.page + 1,
+                        ),
+                      )
+                    }>
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <Button

@@ -8,6 +8,11 @@ export const authAPI = {
   getCurrentUser: () => api.get("/auth/me"),
 };
 
+// ==================== DASHBOARD ====================
+export const dashboardAPI = {
+  getSummary: () => api.get("/dashboard/summary"),
+};
+
 // ==================== STUDENTS ====================
 export const studentAPI = {
   getAll: (params) => api.get("/students", { params }),
@@ -119,6 +124,7 @@ export const bankAPI = {
   update: (id, data) => api.put(`/bank/${id}`, data),
   delete: (id) => api.delete(`/bank/${id}`),
   reconcile: (id, data) => api.put(`/bank/${id}/reconciliation`, data),
+  getTransactions: (id, params) => api.get(`/bank/${id}/transactions`, { params }),
   getTotalBalance: () => api.get("/bank/report/total-balance"),
 };
 
@@ -149,6 +155,8 @@ export const auditAPI = {
 
 // ==================== PETTY CASH ====================
 export const pettyCashAPI = {
+  getTransactions: (params) => api.get("/petty-cash/transactions", { params }),
+
   getAll: (params) => api.get("/petty-cash", { params }),
 
   getById: (id) => api.get(`/petty-cash/${id}`),
@@ -160,12 +168,6 @@ export const pettyCashAPI = {
 
   delete: (id) =>
     api.delete(`/petty-cash/${id}`),
-
-  getStats: (params) =>
-    api.get("/petty-cash/report/stats", { params }),
-
-  getReport: (params) =>
-    api.get("/petty-cash/report/detailed", { params }),
 
   getByExpenseAccount: (expenseAccountId) =>
     api.get(

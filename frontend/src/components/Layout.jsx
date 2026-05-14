@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
-import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useSelector } from "react-redux";
+import { Outlet, useNavigate } from "react-router-dom";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
 import Sidebar from "../components/Sidebar";
+import { logoutAsync } from "../store/slices/authSlice";
 
 export default function DashboardLayout() {
   const { user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
@@ -20,6 +23,11 @@ export default function DashboardLayout() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  const handleLogout = async () => {
+    await dispatch(logoutAsync());
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -64,9 +72,20 @@ export default function DashboardLayout() {
             </h1>
           </div>
 
-          <div className="text-sm text-slate-700">
-            Welcome,{" "}
-            <span className="font-semibold">{user?.name || "User"}</span>
+          <div className="flex items-center gap-3">
+            <div className="hidden text-sm text-slate-700 sm:block">
+              Welcome,{" "}
+              <span className="font-semibold">{user?.name || "User"}</span>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              type="button"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              aria-label="Logout">
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
           </div>
         </header>
 

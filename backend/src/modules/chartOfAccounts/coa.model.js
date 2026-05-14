@@ -60,6 +60,12 @@ const coaSchema = new mongoose.Schema(
       required: true,
     },
 
+    normalBalance: {
+      type: String,
+      enum: ["debit", "credit"],
+      default: "debit",
+    },
+
     // Live balance for fast reads
     currentBalance: {
       type: Number,
@@ -83,6 +89,16 @@ const coaSchema = new mongoose.Schema(
     },
 
     hasTransactions: {
+      type: Boolean,
+      default: false,
+    },
+
+    isSystem: {
+      type: Boolean,
+      default: false,
+    },
+
+    isSystemAccount: {
       type: Boolean,
       default: false,
     },

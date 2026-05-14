@@ -57,27 +57,6 @@ const pettyCashSchema = new mongoose.Schema(
       },
     },
 
-    // pettyCashAccount: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: 'ChartOfAccounts',
-    //   required: [true, 'Petty cash account is required'],
-    //   validate: {
-    //     async: true,
-    //     validator: async function (value) {
-    //       const ChartOfAccounts = mongoose.model('ChartOfAccounts');
-
-    //       const account = await ChartOfAccounts.findOne({
-    //         _id: value,
-    //         deletedAt: null,
-    //         status: 'active',
-    //       });
-
-    //       return !!account;
-    //     },
-    //     message: 'Petty cash account must be active and not deleted',
-    //   },
-    // },
-
     referenceNumber: {
       type: String,
       trim: true,
@@ -130,7 +109,6 @@ pettyCashSchema.index({ pettyCashNumber: 1, deletedAt: 1 });
 pettyCashSchema.index({ date: -1, deletedAt: 1 });
 pettyCashSchema.index({ createdBy: 1, date: -1 });
 pettyCashSchema.index({ expenseAccount: 1, deletedAt: 1 });
-pettyCashSchema.index({ pettyCashAccount: 1, deletedAt: 1 });
 pettyCashSchema.index({ accountingStatus: 1, deletedAt: 1 });
 
 // Query helper to exclude deleted records

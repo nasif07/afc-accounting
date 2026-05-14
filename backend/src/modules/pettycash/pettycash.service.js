@@ -2,6 +2,9 @@ const PettyCash = require("./pettycash.model");
 const AccountingService = require("../accounting/accounting.service");
 const ValidationService = require("../../services/validationService");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
+const JournalEntry = require("../accounting/accounting.model");
+
+const PETTY_CASH_ACCOUNT_CODE = "1001";
 
 class PettyCashService {
   /**
@@ -9,7 +12,6 @@ class PettyCashService {
    */
   static validatePettyCashData(pettyCashData) {
     const errors = [];
-    console.log(pettyCashData);
 
     if (!pettyCashData.date) {
       errors.push("Date is required");
@@ -26,25 +28,8 @@ class PettyCashService {
       errors.push("Amount must be greater than 0");
     }
 
-    // if (!pettyCashData.paidTo || pettyCashData.paidTo.trim().length === 0) {
-    //   errors.push("Paid to is required");
-    // }
-
     if (!pettyCashData.expenseAccount) {
       errors.push("Expense account is required");
-    }
-
-    // if (!pettyCashData.pettyCashAccount) {
-    //   errors.push("Petty cash account is required");
-    // }
-
-    if (
-      pettyCashData.expenseAccount &&
-      pettyCashData.pettyCashAccount &&
-      pettyCashData.expenseAccount.toString() ===
-        pettyCashData.pettyCashAccount.toString()
-    ) {
-      errors.push("Expense account and petty cash account cannot be the same");
     }
 
     return {
@@ -53,56 +38,224 @@ class PettyCashService {
     };
   }
 
+  static async getPettyCashAccount() {
+    return await ChartOfAccounts.findOne({
+      accountCode: PETTY_CASH_ACCOUNT_CODE,
+      deletedAt: null,
+    });
+  }
+
+  static getAccountId(account) {
+    if (!account) return "";
+    if (typeof account === "object") return String(account._id || account);
+    return String(account);
+  }
+
+  static getAccountLabel(account) {
+    if (!account) return "---";
+    if (typeof account === "string") return account;
+
+    const code = account.accountCode ? `${account.accountCode} - ` : "";
+    return `${code}${account.accountName || "---"}`;
+  }
+
+  static getCounterpartyLabel(entry, pettyCashAccountId) {
+    const otherLine = (entry.bookEntries || []).find(
+      (line) => this.getAccountId(line.account) !== String(pettyCashAccountId),
+    );
+
+    return this.getAccountLabel(otherLine?.account);
+  }
+
+  static buildPettyCashRow(entry, pettyCashAccountId) {
+    const pettyCashLine = (entry.bookEntries || []).find(
+      (line) => this.getAccountId(line.account) === String(pettyCashAccountId),
+    );
+
+    if (!pettyCashLine) return null;
+
+    const debit = Number(pettyCashLine.debit || 0);
+    const credit = Number(pettyCashLine.credit || 0);
+
+    return {
+      id: entry._id,
+      journalEntryId: entry._id,
+      date: entry.voucherDate || entry.createdAt,
+      voucherNumber: entry.voucherNumber || "---",
+      referenceNumber: entry.referenceNumber || "",
+      type: debit > 0 ? "deposit" : "expense",
+      description: pettyCashLine.description || entry.description || "",
+      counterparty: this.getCounterpartyLabel(entry, pettyCashAccountId),
+      debit,
+      credit,
+      sourceModule: entry.sourceModule || "manual",
+      status: "approved",
+      approvalStatus: entry.approvalStatus,
+      createdBy: entry.createdBy || null,
+    };
+  }
+
+  static async getJournalBackedTransactions(filters = {}) {
+    const pettyCashAccount = await this.getPettyCashAccount();
+
+    if (!pettyCashAccount) {
+      const error = new Error(
+        `Petty cash account ${PETTY_CASH_ACCOUNT_CODE} is not configured`,
+      );
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const page = Math.max(1, parseInt(filters.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 20));
+    const search = String(filters.search || "").trim().toLowerCase();
+
+    const query = {
+      "bookEntries.account": pettyCashAccount._id,
+      // In this schema approved journals are posted and have approvalStatus approved.
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+    };
+
+    if (filters.startDate || filters.endDate) {
+      query.voucherDate = {};
+
+      if (filters.startDate) {
+        query.voucherDate.$gte = new Date(filters.startDate);
+      }
+
+      if (filters.endDate) {
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        query.voucherDate.$lte = endDate;
+      }
+    }
+
+    const entries = await JournalEntry.find(query)
+      .populate("createdBy", "name email")
+      .populate("bookEntries.account", "accountCode accountName accountType")
+      .sort({ voucherDate: 1, createdAt: 1, _id: 1 });
+
+    const rows = entries
+      .map((entry) =>
+        this.buildPettyCashRow(entry.toJSON(), pettyCashAccount._id),
+      )
+      .filter(Boolean);
+
+    const searchedRows = search
+      ? rows.filter((row) =>
+          [
+            row.voucherNumber,
+            row.referenceNumber,
+            row.type,
+            row.description,
+            row.counterparty,
+            row.sourceModule,
+            row.createdBy?.name,
+            row.createdBy?.email,
+          ]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(search)),
+        )
+      : rows;
+
+    let runningBalance = 0;
+    const rowsWithBalance = searchedRows.map((row) => {
+      runningBalance += row.debit - row.credit;
+      return {
+        ...row,
+        runningBalance,
+      };
+    });
+
+    const totalDebit = rowsWithBalance.reduce(
+      (sum, row) => sum + row.debit,
+      0,
+    );
+    const totalCredit = rowsWithBalance.reduce(
+      (sum, row) => sum + row.credit,
+      0,
+    );
+
+    const descendingRows = [...rowsWithBalance].reverse();
+    const total = descendingRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const skip = (safePage - 1) * limit;
+
+    return {
+      account: {
+        _id: pettyCashAccount._id,
+        accountCode: pettyCashAccount.accountCode,
+        accountName: pettyCashAccount.accountName,
+        accountType: pettyCashAccount.accountType,
+      },
+      transactions: descendingRows.slice(skip, skip + limit),
+      summary: {
+        totalDebit,
+        totalCredit,
+        balance: totalDebit - totalCredit,
+        count: total,
+      },
+      pagination: {
+        total,
+        page: safePage,
+        limit,
+        totalPages,
+      },
+    };
+  }
+
   /**
    * Create journal entry for petty cash
    * Debit  = Expense Account
    * Credit = Petty Cash Account
    */
-static async createJournalEntryForPettyCash(pettyCash) {
-  const pettyCashAccount = await ChartOfAccounts.findOne({
-    accountCode: 1001,
-    deletedAt: null,
-  });
-  console.log(pettyCashAccount);
-  if (!pettyCashAccount) {
-    throw new Error("Petty cash account is not configured");
+  static async createJournalEntryForPettyCash(pettyCash) {
+    const pettyCashAccount = await this.getPettyCashAccount();
+
+    if (!pettyCashAccount) {
+      throw new Error(
+        `Petty cash account ${PETTY_CASH_ACCOUNT_CODE} is not configured`,
+      );
+    }
+
+    const bookEntries = [
+      {
+        account: pettyCash.expenseAccount,
+        debit: Number(pettyCash.amount),
+        credit: 0,
+        description: pettyCash.description,
+      },
+      {
+        account: pettyCashAccount._id,
+        debit: 0,
+        credit: Number(pettyCash.amount),
+        description: `Petty cash paid to ${pettyCash.paidTo || ""}`.trim(),
+      },
+    ];
+
+    const accountValidation =
+      await ValidationService.validateAccounts(bookEntries);
+
+    if (!accountValidation.isValid) {
+      throw new Error(
+        `Account validation failed: ${accountValidation.errors.join(", ")}`,
+      );
+    }
+
+    return await AccountingService.createJournalEntry({
+      voucherDate: pettyCash.date,
+      transactionType: "payment",
+      sourceModule: "petty_cash",
+      requiresApproval: false,
+      description: `Petty Cash: ${pettyCash.description} (${pettyCash.pettyCashNumber})`,
+      bookEntries,
+      referenceNumber: pettyCash.pettyCashNumber,
+      createdBy: pettyCash.createdBy,
+    });
   }
-
-  const bookEntries = [
-    {
-      account: pettyCash.expenseAccount,
-      debit: Number(pettyCash.amount),
-      credit: 0,
-      description: pettyCash.description,
-    },
-    {
-      account: pettyCashAccount._id,
-      debit: 0,
-      credit: Number(pettyCash.amount),
-      description: `Petty cash paid to ${pettyCash.paidTo}`,
-    },
-  ];
-
-  const accountValidation =
-    await ValidationService.validateAccounts(bookEntries);
-
-  if (!accountValidation.isValid) {
-    throw new Error(
-      `Account validation failed: ${accountValidation.errors.join(", ")}`
-    );
-  }
-
-  return await AccountingService.createJournalEntry({
-    voucherDate: pettyCash.date,
-    transactionType: "payment",
-    sourceModule: "petty_cash",
-    requiresApproval: false,
-    description: `Petty Cash: ${pettyCash.description} (${pettyCash.pettyCashNumber})`,
-    bookEntries,
-    referenceNumber: pettyCash.pettyCashNumber,
-    createdBy: pettyCash.createdBy,
-  });
-}
   /**
    * Create a new petty cash disbursement
    */
@@ -164,8 +317,6 @@ static async createJournalEntryForPettyCash(pettyCash) {
 
     if (filters.createdBy) query.createdBy = filters.createdBy;
     if (filters.expenseAccount) query.expenseAccount = filters.expenseAccount;
-    if (filters.pettyCashAccount)
-      query.pettyCashAccount = filters.pettyCashAccount;
     if (filters.accountingStatus)
       query.accountingStatus = filters.accountingStatus;
 
@@ -183,7 +334,6 @@ static async createJournalEntryForPettyCash(pettyCash) {
 
     return await PettyCash.find(query)
       .populate("expenseAccount", "accountCode accountName accountType")
-      // .populate("pettyCashAccount", "accountCode accountName accountType")
       .populate("createdBy", "name email")
       .populate("updatedBy", "name email")
       .populate("journalEntryId")
@@ -199,7 +349,6 @@ static async createJournalEntryForPettyCash(pettyCash) {
       deletedAt: null,
     })
       .populate("expenseAccount", "accountCode accountName accountType")
-      // .populate("pettyCashAccount", "accountCode accountName accountType")
       .populate("createdBy", "name email")
       .populate("updatedBy", "name email")
       .populate("deletedBy", "name email")
@@ -270,7 +419,6 @@ static async createJournalEntryForPettyCash(pettyCash) {
       { new: true, runValidators: true },
     )
       .populate("expenseAccount", "accountCode accountName accountType")
-      // .populate("pettyCashAccount", "accountCode accountName accountType")
       .populate("createdBy", "name email")
       .populate("updatedBy", "name email");
 
@@ -305,56 +453,6 @@ static async createJournalEntryForPettyCash(pettyCash) {
   }
 
   /**
-   * Get petty cash statistics
-   */
-  static async getPettyCashStats(filters = {}) {
-    const query = {
-      deletedAt: null,
-      accountingStatus: "posted",
-    };
-
-    if (filters.expenseAccount) {
-      query.expenseAccount = filters.expenseAccount;
-    }
-
-    if (filters.pettyCashAccount) {
-      query.pettyCashAccount = filters.pettyCashAccount;
-    }
-
-    if (filters.dateFrom || filters.dateTo) {
-      query.date = {};
-
-      if (filters.dateFrom) {
-        query.date.$gte = new Date(filters.dateFrom);
-      }
-
-      if (filters.dateTo) {
-        query.date.$lte = new Date(filters.dateTo);
-      }
-    }
-
-    const stats = await PettyCash.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: null,
-          totalAmount: { $sum: "$amount" },
-          count: { $sum: 1 },
-          averageAmount: { $avg: "$amount" },
-        },
-      },
-    ]);
-
-    return (
-      stats[0] || {
-        totalAmount: 0,
-        count: 0,
-        averageAmount: 0,
-      }
-    );
-  }
-
-  /**
    * Get petty cash by expense account
    */
   static async getPettyCashByExpenseAccount(expenseAccountId) {
@@ -364,104 +462,11 @@ static async createJournalEntryForPettyCash(pettyCash) {
       deletedAt: null,
     })
       .populate("expenseAccount", "accountCode accountName accountType")
-      // .populate("pettyCashAccount", "accountCode accountName accountType")
       .populate("createdBy", "name email")
       .populate("journalEntryId")
       .sort({ date: -1 });
   }
 
-  /**
-   * Generate petty cash report - Monthly format
-   * Format: Date, Expenditures, Cash Received & Paid from, Cash Received (BDT), 
-   *         Cash Payment (BDT), Balance (BDT), Remarks
-   */
-  static async generatePettyCashReport(filters = {}) {
-    const query = { deletedAt: null };
-
-    if (filters.dateFrom || filters.dateTo) {
-      query.date = {};
-      if (filters.dateFrom) {
-        query.date.$gte = new Date(filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        query.date.$lte = new Date(filters.dateTo);
-      }
-    }
-
-    if (filters.accountingStatus) {
-      query.accountingStatus = filters.accountingStatus;
-    }
-
-    if (filters.expenseAccount) {
-      query.expenseAccount = filters.expenseAccount;
-    }
-
-    // Fetch all petty cash records sorted by date
-    const records = await PettyCash.find(query)
-      .populate("expenseAccount", "accountCode accountName accountType")
-      // .populate("pettyCashAccount", "accountCode accountName accountType")
-      .populate("createdBy", "name email")
-      .populate("updatedBy", "name email")
-      .sort({ date: 1 }); // Sort ascending by date
-
-    // Format records for the report
-    const reportData = [];
-    let runningBalance = 0;
-    let totalCashReceived = 0;
-    let totalCashPayment = 0;
-
-    records.forEach((record) => {
-      const amount = Number(record.amount);
-      
-      // In the format: negative for payment, positive for receipt
-      const isCashReceived = record.paymentMode === "receipt" || 
-                              record.description.toLowerCase().includes("received");
-      
-      const cashReceived = isCashReceived ? amount : 0;
-      const cashPayment = !isCashReceived ? amount : 0;
-
-      runningBalance += (cashReceived - cashPayment);
-      totalCashReceived += cashReceived;
-      totalCashPayment += cashPayment;
-
-      reportData.push({
-        date: new Date(record.date).toLocaleDateString("en-GB"),
-        expenditures: record.description,
-        cashReceivedPaidFrom: record.pettyCashAccount?.accountName || "Cash Account",
-        cashReceived: cashReceived,
-        cashPayment: cashPayment,
-        balance: runningBalance,
-        remarks: record.referenceNumber || "",
-        fullRecord: record, // Keep for CSV export
-      });
-    });
-
-    // Extract date range for report title
-    const dateFrom = filters.dateFrom ? new Date(filters.dateFrom) : null;
-    const dateTo = filters.dateTo ? new Date(filters.dateTo) : null;
-    
-    let monthYear = "";
-    if (dateFrom && dateTo) {
-      const month = dateFrom.toLocaleString("en-US", { month: "long" });
-      const year = dateFrom.getFullYear();
-      monthYear = `${month}-${year}`;
-    }
-
-    return {
-      reportData,
-      summary: {
-        totalCashReceived,
-        totalCashPayment,
-        totalRecords: records.length,
-        closingBalance: runningBalance,
-      },
-      dateRange: {
-        from: filters.dateFrom || null,
-        to: filters.dateTo || null,
-        monthYear,
-      },
-    };
-  }
 }
 
 module.exports = PettyCashService;

@@ -1,6 +1,7 @@
 const Bank = require("./bank.model");
-const AccountingService = require("../accounting/accounting.service");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
+const COAService = require("../chartOfAccounts/coa.service");
+const JournalEntry = require("../accounting/accounting.model");
 
 class BankService {
   /**
@@ -70,6 +71,22 @@ class BankService {
     const bank = new Bank(bankData);
     await bank.save();
 
+    const hasOpeningBalanceJournal =
+      await COAService.hasOpeningBalanceJournal(coaAccount._id);
+
+    if (Number(bankData.openingBalance || 0) > 0 && !hasOpeningBalanceJournal) {
+      coaAccount.openingBalance = Number(bankData.openingBalance);
+      coaAccount.openingBalanceType = "debit";
+      coaAccount.openingDate = bankData.openingDate || new Date();
+      await coaAccount.save();
+      await COAService.createOpeningBalanceJournal(coaAccount, bankData.createdBy);
+    } else if (hasOpeningBalanceJournal) {
+      await COAService.deduplicateOpeningBalanceJournals(
+        coaAccount._id,
+        bankData.createdBy,
+      );
+    }
+
     // Populate references for response
     await bank.populate("coaAccount", "accountCode accountName accountType");
     await bank.populate("createdBy", "name email");
@@ -97,10 +114,14 @@ class BankService {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Calculate current balance for each bank
+    // Calculate current balance for each bank from approved journal ledger only.
     for (const bank of banks) {
       try {
         bank.currentBalance = await this.calculateBankBalance(bank._id);
+        if (bank.lastReconciledDate) {
+          bank.reconciliationDifference =
+            Number(bank.lastReconciledBalance || 0) - bank.currentBalance;
+        }
       } catch (error) {
         console.error(`Error calculating balance for bank ${bank._id}:`, error.message);
         bank.currentBalance = 0;
@@ -129,6 +150,10 @@ class BankService {
     // Calculate current balance
     try {
       bank.currentBalance = await this.calculateBankBalance(bankId);
+      if (bank.lastReconciledDate) {
+        bank.reconciliationDifference =
+          Number(bank.lastReconciledBalance || 0) - bank.currentBalance;
+      }
     } catch (error) {
       console.error(`Error calculating balance for bank ${bankId}:`, error.message);
       bank.currentBalance = 0;
@@ -144,7 +169,13 @@ class BankService {
    */
   static async updateBankAccount(bankId, updateData, userId) {
     // Prevent updating immutable fields
-    const immutableFields = ["accountNumber", "coaAccount", "createdBy", "createdAt"];
+    const immutableFields = [
+      "accountNumber",
+      "coaAccount",
+      "openingBalance",
+      "createdBy",
+      "createdAt",
+    ];
     for (const field of immutableFields) {
       if (field in updateData) {
         throw new Error(`Cannot update immutable field: ${field}`);
@@ -216,10 +247,10 @@ class BankService {
     }
 
     // Check if there are any journal entries using this bank's COA account
-    const JournalEntry = require("../accounting/accounting.model");
     const linkedEntries = await JournalEntry.countDocuments({
       "bookEntries.account": bank.coaAccount,
       status: "posted",
+      approvalStatus: "approved",
       deletedAt: null,
     });
 
@@ -239,8 +270,8 @@ class BankService {
   }
 
   /**
-   * FIXED: Calculate bank balance including opening balance
-   * Balance = Opening Balance + Sum of all journal entries (debits - credits)
+   * Calculate bank balance from approved ledger only.
+   * Opening balance is represented by an approved OPENING_BALANCE journal.
    */
   static async calculateBankBalance(bankId, asOfDate = new Date()) {
     const bank = await Bank.findById(bankId);
@@ -253,16 +284,154 @@ class BankService {
       throw new Error("Bank account is not linked to a chart of account");
     }
 
-    // Get balance from ledger (sum of journal entries)
-    const balanceData = await AccountingService.calculateAccountBalance(
-      bank.coaAccount,
-      asOfDate
+    await COAService.deduplicateOpeningBalanceJournals(bank.coaAccount);
+
+    const entries = await JournalEntry.find({
+      "bookEntries.account": bank.coaAccount,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+      voucherDate: { $lte: asOfDate },
+    }).lean();
+
+    return entries.reduce((balance, entry) => {
+      const line = this.getBankLine(entry, bank.coaAccount);
+      if (!line) return balance;
+
+      return balance + Number(line.debit || 0) - Number(line.credit || 0);
+    }, 0);
+  }
+
+  static getBankLine(entry, coaAccountId) {
+    return (entry.bookEntries || []).find((line) => {
+      const accountId =
+        typeof line.account === "object" ? line.account?._id : line.account;
+      return String(accountId) === String(coaAccountId);
+    });
+  }
+
+  static getReconciliation(entry, coaAccountId) {
+    return (entry.bankReconciliations || []).find(
+      (item) => String(item.account) === String(coaAccountId),
     );
+  }
 
-    // FIXED: Include opening balance in calculation
-    const currentBalance = bank.openingBalance + (balanceData.balance || 0);
+  static async getApprovedBankTransactions(bankId, filters = {}) {
+    const bank = await Bank.findOne({ _id: bankId, deletedAt: null }).lean();
 
-    return currentBalance;
+    if (!bank) {
+      throw new Error("Bank account not found");
+    }
+
+    await COAService.deduplicateOpeningBalanceJournals(bank.coaAccount);
+
+    const page = Math.max(1, parseInt(filters.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 20));
+    const search = String(filters.search || filters.referenceNumber || "")
+      .trim()
+      .toLowerCase();
+    const reconciliationStatus = filters.reconciliationStatus || filters.status;
+
+    const query = {
+      "bookEntries.account": bank.coaAccount,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+    };
+
+    if (filters.startDate || filters.endDate) {
+      query.voucherDate = {};
+
+      if (filters.startDate) {
+        query.voucherDate.$gte = new Date(filters.startDate);
+      }
+
+      if (filters.endDate) {
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        query.voucherDate.$lte = endDate;
+      }
+    }
+
+    const entries = await JournalEntry.find(query)
+      .populate("createdBy", "name email")
+      .sort({ voucherDate: 1, createdAt: 1, _id: 1 })
+      .lean();
+
+    let runningBalance = 0;
+    const rows = entries
+      .map((entry) => {
+        const line = this.getBankLine(entry, bank.coaAccount);
+        if (!line) return null;
+
+        const debit = Number(line.debit || 0);
+        const credit = Number(line.credit || 0);
+        runningBalance += debit - credit;
+
+        const reconciliation = this.getReconciliation(entry, bank.coaAccount);
+        const status = reconciliation?.status || "unreconciled";
+
+        return {
+          journalEntryId: entry._id,
+          date: entry.voucherDate,
+          voucherNumber: entry.voucherNumber,
+          referenceNumber: entry.referenceNumber || "",
+          description: line.description || entry.description || "",
+          debit,
+          credit,
+          amount: debit - credit,
+          runningBalance,
+          sourceModule: entry.sourceModule,
+          status: "approved",
+          reconciliationStatus: status,
+          reconciledAt: status === "reconciled" ? reconciliation.reconciledAt : null,
+          reconciledBy: status === "reconciled" ? reconciliation.reconciledBy : null,
+          reconciliationId:
+            status === "reconciled" ? reconciliation.reconciliationId : "",
+          createdBy: entry.createdBy,
+        };
+      })
+      .filter(Boolean);
+
+    const filteredRows = rows.filter((row) => {
+      if (
+        reconciliationStatus &&
+        reconciliationStatus !== "all" &&
+        row.reconciliationStatus !== reconciliationStatus
+      ) {
+        return false;
+      }
+
+      if (!search) return true;
+
+      return [
+        row.voucherNumber,
+        row.referenceNumber,
+        row.description,
+        row.sourceModule,
+        row.reconciliationId,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
+
+    const descendingRows = [...filteredRows].reverse();
+    const total = descendingRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const skip = (safePage - 1) * limit;
+
+    return {
+      bankId: bank._id,
+      coaAccount: bank.coaAccount,
+      transactions: descendingRows.slice(skip, skip + limit),
+      pagination: {
+        total,
+        page: safePage,
+        limit,
+        totalPages,
+      },
+    };
   }
 
   /**
@@ -291,16 +460,22 @@ class BankService {
    * Reconcile a bank account
    * FIXED: Store signed difference (positive = over, negative = under)
    */
-  static async reconcileBankAccount(bankId, reconciledBalance, reconciledDate, userId) {
+  static async reconcileBankAccount(bankId, reconcileData, userId) {
     const bank = await Bank.findById(bankId);
 
     if (!bank) {
       throw new Error("Bank account not found");
     }
 
-    if (!reconciledBalance || !reconciledDate) {
-      throw new Error("Reconciled balance and date are required");
-    }
+    const reconciledBalance = Number(reconcileData.reconciledBalance || 0);
+    const reconciledDate = reconcileData.reconciledDate;
+    const reconciliationId =
+      reconcileData.reconciliationId ||
+      reconcileData.statementReference ||
+      `REC-${bankId}-${Date.now()}`;
+    const transactionIds = Array.isArray(reconcileData.transactionIds)
+      ? reconcileData.transactionIds
+      : [];
 
     // Get current system balance
     const currentBalance = await this.calculateBankBalance(bankId, new Date(reconciledDate));
@@ -316,13 +491,51 @@ class BankService {
 
     await bank.save();
 
+    if (transactionIds.length > 0) {
+      const approvedEntries = await JournalEntry.find({
+        _id: { $in: transactionIds },
+        "bookEntries.account": bank.coaAccount,
+        status: "posted",
+        approvalStatus: "approved",
+        deletedAt: null,
+      });
+
+      for (const entry of approvedEntries) {
+        const existing = (entry.bankReconciliations || []).find(
+          (item) => String(item.account) === String(bank.coaAccount),
+        );
+
+        if (existing) {
+          existing.status = "reconciled";
+          existing.reconciledAt = new Date(reconciledDate);
+          existing.reconciledBy = userId;
+          existing.reconciliationId = reconciliationId;
+        } else {
+          entry.bankReconciliations.push({
+            account: bank.coaAccount,
+            status: "reconciled",
+            reconciledAt: new Date(reconciledDate),
+            reconciledBy: userId,
+            reconciliationId,
+          });
+        }
+
+        await entry.save();
+      }
+    }
+
+    const reconciliationStatus = await this.getReconciliationStatus(bankId);
+
     return {
       ...bank.toObject(),
       reconciliationInfo: {
         systemBalance: currentBalance,
-        reconciledBalance: reconciledBalance,
+        statementBalance: reconciledBalance,
+        reconciledBalance: reconciliationStatus.reconciledBalance,
+        unreconciledBalance: reconciliationStatus.unreconciledBalance,
         difference: difference,
         status: difference === 0 ? "reconciled" : "pending",
+        reconciliationId,
       },
     };
   }
@@ -337,20 +550,50 @@ class BankService {
       throw new Error("Bank account not found");
     }
 
-    const currentBalance = await this.calculateBankBalance(bankId);
+    await COAService.deduplicateOpeningBalanceJournals(bank.coaAccount);
+
+    const approvedEntries = await JournalEntry.find({
+      "bookEntries.account": bank.coaAccount,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+    }).lean();
+
+    let currentBalance = 0;
+    let reconciledBalance = 0;
+
+    for (const entry of approvedEntries) {
+      const line = this.getBankLine(entry, bank.coaAccount);
+      if (!line) continue;
+
+      const amount = Number(line.debit || 0) - Number(line.credit || 0);
+      currentBalance += amount;
+
+      const reconciliation = this.getReconciliation(entry, bank.coaAccount);
+      if (reconciliation?.status === "reconciled") {
+        reconciledBalance += amount;
+      }
+    }
+
+    const unreconciledBalance = currentBalance - reconciledBalance;
+    const reconciliationDifference = bank.lastReconciledDate
+      ? Number(bank.lastReconciledBalance || 0) - currentBalance
+      : bank.reconciliationDifference;
 
     return {
       bankId: bank._id,
       bankName: bank.bankName,
       currentBalance,
+      reconciledBalance,
+      unreconciledBalance,
       lastReconciledDate: bank.lastReconciledDate,
       lastReconciledBalance: bank.lastReconciledBalance,
-      reconciliationDifference: bank.reconciliationDifference,
-      isReconciled: bank.reconciliationDifference === 0,
+      reconciliationDifference,
+      isReconciled: reconciliationDifference === 0,
       status:
-        bank.reconciliationDifference === 0
+        reconciliationDifference === 0
           ? "reconciled"
-          : bank.reconciliationDifference > 0
+          : reconciliationDifference > 0
           ? "over"
           : "under",
     };
@@ -408,9 +651,10 @@ class BankService {
     }
 
     // Check for recent transactions
-    const JournalEntry = require("../accounting/accounting.model");
     const recentEntries = await JournalEntry.countDocuments({
       "bookEntries.account": bank.coaAccount,
+      status: "posted",
+      approvalStatus: "approved",
       voucherDate: {
         $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
       },

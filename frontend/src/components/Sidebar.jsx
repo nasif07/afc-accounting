@@ -1,7 +1,9 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMemo } from "react";
-import { X } from "lucide-react";
+import { LogOut, X } from "lucide-react";
+import { useDispatch } from "react-redux";
 import { menuSections } from "../constants/menuSection";
+import { logoutAsync } from "../store/slices/authSlice";
 import logo from "/afc-logo.jpg";
 
 export default function Sidebar({
@@ -11,9 +13,13 @@ export default function Sidebar({
   onClose = () => {},
 }) {
   const location = useLocation();
-  const role = user?.role || "sub-accountant";
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const role = user?.role || "";
 
   const authorizedSections = useMemo(() => {
+    if (!role) return [];
+
     return menuSections
       .map((section) => ({
         ...section,
@@ -21,6 +27,11 @@ export default function Sidebar({
       }))
       .filter((section) => section.items.length > 0);
   }, [role]);
+
+  const handleLogout = async () => {
+    await dispatch(logoutAsync());
+    navigate("/login", { replace: true });
+  };
 
   return (
     <>
@@ -140,11 +151,22 @@ export default function Sidebar({
                   {user?.name || "System User"}
                 </p>
                 <p className="truncate text-xs font-medium capitalize text-slate-500">
-                  {role.replace("-", " ")}
+                  {role ? role.replace("-", " ") : "Loading"}
                 </p>
               </div>
             )}
           </div>
+
+          <button
+            onClick={handleLogout}
+            type="button"
+            className={`mt-3 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-700 ${
+              !desktopOpen ? "lg:justify-center" : ""
+            }`}
+            aria-label="Logout">
+            <LogOut size={18} />
+            {desktopOpen && <span>Logout</span>}
+          </button>
         </div>
       </aside>
     </>

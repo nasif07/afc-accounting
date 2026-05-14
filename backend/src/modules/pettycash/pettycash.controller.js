@@ -2,6 +2,32 @@ const PettyCashService = require("./pettycash.service");
 const ApiResponse = require("../../utils/apiResponse");
 
 class PettyCashController {
+  static async getPettyCashTransactions(req, res, next) {
+    try {
+      const { page, limit, search, startDate, endDate } = req.query;
+
+      const result = await PettyCashService.getJournalBackedTransactions({
+        page,
+        limit,
+        search,
+        startDate,
+        endDate,
+      });
+
+      return ApiResponse.success(
+        res,
+        result,
+        "Petty cash transactions retrieved successfully",
+      );
+    } catch (error) {
+      if (error.statusCode === 404) {
+        return ApiResponse.notFound(res, error.message);
+      }
+
+      next(error);
+    }
+  }
+
   /**
    * Create a new petty cash disbursement
    */
@@ -288,34 +314,6 @@ class PettyCashController {
   }
 
   /**
-   * Get petty cash statistics
-   */
-  static async getPettyCashStats(req, res, next) {
-    try {
-      const { expenseAccount, dateFrom, dateTo } = req.query;
-
-      const filters = {};
-
-      if (expenseAccount) filters.expenseAccount = expenseAccount;
-
-      if (dateFrom || dateTo) {
-        filters.dateFrom = dateFrom;
-        filters.dateTo = dateTo;
-      }
-
-      const stats = await PettyCashService.getPettyCashStats(filters);
-
-      return ApiResponse.success(
-        res,
-        stats,
-        "Petty cash statistics retrieved successfully",
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
    * Get petty cash by expense account
    */
   static async getPettyCashByExpenseAccount(req, res, next) {
@@ -339,31 +337,6 @@ class PettyCashController {
     }
   }
 
-  /**
-   * Generate petty cash report with summaries
-   */
-  static async generatePettyCashReport(req, res, next) {
-    try {
-      const { dateFrom, dateTo, accountingStatus, expenseAccount } = req.query;
-
-      const filters = {};
-
-      if (dateFrom) filters.dateFrom = dateFrom;
-      if (dateTo) filters.dateTo = dateTo;
-      if (accountingStatus) filters.accountingStatus = accountingStatus;
-      if (expenseAccount) filters.expenseAccount = expenseAccount;
-
-      const report = await PettyCashService.generatePettyCashReport(filters);
-
-      return ApiResponse.success(
-        res,
-        report,
-        "Petty cash report generated successfully",
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
 }
 
 module.exports = PettyCashController;

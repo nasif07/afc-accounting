@@ -172,9 +172,28 @@ const journalEntrySchema = new mongoose.Schema(
       default: "",
     },
 
+    referenceType: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    referenceAccount: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ChartOfAccounts",
+      default: null,
+    },
+
     sourceModule: {
       type: String,
-      enum: ["manual", "petty_cash", "payroll", "receipt", "expense"],
+      enum: [
+        "manual",
+        "petty_cash",
+        "payroll",
+        "receipt",
+        "expense",
+        "OPENING_BALANCE",
+      ],
       default: "manual",
     },
 
@@ -253,6 +272,38 @@ const journalEntrySchema = new mongoose.Schema(
 
     attachments: {
       type: [String],
+      default: [],
+    },
+
+    bankReconciliations: {
+      type: [
+        {
+          account: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "ChartOfAccounts",
+            required: true,
+          },
+          status: {
+            type: String,
+            enum: ["unreconciled", "reconciled"],
+            default: "unreconciled",
+          },
+          reconciledAt: {
+            type: Date,
+            default: null,
+          },
+          reconciledBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+          },
+          reconciliationId: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+        },
+      ],
       default: [],
     },
   },
@@ -366,5 +417,6 @@ journalEntrySchema.index({ createdBy: 1, voucherDate: -1 });
 journalEntrySchema.index({ approvalStatus: 1, status: 1 });
 journalEntrySchema.index({ status: 1, deletedAt: 1 });
 journalEntrySchema.index({ "bookEntries.account": 1 });
+journalEntrySchema.index({ referenceType: 1, referenceAccount: 1 });
 
 module.exports = mongoose.model("JournalEntry", journalEntrySchema);

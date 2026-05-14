@@ -25,6 +25,12 @@ router.post("/", directorOnly, BankController.createBankAccount);
 router.get("/", BankController.getAllBankAccounts);
 
 // ==================== DYNAMIC ROUTES (LAST) ====================
+// Approved ledger transactions for reconciliation
+router.get("/:id/transactions", BankController.getBankTransactions);
+
+// Get reconciliation status for a bank account
+router.get("/:id/reconciliation/status", BankController.getReconciliationStatus);
+
 // Get specific bank account by ID
 router.get("/:id", BankController.getBankAccountById);
 
@@ -35,9 +41,6 @@ router.put("/:id", directorOnly, BankController.updateBankAccount);
 router.delete("/:id", directorOnly, BankController.deleteBankAccount);
 
 // ==================== RECONCILIATION ====================
-// Get reconciliation status for a bank account
-router.get("/:id/reconciliation/status", BankController.getReconciliationStatus);
-
 // Reconcile a bank account (director only)
 router.put("/:id/reconciliation", directorOnly, BankController.reconcileBankAccount);
 

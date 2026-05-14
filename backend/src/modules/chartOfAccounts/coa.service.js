@@ -1,6 +1,9 @@
 const ChartOfAccounts = require("./coa.model");
 const JournalEntry = require("../accounting/accounting.model");
 
+const OPENING_BALANCE_EQUITY_CODE = "3201";
+const OPENING_BALANCE_SOURCE = "OPENING_BALANCE";
+
 class COAService {
   static async hasRealChildren(accountId) {
     return !!(await ChartOfAccounts.exists({
@@ -13,8 +16,195 @@ class COAService {
     return !!(await JournalEntry.exists({
       "bookEntries.account": accountId,
       deletedAt: null,
-      status: "approved",
+      status: "posted",
+      approvalStatus: "approved",
     }));
+  }
+
+  static isDebitOpeningAccount(accountType) {
+    return ["asset", "expense"].includes(String(accountType).toLowerCase());
+  }
+
+  static async getOrCreateOpeningBalanceEquity(createdBy) {
+    let account = await ChartOfAccounts.findOne({
+      accountCode: OPENING_BALANCE_EQUITY_CODE,
+      deletedAt: null,
+    });
+
+    if (account) return account;
+
+    account = new ChartOfAccounts({
+      accountCode: OPENING_BALANCE_EQUITY_CODE,
+      accountName: "Opening Balance Equity",
+      accountType: "equity",
+      description: "System account for opening balance journals",
+      openingBalance: 0,
+      openingBalanceType: "credit",
+      normalBalance: "credit",
+      currentBalance: 0,
+      currentBalanceType: "credit",
+      status: "active",
+      isSystem: true,
+      isSystemAccount: true,
+      createdBy: createdBy || null,
+    });
+
+    await account.save();
+    return account;
+  }
+
+  static getOpeningBalanceJournalQuery(accountId) {
+    return {
+      deletedAt: null,
+      status: "posted",
+      approvalStatus: "approved",
+      $or: [
+        {
+          sourceModule: OPENING_BALANCE_SOURCE,
+          referenceType: OPENING_BALANCE_SOURCE,
+          referenceAccount: accountId,
+        },
+        {
+          sourceModule: OPENING_BALANCE_SOURCE,
+          referenceNumber: `OB-${accountId}`,
+        },
+      ],
+    };
+  }
+
+  static async getOpeningBalanceJournals(accountId) {
+    return await JournalEntry.find(this.getOpeningBalanceJournalQuery(accountId))
+      .sort({ voucherDate: 1, createdAt: 1, _id: 1 });
+  }
+
+  static async hasOpeningBalanceJournal(accountId) {
+    return !!(await JournalEntry.exists(
+      this.getOpeningBalanceJournalQuery(accountId),
+    ));
+  }
+
+  static async deduplicateOpeningBalanceJournals(accountId, userId) {
+    const journals = await this.getOpeningBalanceJournals(accountId);
+
+    if (journals.length <= 1) {
+      return journals[0] || null;
+    }
+
+    const [keeper, ...duplicates] = journals;
+    const duplicateIds = duplicates.map((journal) => journal._id);
+
+    await JournalEntry.updateMany(
+      { _id: { $in: duplicateIds } },
+      {
+        $set: {
+          status: "deleted",
+          deletedAt: new Date(),
+          deletedBy: userId || null,
+        },
+      },
+    );
+
+    return keeper;
+  }
+
+  static async resetCurrentBalanceForOpeningJournal(account) {
+    account.currentBalance = 0;
+    account.currentBalanceType = this.isDebitOpeningAccount(account.accountType)
+      ? "debit"
+      : "credit";
+    account.hasTransactions = false;
+    await account.save();
+  }
+
+  static async createOpeningBalanceJournal(account, createdBy) {
+    const amount = Number(account.openingBalance || 0);
+
+    if (!amount || amount <= 0) return null;
+
+    const existingOpeningJournal = await this.deduplicateOpeningBalanceJournals(
+      account._id,
+      createdBy,
+    );
+
+    if (existingOpeningJournal) {
+      return existingOpeningJournal.toJSON
+        ? existingOpeningJournal.toJSON()
+        : existingOpeningJournal;
+    }
+
+    const openingBalanceEquity =
+      await this.getOrCreateOpeningBalanceEquity(createdBy);
+
+    if (String(openingBalanceEquity._id) === String(account._id)) {
+      return null;
+    }
+
+    await this.resetCurrentBalanceForOpeningJournal(account);
+
+    const debitCreatedAccount = this.isDebitOpeningAccount(account.accountType);
+    const bookEntries = debitCreatedAccount
+      ? [
+          {
+            account: account._id,
+            debit: amount,
+            credit: 0,
+            description: "Opening balance",
+          },
+          {
+            account: openingBalanceEquity._id,
+            debit: 0,
+            credit: amount,
+            description: `Opening balance for ${account.accountCode} - ${account.accountName}`,
+          },
+        ]
+      : [
+          {
+            account: openingBalanceEquity._id,
+            debit: amount,
+            credit: 0,
+            description: `Opening balance for ${account.accountCode} - ${account.accountName}`,
+          },
+          {
+            account: account._id,
+            debit: 0,
+            credit: amount,
+            description: "Opening balance",
+          },
+        ];
+
+    const [journal] = await JournalEntry.create([
+      {
+        voucherDate: account.openingDate || new Date(),
+        transactionType: "journal-entry",
+        sourceModule: OPENING_BALANCE_SOURCE,
+        referenceType: OPENING_BALANCE_SOURCE,
+        referenceAccount: account._id,
+        requiresApproval: false,
+        approvalStatus: "approved",
+        status: "posted",
+        isLocked: true,
+        approvedBy: createdBy || null,
+        approvalDate: new Date(),
+        description: `Opening Balance: ${account.accountCode} - ${account.accountName}`,
+        referenceNumber: `OB-${account._id}`,
+        bookEntries,
+        createdBy: createdBy || account.createdBy,
+      },
+    ]);
+
+    for (const line of bookEntries) {
+      if (Number(line.debit || 0) > 0) {
+        await this.applyBalanceChange(line.account, "debit", line.debit);
+      }
+
+      if (Number(line.credit || 0) > 0) {
+        await this.applyBalanceChange(line.account, "credit", line.credit);
+      }
+
+      await this.markAccountAsTransactional(line.account);
+    }
+
+    return journal.toJSON();
   }
 
   /**
@@ -68,6 +258,8 @@ class COAService {
     });
 
     await account.save();
+
+    await this.createOpeningBalanceJournal(account, accountData.createdBy);
 
     return await ChartOfAccounts.findById(account._id)
       .populate("createdBy", "name email")
@@ -413,7 +605,8 @@ class COAService {
       {
         "bookEntries.account": accountId,
         deletedAt: null,
-        status: "approved",
+        status: "posted",
+        approvalStatus: "approved",
       },
       {
         bookEntries: 1,
