@@ -74,11 +74,11 @@ export const createJournalEntry = createAsyncThunk(
 
 export const updateJournalEntry = createAsyncThunk(
   "journals/updateJournalEntry",
-  async ({ id, ...updateData }, { rejectWithValue }) => {
+  async ({ id, data }, { rejectWithValue }) => {
     try {
       const response = await api.put(
         `/accounting/journal-entries/${id}`,
-        updateData,
+        data,
       );
       return response.data.data || response.data.entry || response.data;
     } catch (error) {

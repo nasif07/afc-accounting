@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
   fetchJournalEntries,
   createJournalEntry,
@@ -16,6 +17,7 @@ import {
   XCircle,
   Search,
   Filter,
+  Eye,
   ArrowLeft,
   BookOpen,
   Calendar,
@@ -29,6 +31,7 @@ import SectionHeader from "../components/common/SectionHeader";
 
 export default function JournalEntries() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { entries, pagination, isLoading, error } = useSelector(
     (state) => state.journals,
   );
@@ -341,6 +344,16 @@ export default function JournalEntries() {
                         <td className="px-6 py-4">
                           <div className="flex justify-center gap-2">
                             <button
+                              onClick={() =>
+                                navigate(
+                                  `/dashboard/journal-entries/${entry._id}`,
+                                )
+                              }
+                              className="rounded-lg border border-slate-100 p-2 text-slate-400 transition-all hover:border-slate-200 hover:text-slate-700">
+                              <Eye size={14} />
+                            </button>
+
+                            <button
                               onClick={() => handleEdit(entry)}
                               disabled={isApproved}
                               className={`rounded-lg border p-2 transition-all ${
@@ -421,6 +434,14 @@ export default function JournalEntries() {
                       </div>
 
                       <div className="flex gap-2">
+                        <button
+                          onClick={() =>
+                            navigate(`/dashboard/journal-entries/${entry._id}`)
+                          }
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold uppercase text-slate-600">
+                          View
+                        </button>
+
                         <button
                           onClick={() => handleEdit(entry)}
                           disabled={isApproved}

@@ -11,7 +11,7 @@ export const useJournalEntries = (options = {}) => {
   return useQuery({
     queryKey: JOURNAL_KEY,
     queryFn: async () => {
-      const response = await api.get('/accounting');
+      const response = await api.get('/accounting/journal-entries');
       return response.data.data || response.data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -26,7 +26,7 @@ export const useJournalEntryById = (id, options = {}) => {
   return useQuery({
     queryKey: [...JOURNAL_KEY, id],
     queryFn: async () => {
-      const response = await api.get(`/accounting/${id}`);
+      const response = await api.get(`/accounting/journal-entries/${id}`);
       return response.data.data || response.data;
     },
     enabled: !!id,
@@ -43,7 +43,7 @@ export const useCreateJournalEntry = () => {
 
   return useMutation({
     mutationFn: async (data) => {
-      const response = await api.post('/accounting', data);
+      const response = await api.post('/accounting/journal-entries', data);
       return response.data.data || response.data;
     },
     onSuccess: (data) => {
@@ -64,7 +64,7 @@ export const useUpdateJournalEntry = () => {
 
   return useMutation({
     mutationFn: async ({ id, data }) => {
-      const response = await api.put(`/accounting/${id}`, data);
+      const response = await api.put(`/accounting/journal-entries/${id}`, data);
       return response.data.data || response.data;
     },
     onSuccess: (data) => {
@@ -86,7 +86,7 @@ export const useDeleteJournalEntry = () => {
 
   return useMutation({
     mutationFn: async (id) => {
-      await api.delete(`/accounting/${id}`);
+      await api.delete(`/accounting/journal-entries/${id}`);
       return id;
     },
     onSuccess: (id) => {
@@ -108,7 +108,7 @@ export const useApproveJournalEntry = () => {
 
   return useMutation({
     mutationFn: async (id) => {
-      const response = await api.post(`/accounting/${id}/approve`);
+      const response = await api.patch(`/accounting/journal-entries/${id}/approve`);
       return response.data.data || response.data;
     },
     onSuccess: () => {
@@ -129,7 +129,7 @@ export const useRejectJournalEntry = () => {
 
   return useMutation({
     mutationFn: async ({ id, reason }) => {
-      const response = await api.post(`/accounting/${id}/reject`, { rejectionReason: reason });
+      const response = await api.patch(`/accounting/journal-entries/${id}/reject`, { rejectionReason: reason });
       return response.data.data || response.data;
     },
     onSuccess: () => {

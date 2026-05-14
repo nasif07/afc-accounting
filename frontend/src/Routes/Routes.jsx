@@ -15,6 +15,7 @@ import Payroll from "../pages/Payroll";
 import Accounting from "../pages/Accounting";
 import Accounts from "../pages/Accounts";
 import JournalEntries from "../pages/JournalEntries";
+import JournalEntryDetails from "../pages/JournalEntryDetails";
 import Ledger from "../pages/Ledger";
 import BankCash from "../pages/BankCash";
 import Reports from "../pages/Reports";
@@ -161,6 +162,10 @@ const router = createBrowserRouter([
       {
         path: "journal-entries",
         element: <JournalEntries />,
+      },
+      {
+        path: "journal-entries/:id",
+        element: <JournalEntryDetails />,
       },
       {
         path: "ledger",

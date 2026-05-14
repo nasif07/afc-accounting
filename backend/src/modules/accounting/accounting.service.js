@@ -808,6 +808,8 @@ static async createJournalEntry(entryData) {
       deletedAt: null,
     })
       .populate("createdBy", "name email")
+      .populate("approvedBy", "name email")
+      .populate("rejectedBy", "name email")
       .populate("bookEntries.account", "accountName accountCode accountType");
 
     if (!entry) return null;
@@ -994,6 +996,8 @@ static async createJournalEntry(entryData) {
 
     const populatedEntry = await JournalEntry.findById(entry._id)
       .populate("createdBy", "name email")
+      .populate("approvedBy", "name email")
+      .populate("rejectedBy", "name email")
       .populate("bookEntries.account", "accountCode accountName accountType");
 
     return populatedEntry ? populatedEntry.toJSON() : null;
