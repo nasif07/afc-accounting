@@ -3,6 +3,8 @@ import { Trash2, Plus } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from './ui/Card';
 import { Modal, Input, Select, FormField, Button, Badge } from './ui/index';
 import { parseCurrencyInput } from '../utils/currency';
+import DatePicker from './common/DatePicker';
+import { todayISO, toISODate } from '../utils/date';
 
 const TransactionForm = React.forwardRef(
   (
@@ -19,7 +21,7 @@ const TransactionForm = React.forwardRef(
   ) => {
     const [formData, setFormData] = useState({
       voucherNumber: '',
-      voucherDate: new Date().toISOString().split('T')[0],
+      voucherDate: todayISO(),
       transactionType: 'journal',
       description: '',
       referenceNumber: '',
@@ -36,7 +38,7 @@ const TransactionForm = React.forwardRef(
       if (initialData) {
         setFormData({
           voucherNumber: initialData.voucherNumber || '',
-          voucherDate: initialData.voucherDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+          voucherDate: toISODate(initialData.voucherDate) || todayISO(),
           transactionType: initialData.transactionType || 'journal',
           description: initialData.description || '',
           referenceNumber: initialData.referenceNumber || '',
@@ -48,7 +50,7 @@ const TransactionForm = React.forwardRef(
       } else {
         setFormData({
           voucherNumber: '',
-          voucherDate: new Date().toISOString().split('T')[0],
+          voucherDate: todayISO(),
           transactionType: 'journal',
           description: '',
           referenceNumber: '',
@@ -195,10 +197,11 @@ const TransactionForm = React.forwardRef(
               required
               error={errors.voucherDate}
             >
-              <Input
-                type="date"
+              <DatePicker
                 value={formData.voucherDate}
-                onChange={(e) => handleFieldChange('voucherDate', e.target.value)}
+                onChange={(value) => handleFieldChange('voucherDate', value)}
+                required
+                disabled={loading}
               />
             </FormField>
 

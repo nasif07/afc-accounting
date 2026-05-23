@@ -16,6 +16,8 @@ import SectionHeader from "../components/common/SectionHeader";
 import Button from "../components/common/Button";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
+import DatePicker from "../components/common/DatePicker";
+import { toISODate } from "../utils/date";
 
 const getDefaultBalanceType = (accountType) => {
   return ["asset", "expense"].includes(String(accountType).toLowerCase())
@@ -284,9 +286,7 @@ export default function Accounts() {
       openingBalance: Number(account.openingBalance) || 0,
       openingBalanceType:
         account.openingBalanceType || getDefaultBalanceType(accountType),
-      openingDate: account.openingDate
-        ? new Date(account.openingDate).toISOString().split("T")[0]
-        : "",
+      openingDate: toISODate(account.openingDate),
       status: account.status || "active",
     });
 
@@ -308,28 +308,27 @@ export default function Accounts() {
         buttonIcon={Plus}
       />
 
-      <section className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm">
-          <Filter size={14} />
-          Account Filters
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          {STATUS_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              type="button"
-              variant={statusFilter === option.value ? "primary" : "outline"}
-              size="sm"
-              onClick={() => setStatusFilter(option.value)}
-              className={
-                statusFilter === option.value
-                  ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
-                  : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-700"
-              }>
-              {option.label}
-            </Button>
-          ))}
+   <section className="rounded-xl  bg-white p-3 border border-slate-200">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <div className="flex shrink-0 items-center gap-2 border-r pr-3 text-slate-500">
+            <Filter size={16} />
+            <span className="text-xs font-bold uppercase tracking-wider">Filter</span>
+          </div>
+          <div className="flex gap-2 pl-1">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setStatusFilter(opt.value)}
+                className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                  statusFilter === opt.value
+                    ? "bg-red-600 text-white shadow-md"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -447,15 +446,14 @@ export default function Accounts() {
                 disabled={Number(formData.openingBalance) === 0}
               />
 
-              <Input
+              <DatePicker
                 label="Opening Date"
                 name="openingDate"
-                type="date"
                 value={formData.openingDate}
-                onChange={(e) =>
+                onChange={(value) =>
                   setFormData((prev) => ({
                     ...prev,
-                    openingDate: e.target.value,
+                    openingDate: value,
                   }))
                 }
               />

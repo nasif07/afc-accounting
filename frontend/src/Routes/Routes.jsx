@@ -25,6 +25,7 @@ import JournalEntryApprovals from "../pages/JournalEntryApprovals";
 import Employees from "../pages/Employees";
 import Vendors from "../pages/Vendors";
 import PettyCash from "../pages/PettyCash";
+import PettyCashReportPage from "../pages/PettyCashReportPage";
 
 /**
  * RootRedirect: Handles root path redirection based on auth state
@@ -145,6 +146,10 @@ const router = createBrowserRouter([
       {
         path: "petty-cash",
         element: <PettyCash />,
+      },
+      {
+        path: "petty-cash/report",
+        element: <PettyCashReportPage />,
       },
       {
         path: "accounting",

@@ -157,6 +157,8 @@ export const auditAPI = {
 export const pettyCashAPI = {
   getTransactions: (params) => api.get("/petty-cash/transactions", { params }),
 
+  getReport: (params) => api.get("/petty-cash/report", { params }),
+
   getAll: (params) => api.get("/petty-cash", { params }),
 
   getById: (id) => api.get(`/petty-cash/${id}`),

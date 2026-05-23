@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { register } from "../store/slices/authSlice";
 import toast from "react-hot-toast";
-import { User, Mail, Lock, Loader, ClipboardCheck } from "lucide-react";
+import { User, Mail, Lock, ClipboardCheck } from "lucide-react";
+import { ButtonLoader } from "../components/common/Loaders";
 import logo from "/afc-logo.jpg";
 
 export default function Register() {
@@ -174,7 +175,7 @@ export default function Register() {
               disabled={loading}
               className="w-full bg-[#002395] hover:bg-[#001a6e] text-white font-bold py-3 px-4 rounded-sm transition-all flex items-center justify-center gap-2 shadow-md active:transform active:scale-[0.99] disabled:opacity-70">
               {loading ? (
-                <Loader className="animate-spin" size={18} />
+                <ButtonLoader />
               ) : (
                 <ClipboardCheck size={18} />
               )}

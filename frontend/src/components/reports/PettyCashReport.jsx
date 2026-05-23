@@ -58,22 +58,22 @@ const PettyCashReport = React.forwardRef(({ data = {} }, ref) => {
               <th
                 className="border border-slate-900 px-2 py-2 text-left font-bold text-black"
                 style={{ backgroundColor: "#e2f0d9", color: "#000000" }}>
-                Cash Received & Paid from
+                Cash Received & Paid From
               </th>
               <th
                 className="border border-slate-900 px-2 py-2 text-right font-bold text-black"
                 style={{ backgroundColor: "#e2f0d9", color: "#000000" }}>
-                Cash Received
+                Cash Received (BDT)
               </th>
               <th
                 className="border border-slate-900 px-2 py-2 text-right font-bold text-black"
                 style={{ backgroundColor: "#e2f0d9", color: "#000000" }}>
-                Cash Payment
+                Cash Payment (BDT)
               </th>
               <th
                 className="border border-slate-900 px-2 py-2 text-right font-bold text-black"
                 style={{ backgroundColor: "#e2f0d9", color: "#000000" }}>
-                Balance
+                Balance (BDT)
               </th>
               <th
                 className="border border-slate-900 px-2 py-2 text-left font-bold text-black"

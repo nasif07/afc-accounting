@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   FileText,
   Landmark,
-  Loader2,
   RefreshCcw,
   Wallet,
 } from "lucide-react";
@@ -33,6 +32,7 @@ import {
   CardTitle,
 } from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
+import { EmptyState, ErrorState, SectionSkeleton } from "../components/common/Loaders";
 
 const chartColors = ["#0f766e", "#dc2626", "#2563eb", "#ca8a04", "#7c3aed", "#0891b2", "#be185d", "#4b5563"];
 
@@ -54,28 +54,15 @@ const formatDate = (date) => {
 
 function PanelState({ loading, error, empty, children, emptyText }) {
   if (loading) {
-    return (
-      <div className="flex min-h-[180px] items-center justify-center text-slate-500">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Loading dashboard...
-      </div>
-    );
+    return <SectionSkeleton rows={6} />;
   }
 
   if (error) {
-    return (
-      <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
-        {error}
-      </div>
-    );
+    return <ErrorState message={error} />;
   }
 
   if (empty) {
-    return (
-      <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
-        {emptyText || "No data available yet."}
-      </div>
-    );
+    return <EmptyState description={emptyText || "No data available yet."} />;
   }
 
   return children;

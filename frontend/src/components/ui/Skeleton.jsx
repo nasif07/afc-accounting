@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
+import { TableSkeleton as StandardTableSkeleton } from '../common/Loaders';
 
 const Skeleton = React.forwardRef(({ className, ...props }, ref) => (
   <div
@@ -12,15 +13,7 @@ const Skeleton = React.forwardRef(({ className, ...props }, ref) => (
 Skeleton.displayName = 'Skeleton';
 
 export const TableSkeleton = ({ rows = 5, columns = 6 }) => (
-  <div className="space-y-3">
-    {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="flex gap-4">
-        {Array.from({ length: columns }).map((_, j) => (
-          <Skeleton key={j} className="h-12 flex-1" />
-        ))}
-      </div>
-    ))}
-  </div>
+  <StandardTableSkeleton rows={rows} columns={columns} />
 );
 
 export const CardSkeleton = () => (

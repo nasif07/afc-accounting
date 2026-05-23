@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import Button from "../common/Button";
 import Input from "../common/Input";
 import Select from "../common/Select";
+import DatePicker from "../common/DatePicker";
 import { coaAPI } from "../../services/apiMethods";
 
 const ReportFilters = ({
@@ -106,10 +107,9 @@ const ReportFilters = ({
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Start Date
               </label>
-              <Input
-                type="date"
+              <DatePicker
                 value={filters.startDate || ""}
-                onChange={(e) => onFilterChange("startDate", e.target.value)}
+                onChange={(value) => onFilterChange("startDate", value)}
                 disabled={loading}
               />
             </div>
@@ -118,10 +118,9 @@ const ReportFilters = ({
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 End Date
               </label>
-              <Input
-                type="date"
+              <DatePicker
                 value={filters.endDate || ""}
-                onChange={(e) => onFilterChange("endDate", e.target.value)}
+                onChange={(value) => onFilterChange("endDate", value)}
                 disabled={loading}
               />
             </div>
@@ -133,10 +132,9 @@ const ReportFilters = ({
             <label className="mb-2 block text-sm font-medium text-gray-700">
               As of Date
             </label>
-            <Input
-              type="date"
+            <DatePicker
               value={filters.asOfDate || ""}
-              onChange={(e) => onFilterChange("asOfDate", e.target.value)}
+              onChange={(value) => onFilterChange("asOfDate", value)}
               disabled={loading}
             />
           </div>

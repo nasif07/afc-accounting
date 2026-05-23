@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Loader, X, ShieldCheck } from "lucide-react";
+import { Plus, X, ShieldCheck } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchLeafAccounts } from "../../store/slices/accountSlice";
 import BookEntryRow from "./BookEntryRow";
@@ -9,6 +9,9 @@ import { toast } from "sonner";
 import Input from "../common/Input";
 import Select from "../common/Select";
 import Button from "../common/Button";
+import DatePicker from "../common/DatePicker";
+import { SectionSkeleton } from "../common/Loaders";
+import { todayISO, toISODate } from "../../utils/date";
 
 const DynamicJournalForm = ({
   onSubmit,
@@ -32,7 +35,7 @@ const DynamicJournalForm = ({
   // ==============================
 
   const [voucherDate, setVoucherDate] = useState(
-    initialData?.voucherDate || new Date().toISOString().split("T")[0],
+    toISODate(initialData?.voucherDate) || todayISO(),
   );
 
   const [transactionType, setTransactionType] = useState(
@@ -44,7 +47,7 @@ const DynamicJournalForm = ({
   );
 
   const [requiresApproval, setRequiresApproval] = useState(
-    initialData ? initialData.approvalStatus === "pending" : true,
+    initialData ? initialData.approvalStatus === "pending" : false,
   );
 
   const [bookEntries, setBookEntries] = useState(
@@ -92,6 +95,11 @@ const DynamicJournalForm = ({
   const validateForm = () => {
     const newErrors = {};
     let isValid = true;
+
+    if (!voucherDate) {
+      toast.error("Voucher date is required");
+      isValid = false;
+    }
 
     if (bookEntries.length < 2) {
       toast.error("Journal entry must have at least 2 line items");
@@ -195,13 +203,7 @@ const DynamicJournalForm = ({
   // ==============================
 
   if (isLoadingAccounts) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader className="animate-spin text-red-600" size={20} />
-
-        <span className="ml-2 text-sm text-slate-600">Loading accounts...</span>
-      </div>
-    );
+    return <SectionSkeleton rows={6} />;
   }
 
   // ==============================
@@ -227,11 +229,12 @@ const DynamicJournalForm = ({
         <h2 className="mb-3 text-sm font-bold">Voucher Details</h2>
 
         <div className="grid gap-3 md:grid-cols-3">
-          <Input
+          <DatePicker
             label="Voucher Date"
-            type="date"
             value={voucherDate}
-            onChange={(e) => setVoucherDate(e.target.value)}
+            onChange={setVoucherDate}
+            required
+            disabled={isSubmitting}
           />
 
           <Select
@@ -331,7 +334,10 @@ const DynamicJournalForm = ({
 
       {/* Submit */}
       <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={!isBalanced || isSubmitting}>
+        <Button
+          type="submit"
+          disabled={!isBalanced || isSubmitting}
+          loading={isSubmitting}>
           {isSubmitting ? "Saving..." : "Save Entry"}
         </Button>
       </div>

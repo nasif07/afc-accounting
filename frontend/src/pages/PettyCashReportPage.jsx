@@ -165,7 +165,7 @@ const makeRow = (rowIndex, cells, height = null) => {
 
 const buildPettyCashWorkbook = (report) => {
   const rows = [];
-  const merges = ["A1:G1", "A2:G2", "A3:G3", "A4:G4", "A8:G8"];
+  const merges = ["A1:G1", "A2:G2"];
   const dateRange = report.dateRange || {};
   const period =
     dateRange.from && dateRange.to
@@ -175,36 +175,35 @@ const buildPettyCashWorkbook = (report) => {
   rows.push(
     makeRow(1, [{ value: "Alliance Francaise de Chittagong", style: 1 }], 24),
   );
-  rows.push(makeRow(2, [{ value: "Petty Cash Account", style: 2 }], 22));
-  rows.push(makeRow(3, [{ value: period, style: 3 }]));
   rows.push(
-    makeRow(4, [
+    makeRow(2, [
       {
-        value: `Account: ${report.account?.accountCode || "1001"} - ${
+        value: `Petty Cash Account / ${period} / ${
+          report.account?.accountCode || "1001"
+        } - ${
           report.account?.accountName || "Petty Cash"
         }`,
-        style: 3,
+        style: 2,
       },
-    ]),
+    ], 22),
   );
-  rows.push(makeRow(5, []));
   rows.push(
     makeRow(
-      6,
+      3,
       [
         "Date",
         "Expenditures",
-        "Cash Received & Paid from",
-        "Cash Received",
-        "Cash Payment",
-        "Balance",
+        "Cash Received & Paid From",
+        "Cash Received (BDT)",
+        "Cash Payment (BDT)",
+        "Balance (BDT)",
         "Remarks",
       ].map((value) => ({ value, style: 4 })),
       24,
     ),
   );
   rows.push(
-    makeRow(7, [
+    makeRow(4, [
       { value: dateRange.from ? formatDisplayDate(dateRange.from) : "-", style: 6 },
       { value: "Cash in Hand", style: 7 },
       { value: "Accounts", style: 6 },
@@ -217,7 +216,7 @@ const buildPettyCashWorkbook = (report) => {
 
   (report.transactions || []).forEach((row, index) => {
     rows.push(
-      makeRow(index + 8, [
+      makeRow(index + 5, [
         { value: formatDisplayDate(row.date), style: 6 },
         { value: row.credit > 0 ? row.accountHead || row.counterparty || "" : "", style: 6 },
         {
@@ -249,7 +248,7 @@ const buildPettyCashWorkbook = (report) => {
   );
   merges.push(`A${totalRowIndex}:C${totalRowIndex}`);
 
-  const summaryStart = totalRowIndex + 3;
+  const summaryStart = totalRowIndex + 2;
   rows.push(makeRow(totalRowIndex + 1, []));
   rows.push(
     makeRow(summaryStart, [
@@ -302,10 +301,10 @@ const buildPettyCashWorkbook = (report) => {
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="4">
-    <font><sz val="11"/><name val="Calibri"/></font>
-    <font><b/><sz val="16"/><name val="Calibri"/></font>
-    <font><b/><sz val="13"/><name val="Calibri"/></font>
-    <font><b/><sz val="11"/><name val="Calibri"/></font>
+    <font><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
+    <font><b/><sz val="16"/><color rgb="FF000000"/><name val="Calibri"/></font>
+    <font><b/><sz val="13"/><color rgb="FF000000"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
   </fonts>
   <fills count="5">
     <fill><patternFill patternType="none"/></fill>
@@ -424,7 +423,8 @@ export default function PettyCashReportPage() {
             body { padding: 24px; font-family: Arial, sans-serif; color: #020617; }
             table { width: 100%; border-collapse: collapse; }
             th, td { padding: 8px; border: 1px solid #020617; text-align: left; }
-            thead tr, th {
+            table thead tr,
+            table thead th {
               background: #e2f0d9 !important;
               background-color: #e2f0d9 !important;
               color: #000000 !important;
@@ -476,10 +476,10 @@ export default function PettyCashReportPage() {
       const tableColumns = [
         { label: "Date", width: 24, align: "left" },
         { label: "Expenditures", width: 50, align: "left" },
-        { label: "Cash Received & Paid from", width: 62, align: "left" },
-        { label: "Cash Received", width: 31, align: "right" },
-        { label: "Cash Payment", width: 31, align: "right" },
-        { label: "Balance", width: 31, align: "right" },
+        { label: "Cash Received & Paid From", width: 62, align: "left" },
+        { label: "Cash Received (BDT)", width: 31, align: "right" },
+        { label: "Cash Payment (BDT)", width: 31, align: "right" },
+        { label: "Balance (BDT)", width: 31, align: "right" },
         { label: "Remarks", width: 48, align: "left" },
       ];
       const period =
@@ -570,6 +570,8 @@ export default function PettyCashReportPage() {
 
         let x = margin;
         tableColumns.forEach((column) => {
+          pdf.setFillColor(226, 240, 217);
+          pdf.setTextColor(0, 0, 0);
           pdf.rect(x, cursorY, column.width, 8, "FD");
           pdf.setTextColor(0, 0, 0);
           drawCellText(column.label, x, cursorY, column.width, 8, column.align);
@@ -596,6 +598,7 @@ export default function PettyCashReportPage() {
 
         pdf.setFont("helvetica", options.bold ? "bold" : "normal");
         pdf.setFontSize(7.5);
+        pdf.setTextColor(0, 0, 0);
         pdf.setDrawColor(17, 24, 39);
         pdf.setLineWidth(0.15);
 
@@ -750,7 +753,7 @@ export default function PettyCashReportPage() {
       />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_auto_auto_auto_auto] xl:items-end">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_auto_auto_auto_auto] xl:items-center">
           <DatePicker
             label="From Date"
             name="fromDate"

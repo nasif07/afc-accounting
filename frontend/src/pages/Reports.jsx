@@ -3,8 +3,6 @@ import {
   Download,
   Printer,
   BarChart3,
-  AlertCircle,
-  Loader,
 } from "lucide-react";
 import { Card, CardContent } from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -18,6 +16,8 @@ import GeneralLedgerReport from "../components/reports/GeneralLedgerReport"; // 
 import { toast } from "sonner";
 import api from "../services/api";
 import SectionHeader from "../components/common/SectionHeader";
+import { SectionSkeleton, ErrorState } from "../components/common/Loaders";
+import { formatDisplayDate, todayISO } from "../utils/date";
 
 export default function Reports() {
   const printRef = useRef(null);
@@ -26,7 +26,7 @@ export default function Reports() {
   const [filters, setFilters] = useState({
     startDate: "",
     endDate: "",
-    asOfDate: new Date().toISOString().split("T")[0],
+    asOfDate: todayISO(),
     viewType: "detailed",
     accountId: "",
   });
@@ -114,7 +114,7 @@ export default function Reports() {
     setFilters({
       startDate: "",
       endDate: "",
-      asOfDate: new Date().toISOString().split("T")[0],
+      asOfDate: todayISO(),
       viewType: "detailed",
       accountId: "",
     });
@@ -509,7 +509,7 @@ export default function Reports() {
           },
           {
             title: "Transactions",
-            value: reportData.entries?.length || 0,
+            value: reportData.pagination?.total || reportData.transactions?.length || 0,
             color: "purple",
             format: "text",
           },
@@ -544,27 +544,11 @@ export default function Reports() {
       />
 
       {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="flex items-center gap-3 pt-6">
-            <AlertCircle size={20} className="text-red-600" />
-            <div>
-              <p className="font-semibold text-red-900">Error</p>
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <ErrorState message={error} onRetry={fetchReport} />
       )}
 
       {loading && (
-        <Card>
-          <CardContent className="pt-12 text-center">
-            <Loader
-              size={48}
-              className="mx-auto mb-4 animate-spin text-neutral-400"
-            />
-            <p className="text-neutral-600">Generating report...</p>
-          </CardContent>
-        </Card>
+        <SectionSkeleton rows={8} />
       )}
 
       {reportData && !loading && (
@@ -624,11 +608,11 @@ export default function Reports() {
                       <p className="text-sm text-neutral-600">
                         <span className="font-semibold">Period:</span>{" "}
                         {filters.startDate
-                          ? new Date(filters.startDate).toLocaleDateString()
+                          ? formatDisplayDate(filters.startDate)
                           : "N/A"}{" "}
                         to{" "}
                         {filters.endDate
-                          ? new Date(filters.endDate).toLocaleDateString()
+                          ? formatDisplayDate(filters.endDate)
                           : "N/A"}
                       </p>
                     )}
@@ -638,7 +622,7 @@ export default function Reports() {
                       reportType === "balance-sheet") && (
                       <p className="text-sm text-neutral-600">
                         <span className="font-semibold">As of:</span>{" "}
-                        {new Date(filters.asOfDate).toLocaleDateString()}
+                        {formatDisplayDate(filters.asOfDate)}
                       </p>
                     )}
                 </div>

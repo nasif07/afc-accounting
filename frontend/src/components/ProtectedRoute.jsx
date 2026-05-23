@@ -1,19 +1,13 @@
 import { Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { PageLoader } from "./common/Loaders";
 
 export default function ProtectedRoute({ children, requiredRole = null }) {
   const { isAuthenticated, loading, isPending } = useSelector((state) => state.auth);
   const user = useSelector((state) => state.auth.user);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Verifying authentication...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader message="Verifying authentication..." className="min-h-screen" />;
   }
 
   // REDIRECT IF NOT AUTHENTICATED

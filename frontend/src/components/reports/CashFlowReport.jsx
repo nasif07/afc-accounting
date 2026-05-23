@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatCurrency } from '../../utils/currency';
+import { formatDisplayDate } from '../../utils/date';
 
 const CashFlowReport = ({ data, startDate, endDate }) => {
   if (!data) {
@@ -16,7 +17,7 @@ const CashFlowReport = ({ data, startDate, endDate }) => {
         <h2 className="text-2xl font-bold text-gray-900">Cash Flow Statement</h2>
         {startDate && endDate && (
           <p className="text-sm text-gray-600 mt-2">
-            For the period: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+            For the period: {formatDisplayDate(startDate)} to {formatDisplayDate(endDate)}
           </p>
         )}
       </div>
@@ -36,7 +37,7 @@ const CashFlowReport = ({ data, startDate, endDate }) => {
               <div key={idx} className="flex justify-between py-2 px-4 hover:bg-gray-50 text-sm">
                 <div>
                   <p className="text-gray-700">{item.description}</p>
-                  <p className="text-xs text-gray-500">{new Date(item.date).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-500">{formatDisplayDate(item.date)}</p>
                 </div>
                 <span className="font-medium text-green-600">{formatCurrency(item.amount)}</span>
               </div>
@@ -60,7 +61,7 @@ const CashFlowReport = ({ data, startDate, endDate }) => {
               <div key={idx} className="flex justify-between py-2 px-4 hover:bg-gray-50 text-sm">
                 <div>
                   <p className="text-gray-700">{item.description}</p>
-                  <p className="text-xs text-gray-500">{new Date(item.date).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-500">{formatDisplayDate(item.date)}</p>
                 </div>
                 <span className="font-medium text-red-600">{formatCurrency(item.amount)}</span>
               </div>

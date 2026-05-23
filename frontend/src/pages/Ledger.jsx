@@ -1,23 +1,19 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { useSelector } from "react-redux";
+import React, { useState, useEffect } from "react";
 import {
-  Search,
-  Calendar,
   Download,
   Filter,
   ArrowLeftRight,
-  Loader,
   BookOpen,
 } from "lucide-react";
 import { accountingAPI, coaAPI } from "../services/apiMethods";
 import { formatCurrency } from "../utils/currency";
 import { toast } from "sonner";
 import Card from "../components/common/Card";
-import Badge from "../components/common/Badge";
 import SectionHeader from "../components/common/SectionHeader";
-import Input from "../components/common/Input";
 import Select from "../components/common/Select";
 import Button from "../components/common/Button";
+import DatePicker from "../components/common/DatePicker";
+import { TableSkeleton } from "../components/common/Loaders";
 
 const Ledger = () => {
   const [accounts, setAccounts] = useState([]);
@@ -27,6 +23,8 @@ const Ledger = () => {
   const [ledgerData, setLedgerData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [page, setPage] = useState(1);
+  const limit = 25;
 
 
   // Fetch leaf accounts for selection
@@ -45,7 +43,7 @@ const Ledger = () => {
     fetchAccounts();
   }, []);
 
-  const handleFetchLedger = async () => {
+  const handleFetchLedger = async (nextPage = 1) => {
     if (!selectedAccount) {
       toast.error("Please select an account");
       return;
@@ -53,13 +51,13 @@ const Ledger = () => {
 
     setLoading(true);
     try {
-      const params = {};
+      const params = { page: nextPage, limit };
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
       const response = await accountingAPI.getLedger(selectedAccount, params);
       setLedgerData(response.data.data);
-      console.log(response.data.data);
+      setPage(nextPage);
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Failed to fetch ledger data",
@@ -68,10 +66,6 @@ const Ledger = () => {
       setLoading(false);
     }
   };
-
-  const accountInfo = useMemo(() => {
-    return accounts.find((a) => a._id === selectedAccount);
-  }, [accounts, selectedAccount]);
 
   return (
     <div className="space-y-4">
@@ -101,24 +95,24 @@ const Ledger = () => {
           />
 
           {/* From Date */}
-          <Input
+          <DatePicker
             label="From Date"
-            type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={setStartDate}
+            disabled={loading}
           />
 
           {/* To Date */}
-          <Input
+          <DatePicker
             label="To Date"
-            type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={setEndDate}
+            disabled={loading}
           />
 
           {/* Button */}
           <Button
-            onClick={handleFetchLedger}
+            onClick={() => handleFetchLedger(1)}
             disabled={loading || !selectedAccount}
             className="py-3"
             icon={loading ? null : Filter}
@@ -169,6 +163,11 @@ const Ledger = () => {
 
           {/* Transaction Table */}
           <Card className="overflow-hidden">
+            {loading ? (
+              <div className="p-4">
+                <TableSkeleton rows={8} columns={6} />
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -256,7 +255,35 @@ const Ledger = () => {
                 </tbody>
               </table>
             </div>
+            )}
           </Card>
+
+          {ledgerData.pagination && (
+            <div className="flex flex-col items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 sm:flex-row">
+              <span>
+                Page {ledgerData.pagination.page} of{" "}
+                {ledgerData.pagination.totalPages} ·{" "}
+                {ledgerData.pagination.total} approved ledger transactions
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  disabled={loading || page <= 1}
+                  onClick={() => handleFetchLedger(page - 1)}>
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={
+                    loading ||
+                    page >= (ledgerData.pagination.totalPages || 1)
+                  }
+                  onClick={() => handleFetchLedger(page + 1)}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">

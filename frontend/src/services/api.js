@@ -11,6 +11,17 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// REQUEST INTERCEPTOR - ATTACH STORED JWT
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
 // RESPONSE INTERCEPTOR - HANDLE 401
 api.interceptors.response.use(
   (response) => {

@@ -1,4 +1,4 @@
-import { Loader } from "lucide-react";
+import { ButtonLoader } from "./Loaders";
 
 export default function Button({
   children,
@@ -47,7 +47,7 @@ export default function Button({
       {...props}
     >
       {loading ? (
-        <Loader size={16} className="animate-spin" />
+        <ButtonLoader />
       ) : Icon ? (
         <Icon size={16} />
       ) : null}

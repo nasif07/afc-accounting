@@ -1,18 +1,16 @@
 import {
   AlertCircle,
   Coins,
-  Download,
   FileText,
-  Loader,
   Plus,
-  Printer,
   ReceiptText,
   Search,
   TrendingDown,
   TrendingUp,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 
@@ -23,14 +21,16 @@ import SectionHeader from "../components/common/SectionHeader";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
 import Button from "../components/common/Button";
-import PettyCashReport from "../components/reports/PettyCashReport";
+import DatePicker from "../components/common/DatePicker";
+import { TableSkeleton } from "../components/common/Loaders";
 import { formatCurrency } from "../utils/currency";
+import { todayISO, toISODate } from "../utils/date";
 
 const PETTY_CASH_ACCOUNT_CODE = "1001";
 const DEFAULT_PAGE_SIZE = 20;
 
 const initialFormData = {
-  date: new Date().toISOString().split("T")[0],
+  date: todayISO(),
   description: "",
   amount: "",
   paidTo: "",
@@ -38,12 +38,7 @@ const initialFormData = {
   referenceNumber: "",
 };
 
-const toDateInputValue = (date) => {
-  if (!date) return "";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString().split("T")[0];
-};
+const toDateInputValue = toISODate;
 
 const formatDate = (date) => {
   if (!date) return "---";
@@ -56,16 +51,8 @@ const formatDate = (date) => {
   });
 };
 
-const formatReportDate = (date) => {
-  if (!date) return "";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("en-GB");
-};
-
 export default function PettyCash() {
   const dispatch = useDispatch();
-  const reportRef = useRef(null);
 
   const { loading: pettyCashSaving, error } = useSelector(
     (state) => state.pettyCash,
@@ -98,7 +85,6 @@ export default function PettyCash() {
   const [formData, setFormData] = useState(initialFormData);
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showReport, setShowReport] = useState(false);
 
   const canCreatePettyCash =
     user?.role === "director" ||
@@ -186,42 +172,6 @@ export default function PettyCash() {
       dispatch(clearError());
     }
   }, [error, dispatch]);
-
-  const reportData = useMemo(() => {
-    const ascendingRows = [...transactions].sort(
-      (a, b) => new Date(a.date) - new Date(b.date),
-    );
-
-    const monthYear = dateFrom
-      ? new Date(dateFrom).toLocaleString("en-US", {
-          month: "long",
-          year: "numeric",
-        })
-      : "Selected Period";
-
-    return {
-      reportData: ascendingRows.map((row) => ({
-        date: formatReportDate(row.date),
-        expenditures: row.credit > 0 ? row.description : "Cash Deposit",
-        cashReceivedPaidFrom: row.counterparty,
-        cashReceived: row.debit,
-        cashPayment: row.credit,
-        balance: row.runningBalance,
-        remarks: row.referenceNumber || row.voucherNumber,
-      })),
-      summary: {
-        totalCashReceived: summary.totalDebit,
-        totalCashPayment: summary.totalCredit,
-        totalRecords: summary.count,
-        closingBalance: summary.balance,
-      },
-      dateRange: {
-        from: dateFrom || null,
-        to: dateTo || null,
-        monthYear,
-      },
-    };
-  }, [transactions, summary, dateFrom, dateTo]);
 
   const resetForm = () => {
     setFormData(initialFormData);
@@ -313,167 +263,7 @@ export default function PettyCash() {
     setCurrentPage(1);
   };
 
-  const handlePrint = () => {
-    if (!reportRef.current) return;
-
-    const printWindow = window.open("", "", "height=700,width=1000");
-    if (!printWindow) {
-      toast.error("Unable to open print window");
-      return;
-    }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Petty Cash Report</title>
-          <style>
-            body { padding: 24px; font-family: Arial, sans-serif; color: #111827; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 8px; border: 1px solid #111827; text-align: left; }
-            th { background: #dcfce7; font-weight: 700; }
-            @media print { body { margin: 0; } }
-          </style>
-        </head>
-        <body>${reportRef.current.innerHTML}</body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  };
-
-  const handleDownloadCSV = () => {
-    if (transactions.length === 0) {
-      toast.error("No transactions to export");
-      return;
-    }
-
-    const rows = [
-      [
-        "Date",
-        "Voucher",
-        "Reference",
-        "Type",
-        "Description",
-        "Account",
-        "Money In",
-        "Money Out",
-        "Running Balance",
-      ],
-      ...transactions.map((row) => [
-        formatDate(row.date),
-        row.voucherNumber,
-        row.referenceNumber,
-        row.type,
-        `"${row.description.replace(/"/g, '""')}"`,
-        `"${row.counterparty.replace(/"/g, '""')}"`,
-        row.debit,
-        row.credit,
-        row.runningBalance,
-      ]),
-    ];
-
-    const blob = new Blob([rows.map((row) => row.join(",")).join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `petty-cash-journal-${new Date()
-      .toISOString()
-      .split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    toast.success("Petty cash CSV exported");
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!reportRef.current) {
-      toast.error("No report content found to export");
-      return;
-    }
-
-    let clone = null;
-
-    try {
-      toast.loading("Preparing PDF...", { id: "petty-cash-pdf" });
-
-      const [html2canvasModule, jsPDFModule] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
-
-      const html2canvas = html2canvasModule.default;
-      const { jsPDF } = jsPDFModule;
-
-      clone = reportRef.current.cloneNode(true);
-      clone.style.position = "fixed";
-      clone.style.left = "0";
-      clone.style.top = "0";
-      clone.style.width = "794px";
-      clone.style.background = "#ffffff";
-      clone.style.zIndex = "-9999";
-      document.body.appendChild(clone);
-
-      clone.querySelectorAll("*").forEach((element) => {
-        if (!(element instanceof HTMLElement)) return;
-
-        element.style.color = "#111827";
-        element.style.backgroundColor = "#ffffff";
-        element.style.borderColor = "#111827";
-      });
-
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        logging: false,
-        width: 794,
-        windowWidth: 794,
-      });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.98);
-      const pdf = new jsPDF({
-        unit: "mm",
-        format: "a4",
-        orientation: "portrait",
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgHeight = (canvas.height * pageWidth) / canvas.width;
-
-      let position = 0;
-      let heightLeft = imgHeight;
-
-      pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(
-        `petty-cash-journal-${new Date().toISOString().split("T")[0]}.pdf`,
-      );
-      toast.success("Petty cash PDF exported", { id: "petty-cash-pdf" });
-    } catch (err) {
-      toast.error(err?.message || "Failed to export PDF", {
-        id: "petty-cash-pdf",
-      });
-    } finally {
-      if (clone && document.body.contains(clone)) {
-        document.body.removeChild(clone);
-      }
-    }
-  };
-
   const isLoading = historyLoading;
-  const canExport = transactions.length > 0;
 
   return (
     <div className="space-y-4 pb-10">
@@ -573,16 +363,14 @@ export default function PettyCash() {
             />
           </div>
 
-          <Input
-            type="date"
+          <DatePicker
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={setDateFrom}
           />
 
-          <Input
-            type="date"
+          <DatePicker
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={setDateTo}
           />
 
           <Button
@@ -606,20 +394,17 @@ export default function PettyCash() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowReport((value) => !value)}
+          <Link
+            to="/dashboard/petty-cash/report"
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             <FileText size={16} />
-            {showReport ? "Hide Report" : "Show Report"}
-          </button>
+            Report
+          </Link>
         </div>
 
         <div className="overflow-x-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center py-14">
-              <Loader className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
+            <TableSkeleton rows={8} columns={7} />
           ) : transactions.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-14 text-center">
               <Coins className="h-12 w-12 text-slate-300" />
@@ -750,44 +535,6 @@ export default function PettyCash() {
         )}
       </div>
 
-      {showReport && (
-        <div className="space-y-4">
-          <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handlePrint}
-              disabled={!canExport}
-              className="border-slate-300 text-slate-700 hover:bg-slate-50">
-              <Printer size={16} />
-              Print
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleDownloadPDF}
-              disabled={!canExport}
-              className="border-slate-300 text-slate-700 hover:bg-slate-50">
-              <Download size={16} />
-              Download PDF
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleDownloadCSV}
-              disabled={!canExport}
-              className="border-slate-300 text-slate-700 hover:bg-slate-50">
-              <FileText size={16} />
-              Download CSV
-            </Button>
-          </div>
-
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <PettyCashReport ref={reportRef} data={reportData} />
-          </div>
-        </div>
-      )}
-
       {showModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
           <div className="min-h-full px-3 py-6 sm:px-4">
@@ -821,12 +568,13 @@ export default function PettyCash() {
                 )}
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Input
+                  <DatePicker
                     label="Date"
-                    type="date"
                     name="date"
                     value={toDateInputValue(formData.date)}
-                    onChange={handleChange}
+                    onChange={(value) =>
+                      setFormData((prev) => ({ ...prev, date: value }))
+                    }
                     required
                     disabled={isSubmitting || pettyCashSaving}
                   />

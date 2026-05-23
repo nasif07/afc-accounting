@@ -1,5 +1,6 @@
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
+import { EmptyState, TableSkeleton } from '../common/Loaders';
 
 export default function DataTable({
   columns,
@@ -39,19 +40,11 @@ export default function DataTable({
   const sortedData = getSortedData();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <TableSkeleton rows={6} columns={columns.length} />;
   }
 
   if (data.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        <p>No data available</p>
-      </div>
-    );
+    return <EmptyState description="No data available" />;
   }
 
   return (

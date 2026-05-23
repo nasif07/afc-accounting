@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatCurrency } from '../../utils/currency';
+import { formatDisplayDate } from '../../utils/date';
 
 const GeneralLedgerReport = ({ data, startDate, endDate }) => {
   if (!data) {
@@ -17,7 +18,7 @@ const GeneralLedgerReport = ({ data, startDate, endDate }) => {
         <p className="text-lg font-semibold text-gray-700 mt-2">{data.accountName} ({data.accountCode})</p>
         {startDate && endDate && (
           <p className="text-sm text-gray-600 mt-2">
-            For the period: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+            For the period: {formatDisplayDate(startDate)} to {formatDisplayDate(endDate)}
           </p>
         )}
       </div>
@@ -25,7 +26,10 @@ const GeneralLedgerReport = ({ data, startDate, endDate }) => {
       {/* Opening Balance */}
       <div className="flex justify-between py-3 px-4 bg-gray-100 rounded font-semibold">
         <span className="text-gray-900">Opening Balance</span>
-        <span className="text-gray-900">{formatCurrency(data.openingBalance || 0)}</span>
+        <span className="text-gray-900">
+          {formatCurrency(data.openingBalance || 0)}{" "}
+          {data.openingBalanceType === "credit" ? "Cr" : "Dr"}
+        </span>
       </div>
 
       {/* Transactions */}
@@ -48,7 +52,7 @@ const GeneralLedgerReport = ({ data, startDate, endDate }) => {
               <tbody>
                 {data.transactions.map((txn, idx) => (
                   <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="py-3 px-4 text-gray-700">{new Date(txn.date).toLocaleDateString()}</td>
+                    <td className="py-3 px-4 text-gray-700">{formatDisplayDate(txn.date)}</td>
                     <td className="py-3 px-4 text-gray-700 font-medium">{txn.voucherNumber}</td>
                     <td className="py-3 px-4 text-gray-700">{txn.description}</td>
                     <td className="py-3 px-4 text-right font-medium text-gray-900">
@@ -58,7 +62,8 @@ const GeneralLedgerReport = ({ data, startDate, endDate }) => {
                       {txn.credit > 0 ? formatCurrency(txn.credit) : '-'}
                     </td>
                     <td className="py-3 px-4 text-right font-bold text-blue-600">
-                      {formatCurrency(txn.runningBalance)}
+                      {formatCurrency(txn.runningBalance)}{" "}
+                      {txn.runningBalanceType === "credit" ? "Cr" : "Dr"}
                     </td>
                   </tr>
                 ))}
@@ -82,7 +87,10 @@ const GeneralLedgerReport = ({ data, startDate, endDate }) => {
         </div>
         <div className="flex justify-between py-3 px-4 bg-blue-50 rounded-lg border-2 border-blue-600">
           <span className="font-semibold text-gray-900">Closing Balance</span>
-          <span className="font-bold text-blue-600">{formatCurrency(data.closingBalance || 0)}</span>
+          <span className="font-bold text-blue-600">
+            {formatCurrency(data.closingBalance || 0)}{" "}
+            {data.closingBalanceType === "credit" ? "Cr" : "Dr"}
+          </span>
         </div>
       </div>
     </div>

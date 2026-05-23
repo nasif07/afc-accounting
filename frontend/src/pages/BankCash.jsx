@@ -8,7 +8,6 @@ import {
   Trash2,
   CheckCircle,
   History,
-  Loader,
   RefreshCw,
   Search,
 } from "lucide-react";
@@ -23,6 +22,9 @@ import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
 import SectionHeader from "../components/common/SectionHeader";
+import DatePicker from "../components/common/DatePicker";
+import { SectionSkeleton, TableSkeleton } from "../components/common/Loaders";
+import { todayISO } from "../utils/date";
 
 const getErrorMessage = (error, fallback = "Something went wrong") => {
   if (!error) return fallback;
@@ -60,7 +62,7 @@ const BankCash = () => {
   const [showReconcileModal, setShowReconcileModal] = useState(false);
   const [reconcileData, setReconcileData] = useState({
     reconciledBalance: "",
-    reconciledDate: new Date().toISOString().split("T")[0],
+    reconciledDate: todayISO(),
     statementReference: "",
     transactionIds: [],
   });
@@ -375,8 +377,9 @@ const BankCash = () => {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {loading ? (
-          <div className="col-span-full flex justify-center py-20">
-            <Loader className="animate-spin text-red-600" size={34} />
+          <div className="col-span-full grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <SectionSkeleton rows={5} />
+            <SectionSkeleton rows={5} />
           </div>
         ) : bankAccounts.length > 0 ? (
           bankAccounts.map((account) => (
@@ -471,7 +474,7 @@ const BankCash = () => {
                       setEditingAccount(account);
                       setReconcileData({
                         reconciledBalance: account.currentBalance || 0,
-                        reconciledDate: new Date().toISOString().split("T")[0],
+                        reconciledDate: todayISO(),
                         statementReference: "",
                         transactionIds: [],
                       });
@@ -639,15 +642,14 @@ const BankCash = () => {
             }
           />
 
-          <Input
+          <DatePicker
             label="Statement Date"
-            type="date"
             required
             value={reconcileData.reconciledDate}
-            onChange={(e) =>
+            onChange={(value) =>
               setReconcileData({
                 ...reconcileData,
-                reconciledDate: e.target.value,
+                reconciledDate: value,
               })
             }
           />
@@ -691,9 +693,7 @@ const BankCash = () => {
             </div>
 
             {transactionLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader className="animate-spin text-red-600" size={24} />
-              </div>
+              <TableSkeleton rows={5} columns={5} />
             ) : bankTransactions.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-slate-500">
                 No approved bank ledger transactions found.

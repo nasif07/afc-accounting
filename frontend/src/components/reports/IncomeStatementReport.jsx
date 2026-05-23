@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatCurrency } from '../../utils/currency';
+import { formatDisplayDate } from '../../utils/date';
 
 const IncomeStatementReport = ({ data, startDate, endDate }) => {
   if (!data) {
@@ -18,7 +19,7 @@ const IncomeStatementReport = ({ data, startDate, endDate }) => {
         <h2 className="text-2xl font-bold text-gray-900">Profit & Loss Statement</h2>
         {startDate && endDate && (
           <p className="text-sm text-gray-600 mt-2">
-            For the period: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+            For the period: {formatDisplayDate(startDate)} to {formatDisplayDate(endDate)}
           </p>
         )}
       </div>

@@ -11,7 +11,10 @@ const normalizeAuthPayload = (payload) => {
 };
 
 const persistAuthSession = ({ user, token }) => {
-  if (token) localStorage.setItem("authToken", token);
+  if (token) {
+    localStorage.setItem("authToken", token);
+    localStorage.setItem("token", token);
+  }
   if (user) localStorage.setItem("user", JSON.stringify(user));
 };
 

@@ -1,5 +1,6 @@
 import React from "react";
 import { formatCurrency } from "../../utils/currency";
+import { formatDisplayDate } from "../../utils/date";
 
 const TrialBalanceReport = ({ data, asOfDate }) => {
   if (!data || !data.balances) {
@@ -16,7 +17,7 @@ const TrialBalanceReport = ({ data, asOfDate }) => {
         <h2 className="text-2xl font-bold text-gray-900">Trial Balance</h2>
         {asOfDate && (
           <p className="text-sm text-gray-600 mt-2">
-            As of {new Date(asOfDate).toLocaleDateString()}
+            As of {formatDisplayDate(asOfDate)}
           </p>
         )}
       </div>
