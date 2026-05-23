@@ -1,16 +1,32 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
-const uploadDir = process.env.UPLOAD_DIR || "./uploads";
+const uploadDir =
+  process.env.UPLOAD_DIR ||
+  (process.env.VERCEL
+    ? path.join(os.tmpdir(), "uploads")
+    : path.resolve(process.cwd(), "uploads"));
 
-// Ensure upload directory exists
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+const ensureUploadDir = () => {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+};
 
 const fileUploader = (req, res, next) => {
   if (!req.files || Object.keys(req.files).length === 0) {
     return next();
+  }
+
+  try {
+    ensureUploadDir();
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Upload storage is not available",
+      error: error.message,
+    });
   }
 
   const maxFileSize = parseInt(process.env.MAX_FILE_SIZE) || 5242880; // 5MB default

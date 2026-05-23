@@ -28,6 +28,33 @@ class PettyCashController {
     }
   }
 
+  static async getPettyCashReport(req, res, next) {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const result = await PettyCashService.getJournalBackedReport({
+        startDate,
+        endDate,
+      });
+
+      return ApiResponse.success(
+        res,
+        result,
+        "Petty cash report retrieved successfully",
+      );
+    } catch (error) {
+      if (error.statusCode === 404) {
+        return ApiResponse.notFound(res, error.message);
+      }
+
+      if (error.statusCode === 400) {
+        return ApiResponse.badRequest(res, error.message);
+      }
+
+      next(error);
+    }
+  }
+
   /**
    * Create a new petty cash disbursement
    */

@@ -1,5 +1,6 @@
 const Bank = require("../bank/bank.model");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
+const COAService = require("../chartOfAccounts/coa.service");
 const JournalEntry = require("../accounting/accounting.model");
 const PettyCashService = require("../pettycash/pettycash.service");
 
@@ -228,6 +229,12 @@ class DashboardService {
         alerts: [],
       };
     }
+
+    await Promise.all(
+      bankAccountIds.map((accountId) =>
+        COAService.deduplicateOpeningBalanceJournals(accountId),
+      ),
+    );
 
     const entries = await this.getApprovedEntries({
       "bookEntries.account": { $in: bankAccountIds },

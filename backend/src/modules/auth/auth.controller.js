@@ -2,6 +2,13 @@ const { StatusCodes } = require("http-status-codes");
 const AuthService = require("./auth.service");
 const ApiResponse = require("../../utils/apiResponse");
 
+const getAuthCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
+
 class AuthController {
   static async register(req, res, next) {
     try {
@@ -31,12 +38,7 @@ class AuthController {
         userId: `USR-${Date.now()}`
       });
 
-      res.cookie("token", result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+      res.cookie("token", result.token, getAuthCookieOptions());
 
       return ApiResponse.created(res, result, "User registered successfully");
     } catch (error) {
@@ -55,12 +57,7 @@ class AuthController {
 
       const result = await AuthService.login(email, password);
 
-      res.cookie("token", result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+      res.cookie("token", result.token, getAuthCookieOptions());
 
       return ApiResponse.success(res, result, "Login successful");
     } catch (error) {
@@ -79,7 +76,7 @@ class AuthController {
 
   static async logout(req, res, next) {
     try {
-      res.clearCookie("token");
+      res.clearCookie("token", getAuthCookieOptions());
       return ApiResponse.success(res, null, "Logout successful");
     } catch (error) {
       next(error);

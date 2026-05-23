@@ -207,6 +207,126 @@ class PettyCashService {
     };
   }
 
+  static async getJournalBackedReport(filters = {}) {
+    const pettyCashAccount = await this.getPettyCashAccount();
+
+    if (!pettyCashAccount) {
+      const error = new Error(
+        `Petty cash account ${PETTY_CASH_ACCOUNT_CODE} is not configured`,
+      );
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const startDate = filters.startDate ? new Date(filters.startDate) : null;
+    const endDate = filters.endDate ? new Date(filters.endDate) : null;
+
+    if (startDate && Number.isNaN(startDate.getTime())) {
+      const error = new Error("Invalid from date");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (endDate && Number.isNaN(endDate.getTime())) {
+      const error = new Error("Invalid to date");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    const baseQuery = {
+      "bookEntries.account": pettyCashAccount._id,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+    };
+
+    const openingQuery = {
+      ...baseQuery,
+    };
+
+    if (startDate) {
+      openingQuery.voucherDate = { $lt: startDate };
+    } else {
+      openingQuery._id = null;
+    }
+
+    const periodQuery = {
+      ...baseQuery,
+    };
+
+    if (startDate || endDate) {
+      periodQuery.voucherDate = {};
+      if (startDate) periodQuery.voucherDate.$gte = startDate;
+      if (endDate) periodQuery.voucherDate.$lte = endDate;
+    }
+
+    const [openingEntries, periodEntries] = await Promise.all([
+      JournalEntry.find(openingQuery)
+        .populate("bookEntries.account", "accountCode accountName accountType")
+        .sort({ voucherDate: 1, createdAt: 1, _id: 1 }),
+      JournalEntry.find(periodQuery)
+        .populate("createdBy", "name email")
+        .populate("bookEntries.account", "accountCode accountName accountType")
+        .sort({ voucherDate: 1, createdAt: 1, _id: 1 }),
+    ]);
+
+    const openingBalance = openingEntries.reduce((sum, entry) => {
+      const row = this.buildPettyCashRow(entry.toJSON(), pettyCashAccount._id);
+      if (!row) return sum;
+      return sum + row.debit - row.credit;
+    }, 0);
+
+    let runningBalance = openingBalance;
+    const transactions = periodEntries
+      .map((entry) =>
+        this.buildPettyCashRow(entry.toJSON(), pettyCashAccount._id),
+      )
+      .filter(Boolean)
+      .map((row) => {
+        runningBalance += row.debit - row.credit;
+
+        return {
+          ...row,
+          accountHead: row.counterparty,
+          runningBalance,
+        };
+      });
+
+    const totalCashReceived = transactions.reduce(
+      (sum, row) => sum + row.debit,
+      0,
+    );
+    const totalCashPayment = transactions.reduce(
+      (sum, row) => sum + row.credit,
+      0,
+    );
+
+    return {
+      account: {
+        _id: pettyCashAccount._id,
+        accountCode: pettyCashAccount.accountCode,
+        accountName: pettyCashAccount.accountName,
+        accountType: pettyCashAccount.accountType,
+      },
+      openingBalance,
+      transactions,
+      summary: {
+        totalCashReceived,
+        totalCashPayment,
+        closingBalance: openingBalance + totalCashReceived - totalCashPayment,
+        count: transactions.length,
+      },
+      dateRange: {
+        from: filters.startDate || null,
+        to: filters.endDate || null,
+      },
+    };
+  }
+
   /**
    * Create journal entry for petty cash
    * Debit  = Expense Account

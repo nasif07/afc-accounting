@@ -69,6 +69,16 @@ class AccountingService {
     return currentSignedBalance + numericDebit - numericCredit;
   }
 
+  static normalizeMoney(value) {
+    const amount = Number(value || 0);
+
+    if (!Number.isFinite(amount)) {
+      throw new Error("Amount must be a valid number");
+    }
+
+    return Math.round(amount * 100) / 100;
+  }
+
   static signedToDisplayBalance(accountType, signedBalance) {
     if (this.isDebitNature(accountType)) {
       return {
@@ -397,16 +407,30 @@ class AccountingService {
     };
   }
 
-  static async getGeneralLedgerForAccount(accountId, startDate, endDate) {
+  static async getGeneralLedgerForAccount(
+    accountId,
+    startDate,
+    endDate,
+    options = {},
+  ) {
     const account = await ChartOfAccounts.findById(accountId);
     if (!account) throw new Error("Account not found");
 
-    const openingBalanceDate = startDate ? new Date(startDate) : new Date(0);
+    const page = Math.max(1, parseInt(options.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(options.limit, 10) || 50));
+    const skip = (page - 1) * limit;
 
-    const openingBalanceData = await this.calculateAccountBalance(
-      accountId,
-      new Date(openingBalanceDate.getTime() - 1),
-    );
+    const openingBalanceData = startDate
+      ? await this.calculateAccountBalance(
+          accountId,
+          new Date(new Date(startDate).getTime() - 1),
+        )
+      : {
+          balance: 0,
+          balanceType: this.isDebitNature(account.accountType)
+            ? "debit"
+            : "credit",
+        };
 
     const query = {
       "bookEntries.account": accountId,
@@ -421,10 +445,14 @@ class AccountingService {
       if (endDate) query.voucherDate.$lte = new Date(endDate);
     }
 
+    const total = await JournalEntry.countDocuments(query);
+
     const entries = await JournalEntry.find(query)
       .populate("createdBy", "name email")
       .populate("bookEntries.account", "accountName accountCode accountType")
-      .sort({ voucherDate: 1, createdAt: 1 });
+      .sort({ voucherDate: 1, createdAt: 1, _id: 1 })
+      .skip(skip)
+      .limit(limit);
 
     let runningSignedBalance = this.calculateSignedBalance(
       account.accountType,
@@ -491,6 +519,12 @@ class AccountingService {
       closingBalance: closingDisplay.balance,
       closingBalanceType: closingDisplay.balanceType,
       transactions,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
     };
   }
 
@@ -620,8 +654,12 @@ class AccountingService {
     let totalCredits = 0;
 
     for (const entry of bookEntries) {
-      const debit = Number(entry.debit || 0);
-      const credit = Number(entry.credit || 0);
+      const debit = this.normalizeMoney(entry.debit || 0);
+      const credit = this.normalizeMoney(entry.credit || 0);
+
+      if (debit < 0 || credit < 0) {
+        throw new Error("Debit and credit cannot be negative");
+      }
 
       if (debit > 0 && credit > 0) {
         throw new Error("A line cannot contain both debit and credit");
@@ -631,11 +669,13 @@ class AccountingService {
         throw new Error("Each line must contain either debit or credit");
       }
 
+      entry.debit = debit;
+      entry.credit = credit;
       totalDebits += debit;
       totalCredits += credit;
     }
 
-    if (Math.abs(totalDebits - totalCredits) > 0.01) {
+    if (Math.round(Math.abs(totalDebits - totalCredits) * 100) > 0) {
       throw new Error(
         `Double-entry validation failed. Debits: ${totalDebits}, Credits: ${totalCredits}`,
       );
@@ -894,7 +934,9 @@ static async createJournalEntry(entryData) {
     });
 
     if (!entry) throw new Error("Entry not found");
-    if (entry.status === "posted") throw new Error("Already posted");
+    if (entry.status === "posted" || entry.approvalStatus === "approved") {
+      throw new Error("Journal entry is already approved and posted");
+    }
     if (entry.approvalStatus === "rejected") {
       throw new Error("Rejected entry cannot be approved");
     }
@@ -946,21 +988,6 @@ static async createJournalEntry(entryData) {
     session.startTransaction();
 
     try {
-      for (const line of entry.bookEntries) {
-        const debit = Number(line.debit || 0);
-        const credit = Number(line.credit || 0);
-
-        if (debit > 0) {
-          await COAService.applyBalanceChange(line.account, "debit", debit);
-        }
-
-        if (credit > 0) {
-          await COAService.applyBalanceChange(line.account, "credit", credit);
-        }
-
-        await COAService.markAccountAsTransactional(line.account);
-      }
-
       entry.approvalStatus = "approved";
       entry.status = "posted";
       entry.isLocked = true;
@@ -968,6 +995,17 @@ static async createJournalEntry(entryData) {
       entry.approvalDate = new Date();
 
       await entry.save({ session });
+
+      const affectedAccountIds = [
+        ...new Set(entry.bookEntries.map((line) => line.account.toString())),
+      ];
+
+      for (const accountId of affectedAccountIds) {
+        await COAService.recalculateCurrentBalanceFromJournals(
+          accountId,
+          session,
+        );
+      }
 
       await session.commitTransaction();
 

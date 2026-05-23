@@ -288,6 +288,10 @@ const journalEntrySchema = new mongoose.Schema(
             enum: ["unreconciled", "reconciled"],
             default: "unreconciled",
           },
+          isReconciled: {
+            type: Boolean,
+            default: false,
+          },
           reconciledAt: {
             type: Date,
             default: null,
@@ -298,6 +302,11 @@ const journalEntrySchema = new mongoose.Schema(
             default: null,
           },
           reconciliationId: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          statementRef: {
             type: String,
             trim: true,
             default: "",
@@ -418,5 +427,13 @@ journalEntrySchema.index({ approvalStatus: 1, status: 1 });
 journalEntrySchema.index({ status: 1, deletedAt: 1 });
 journalEntrySchema.index({ "bookEntries.account": 1 });
 journalEntrySchema.index({ referenceType: 1, referenceAccount: 1 });
+journalEntrySchema.index({
+  "bookEntries.account": 1,
+  approvalStatus: 1,
+  status: 1,
+  voucherDate: 1,
+  createdAt: 1,
+});
+journalEntrySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("JournalEntry", journalEntrySchema);

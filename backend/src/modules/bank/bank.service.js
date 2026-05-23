@@ -4,6 +4,45 @@ const COAService = require("../chartOfAccounts/coa.service");
 const JournalEntry = require("../accounting/accounting.model");
 
 class BankService {
+  static async getBankParentAccount() {
+    return await ChartOfAccounts.findOne({
+      accountCode: "1002",
+      deletedAt: null,
+    });
+  }
+
+  static async getActiveBankChildAccounts() {
+    const parent = await this.getBankParentAccount();
+    if (!parent) return [];
+
+    return await ChartOfAccounts.find({
+      parentAccount: parent._id,
+      accountType: "asset",
+      status: "active",
+      deletedAt: null,
+    }).select("_id accountCode accountName");
+  }
+
+  static async calculateCoaLedgerBalance(coaAccountId, asOfDate = new Date()) {
+    await COAService.deduplicateOpeningBalanceJournals(coaAccountId);
+
+    const entries = await JournalEntry.find({
+      "bookEntries.account": coaAccountId,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+      voucherDate: { $lte: asOfDate },
+    });
+
+    return entries.reduce((balance, entry) => {
+      const jsonEntry = entry.toJSON();
+      const line = this.getBankLine(jsonEntry, coaAccountId);
+      if (!line) return balance;
+
+      return balance + Number(line.debit || 0) - Number(line.credit || 0);
+    }, 0);
+  }
+
   /**
    * Create a new bank account with full validation
    * CRITICAL: Ensures COA linkage is valid and accounting-safe
@@ -41,6 +80,16 @@ class BankService {
       throw new Error(
         `Bank account must be linked to an Asset account. Provided account is: ${coaAccount.accountType}`
       );
+    }
+
+    const bankParentAccount = await this.getBankParentAccount();
+
+    if (!bankParentAccount) {
+      throw new Error("Main Bank account 1002 is not configured");
+    }
+
+    if (String(coaAccount.parentAccount || "") !== String(bankParentAccount._id)) {
+      throw new Error("Bank account COA must be a child account under Bank account code 1002");
     }
 
     // FIXED: Validate it's a LEAF account (no children)
@@ -284,22 +333,7 @@ class BankService {
       throw new Error("Bank account is not linked to a chart of account");
     }
 
-    await COAService.deduplicateOpeningBalanceJournals(bank.coaAccount);
-
-    const entries = await JournalEntry.find({
-      "bookEntries.account": bank.coaAccount,
-      status: "posted",
-      approvalStatus: "approved",
-      deletedAt: null,
-      voucherDate: { $lte: asOfDate },
-    }).lean();
-
-    return entries.reduce((balance, entry) => {
-      const line = this.getBankLine(entry, bank.coaAccount);
-      if (!line) return balance;
-
-      return balance + Number(line.debit || 0) - Number(line.credit || 0);
-    }, 0);
+    return await this.calculateCoaLedgerBalance(bank.coaAccount, asOfDate);
   }
 
   static getBankLine(entry, coaAccountId) {
@@ -355,40 +389,43 @@ class BankService {
 
     const entries = await JournalEntry.find(query)
       .populate("createdBy", "name email")
-      .sort({ voucherDate: 1, createdAt: 1, _id: 1 })
-      .lean();
+      .sort({ voucherDate: 1, createdAt: 1, _id: 1 });
 
     let runningBalance = 0;
     const rows = entries
       .map((entry) => {
-        const line = this.getBankLine(entry, bank.coaAccount);
+        const jsonEntry = entry.toJSON();
+        const line = this.getBankLine(jsonEntry, bank.coaAccount);
         if (!line) return null;
 
         const debit = Number(line.debit || 0);
         const credit = Number(line.credit || 0);
         runningBalance += debit - credit;
 
-        const reconciliation = this.getReconciliation(entry, bank.coaAccount);
+        const reconciliation = this.getReconciliation(jsonEntry, bank.coaAccount);
         const status = reconciliation?.status || "unreconciled";
+        const isReconciled =
+          Boolean(reconciliation?.isReconciled) || status === "reconciled";
 
         return {
-          journalEntryId: entry._id,
-          date: entry.voucherDate,
-          voucherNumber: entry.voucherNumber,
-          referenceNumber: entry.referenceNumber || "",
-          description: line.description || entry.description || "",
+          journalEntryId: jsonEntry._id,
+          date: jsonEntry.voucherDate,
+          voucherNumber: jsonEntry.voucherNumber,
+          referenceNumber: jsonEntry.referenceNumber || "",
+          description: line.description || jsonEntry.description || "",
           debit,
           credit,
           amount: debit - credit,
           runningBalance,
-          sourceModule: entry.sourceModule,
+          sourceModule: jsonEntry.sourceModule,
           status: "approved",
           reconciliationStatus: status,
-          reconciledAt: status === "reconciled" ? reconciliation.reconciledAt : null,
-          reconciledBy: status === "reconciled" ? reconciliation.reconciledBy : null,
-          reconciliationId:
-            status === "reconciled" ? reconciliation.reconciliationId : "",
-          createdBy: entry.createdBy,
+          isReconciled,
+          reconciledAt: isReconciled ? reconciliation.reconciledAt : null,
+          reconciledBy: isReconciled ? reconciliation.reconciledBy : null,
+          reconciliationId: isReconciled ? reconciliation.reconciliationId : "",
+          statementRef: isReconciled ? reconciliation.statementRef || "" : "",
+          createdBy: jsonEntry.createdBy,
         };
       })
       .filter(Boolean);
@@ -438,21 +475,25 @@ class BankService {
    * Get total balance across all bank accounts
    */
   static async getTotalBankBalance() {
-    const banks = await this.getAllBankAccounts();
+    const childAccounts = await this.getActiveBankChildAccounts();
+    const accounts = [];
+    let totalBalance = 0;
 
-    const totalBalance = banks.reduce((sum, bank) => {
-      return sum + (bank.currentBalance || 0);
-    }, 0);
+    for (const account of childAccounts) {
+      const currentBalance = await this.calculateCoaLedgerBalance(account._id);
+      totalBalance += currentBalance;
+      accounts.push({
+        _id: account._id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        currentBalance,
+      });
+    }
 
     return {
       totalBalance,
-      accountCount: banks.length,
-      accounts: banks.map((b) => ({
-        _id: b._id,
-        bankName: b.bankName,
-        accountNumber: b.accountNumber,
-        currentBalance: b.currentBalance,
-      })),
+      accountCount: accounts.length,
+      accounts,
     };
   }
 
@@ -473,6 +514,7 @@ class BankService {
       reconcileData.reconciliationId ||
       reconcileData.statementReference ||
       `REC-${bankId}-${Date.now()}`;
+    const statementRef = reconcileData.statementReference || reconciliationId;
     const transactionIds = Array.isArray(reconcileData.transactionIds)
       ? reconcileData.transactionIds
       : [];
@@ -507,16 +549,20 @@ class BankService {
 
         if (existing) {
           existing.status = "reconciled";
+          existing.isReconciled = true;
           existing.reconciledAt = new Date(reconciledDate);
           existing.reconciledBy = userId;
           existing.reconciliationId = reconciliationId;
+          existing.statementRef = statementRef;
         } else {
           entry.bankReconciliations.push({
             account: bank.coaAccount,
             status: "reconciled",
+            isReconciled: true,
             reconciledAt: new Date(reconciledDate),
             reconciledBy: userId,
             reconciliationId,
+            statementRef,
           });
         }
 
@@ -536,6 +582,7 @@ class BankService {
         difference: difference,
         status: difference === 0 ? "reconciled" : "pending",
         reconciliationId,
+        statementRef,
       },
     };
   }
@@ -557,20 +604,24 @@ class BankService {
       status: "posted",
       approvalStatus: "approved",
       deletedAt: null,
-    }).lean();
+    });
 
     let currentBalance = 0;
     let reconciledBalance = 0;
 
     for (const entry of approvedEntries) {
-      const line = this.getBankLine(entry, bank.coaAccount);
+      const jsonEntry = entry.toJSON();
+      const line = this.getBankLine(jsonEntry, bank.coaAccount);
       if (!line) continue;
 
       const amount = Number(line.debit || 0) - Number(line.credit || 0);
       currentBalance += amount;
 
-      const reconciliation = this.getReconciliation(entry, bank.coaAccount);
-      if (reconciliation?.status === "reconciled") {
+      const reconciliation = this.getReconciliation(jsonEntry, bank.coaAccount);
+      if (
+        reconciliation?.isReconciled ||
+        reconciliation?.status === "reconciled"
+      ) {
         reconciledBalance += amount;
       }
     }

@@ -1,6 +1,23 @@
 const PDFDocument = require("pdfkit");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+
+const getUploadDir = () =>
+  process.env.UPLOAD_DIR ||
+  (process.env.VERCEL
+    ? path.join(os.tmpdir(), "uploads")
+    : path.join(__dirname, "../../uploads"));
+
+const ensureUploadDir = () => {
+  const uploadDir = getUploadDir();
+
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  return uploadDir;
+};
 
 class PDFGenerator {
   static async generateReceipt(
@@ -12,14 +29,7 @@ class PDFGenerator {
       try {
         const doc = new PDFDocument();
         const filename = `receipt-${feeCollection._id}.pdf`;
-        const filepath = path.join(__dirname, "../../uploads", filename);
-
-        // Ensure uploads directory exists
-        if (!fs.existsSync(path.join(__dirname, "../../uploads"))) {
-          fs.mkdirSync(path.join(__dirname, "../../uploads"), {
-            recursive: true,
-          });
-        }
+        const filepath = path.join(ensureUploadDir(), filename);
 
         const stream = fs.createWriteStream(filepath);
         doc.pipe(stream);
@@ -96,14 +106,7 @@ class PDFGenerator {
       try {
         const doc = new PDFDocument();
         const filename = `payslip-${payroll._id}.pdf`;
-        const filepath = path.join(__dirname, "../../uploads", filename);
-
-        // Ensure uploads directory exists
-        if (!fs.existsSync(path.join(__dirname, "../../uploads"))) {
-          fs.mkdirSync(path.join(__dirname, "../../uploads"), {
-            recursive: true,
-          });
-        }
+        const filepath = path.join(ensureUploadDir(), filename);
 
         const stream = fs.createWriteStream(filepath);
         doc.pipe(stream);
@@ -183,14 +186,7 @@ class PDFGenerator {
       try {
         const doc = new PDFDocument();
         const filename = `${reportType}-${Date.now()}.pdf`;
-        const filepath = path.join(__dirname, "../../uploads", filename);
-
-        // Ensure uploads directory exists
-        if (!fs.existsSync(path.join(__dirname, "../../uploads"))) {
-          fs.mkdirSync(path.join(__dirname, "../../uploads"), {
-            recursive: true,
-          });
-        }
+        const filepath = path.join(ensureUploadDir(), filename);
 
         const stream = fs.createWriteStream(filepath);
         doc.pipe(stream);

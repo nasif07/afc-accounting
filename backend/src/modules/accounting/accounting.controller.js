@@ -93,12 +93,13 @@ class AccountingController {
   static async getGeneralLedger(req, res, next) {
     try {
       const { accountId } = req.params;
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate, page, limit } = req.query;
 
       const ledger = await AccountingService.getGeneralLedgerForAccount(
         accountId,
         startDate,
         endDate,
+        { page, limit },
       );
 
       return ApiResponse.success(

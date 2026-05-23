@@ -11,6 +11,7 @@ const router = express.Router();
 router.use(auth);
 
 router.get("/transactions", PettyCashController.getPettyCashTransactions);
+router.get("/report", PettyCashController.getPettyCashReport);
 
 /**
  * Get petty cash by expense account

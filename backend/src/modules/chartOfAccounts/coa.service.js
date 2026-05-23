@@ -92,6 +92,13 @@ class COAService {
 
     const [keeper, ...duplicates] = journals;
     const duplicateIds = duplicates.map((journal) => journal._id);
+    const affectedAccountIds = [
+      ...new Set(
+        journals.flatMap((journal) =>
+          (journal.bookEntries || []).map((line) => line.account.toString()),
+        ),
+      ),
+    ];
 
     await JournalEntry.updateMany(
       { _id: { $in: duplicateIds } },
@@ -104,6 +111,10 @@ class COAService {
       },
     );
 
+    for (const affectedAccountId of affectedAccountIds) {
+      await this.recalculateCurrentBalanceFromJournals(affectedAccountId);
+    }
+
     return keeper;
   }
 
@@ -114,6 +125,83 @@ class COAService {
       : "credit";
     account.hasTransactions = false;
     await account.save();
+  }
+
+  static async recalculateCurrentBalanceFromJournals(accountId, session = null) {
+    const accountQuery = ChartOfAccounts.findById(accountId);
+    if (session) accountQuery.session(session);
+
+    const account = await accountQuery;
+
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    const openingJournalQuery = JournalEntry.exists({
+      "bookEntries.account": accountId,
+      sourceModule: OPENING_BALANCE_SOURCE,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+    });
+
+    if (session) openingJournalQuery.session(session);
+
+    const hasApprovedOpeningJournal = !!(await openingJournalQuery);
+
+    const baseBalance = hasApprovedOpeningJournal
+      ? 0
+      : Number(account.openingBalance || 0);
+    const openingType = account.openingBalanceType || "debit";
+    const isDebitNature = this.isDebitOpeningAccount(account.accountType);
+    let signedBalance =
+      openingType === "credit" ? -baseBalance : baseBalance;
+
+    if (!isDebitNature) {
+      signedBalance = openingType === "debit" ? -baseBalance : baseBalance;
+    }
+
+    const entriesQuery = JournalEntry.find({
+      "bookEntries.account": accountId,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+    });
+
+    if (session) entriesQuery.session(session);
+
+    const entries = await entriesQuery;
+
+    for (const entry of entries) {
+      const jsonEntry = entry.toJSON();
+
+      for (const line of jsonEntry.bookEntries || []) {
+        const lineAccountId =
+          typeof line.account === "object" && line.account !== null
+            ? line.account._id?.toString()
+            : line.account?.toString();
+
+        if (lineAccountId !== accountId.toString()) continue;
+
+        const debit = Number(line.debit || 0);
+        const credit = Number(line.credit || 0);
+        signedBalance += isDebitNature ? debit - credit : credit - debit;
+      }
+    }
+
+    account.currentBalance = Math.abs(signedBalance);
+    account.currentBalanceType = isDebitNature
+      ? signedBalance >= 0
+        ? "debit"
+        : "credit"
+      : signedBalance >= 0
+        ? "credit"
+        : "debit";
+    account.hasTransactions = entries.length > 0;
+
+    await account.save({ session });
+
+    return account;
   }
 
   static async createOpeningBalanceJournal(account, createdBy) {
@@ -192,16 +280,12 @@ class COAService {
       },
     ]);
 
-    for (const line of bookEntries) {
-      if (Number(line.debit || 0) > 0) {
-        await this.applyBalanceChange(line.account, "debit", line.debit);
-      }
+    const affectedAccountIds = [
+      ...new Set(bookEntries.map((line) => line.account.toString())),
+    ];
 
-      if (Number(line.credit || 0) > 0) {
-        await this.applyBalanceChange(line.account, "credit", line.credit);
-      }
-
-      await this.markAccountAsTransactional(line.account);
+    for (const affectedAccountId of affectedAccountIds) {
+      await this.recalculateCurrentBalanceFromJournals(affectedAccountId);
     }
 
     return journal.toJSON();
