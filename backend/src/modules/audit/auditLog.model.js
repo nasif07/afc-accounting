@@ -9,7 +9,7 @@ const auditLogSchema = new mongoose.Schema(
     },
     entityType: {
       type: String,
-      enum: ["JournalEntry", "Account", "User", "Vendor", "VendorInvoice", "VendorPayment", "BankAccount", "BankTransaction"],
+      enum: ["JournalEntry", "Account", "User", "Vendor", "VendorInvoice", "VendorPayment", "BankAccount", "BankBook", "BankTransaction"],
       required: true,
     },
     entityId: {
@@ -28,6 +28,7 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       enum: ["director", "accountant", "sub-accountant"],
       required: true,
+      index: true,
     },
     ipAddress: {
       type: String,
@@ -54,6 +55,7 @@ const auditLogSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
       immutable: true,
+      index: -1,
     },
   },
   { timestamps: false } // Don't use automatic timestamps for audit logs
@@ -70,7 +72,5 @@ auditLogSchema.pre("save", function(next) {
 auditLogSchema.index({ userId: 1, timestamp: -1 });
 auditLogSchema.index({ entityType: 1, entityId: 1 });
 auditLogSchema.index({ action: 1, timestamp: -1 });
-auditLogSchema.index({ timestamp: -1 });
-auditLogSchema.index({ userRole: 1 });
 
 module.exports = mongoose.model("AuditLog", auditLogSchema);

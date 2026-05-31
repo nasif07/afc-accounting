@@ -76,8 +76,9 @@ export const payrollAPI = {
   create: (data) => api.post("/payroll", data),
   update: (id, data) => api.put(`/payroll/${id}`, data),
   delete: (id) => api.delete(`/payroll/${id}`),
-  approve: (id) => api.post(`/payroll/${id}/approve`),
-  markAsPaid: (id, data) => api.post(`/payroll/${id}/mark-paid`, data),
+  approve: (id) => api.put(`/payroll/${id}/approve`),
+  reject: (id, data) => api.put(`/payroll/${id}/reject`, data),
+  markAsPaid: (id, data) => api.put(`/payroll/${id}/mark-paid`, data),
   generatePayslip: (id) =>
     api.get(`/payroll/${id}/payslip`, { responseType: "blob" }),
   search: (query) => api.get("/payroll/search", { params: { query } }),
@@ -126,6 +127,22 @@ export const bankAPI = {
   reconcile: (id, data) => api.put(`/bank/${id}/reconciliation`, data),
   getTransactions: (id, params) => api.get(`/bank/${id}/transactions`, { params }),
   getTotalBalance: () => api.get("/bank/report/total-balance"),
+};
+
+// ==================== BANK BOOK / BANK STATEMENT ====================
+export const bankBookAPI = {
+  getAll: (params) => api.get("/bank-book", { params }),
+  getById: (id) => api.get(`/bank-book/${id}`),
+  create: (data) => api.post("/bank-book", data),
+  update: (id, data) => api.put(`/bank-book/${id}`, data),
+  cancel: (id, data) => api.patch(`/bank-book/${id}/cancel`, data),
+  getStatement: (params) => api.get("/bank-book/statement", { params }),
+  exportCsv: (params) =>
+    api.get("/bank-book/export/csv", { params, responseType: "blob" }),
+  exportExcel: (params) =>
+    api.get("/bank-book/export/excel", { params, responseType: "blob" }),
+  exportPdf: (params) =>
+    api.get("/bank-book/export/pdf", { params, responseType: "blob" }),
 };
 
 // ==================== REPORTS ====================

@@ -112,6 +112,7 @@ const vendorSchema = new mongoose.Schema(
     deletedAt: {
       type: Date,
       default: null,
+      index: true,
     },
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -130,7 +131,6 @@ vendorSchema.pre('save', function (next) {
 });
 
 // Index for soft delete queries
-vendorSchema.index({ deletedAt: 1 });
 vendorSchema.index({ vendorCode: 1, deletedAt: 1 });
 vendorSchema.index({ isActive: 1, deletedAt: 1 });
 

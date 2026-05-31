@@ -4,8 +4,10 @@ const PDFGenerator = require('../../utils/pdfGenerator');
 class PayrollService {
   static async createPayroll(payrollData) {
     // Calculate net salary
-    const netSalary = this.calculateNetSalary(payrollData);
-    payrollData.netSalary = netSalary;
+    const totals = this.calculateTotals(payrollData);
+    payrollData.totalEarnings = totals.totalEarnings;
+    payrollData.totalDeductions = totals.totalDeductions;
+    payrollData.netSalary = totals.netSalary;
 
     const payroll = new Payroll(payrollData);
     await payroll.save();
@@ -13,13 +15,21 @@ class PayrollService {
   }
 
   static calculateNetSalary(payrollData) {
+    return this.calculateTotals(payrollData).netSalary;
+  }
+
+  static calculateTotals(payrollData) {
     const { baseSalary, allowances = 0, bonus = 0, deductions = 0, leaveDeduction = 0 } = payrollData;
     
-    const totalEarnings = baseSalary + allowances + bonus;
-    const totalDeductions = deductions + leaveDeduction;
+    const totalEarnings = Number(baseSalary || 0) + Number(allowances || 0) + Number(bonus || 0);
+    const totalDeductions = Number(deductions || 0) + Number(leaveDeduction || 0);
     const netSalary = totalEarnings - totalDeductions;
 
-    return Math.max(0, netSalary);
+    return {
+      totalEarnings,
+      totalDeductions,
+      netSalary: Math.max(0, netSalary),
+    };
   }
 
   static async getAllPayroll(filters = {}) {
@@ -46,7 +56,11 @@ class PayrollService {
 
   static async updatePayroll(payrollId, updateData) {
     if (updateData.baseSalary || updateData.allowances || updateData.bonus || updateData.deductions || updateData.leaveDeduction) {
-      updateData.netSalary = this.calculateNetSalary(updateData);
+      const current = await Payroll.findById(payrollId).lean();
+      const totals = this.calculateTotals({ ...current, ...updateData });
+      updateData.totalEarnings = totals.totalEarnings;
+      updateData.totalDeductions = totals.totalDeductions;
+      updateData.netSalary = totals.netSalary;
     }
 
     return await Payroll.findByIdAndUpdate(

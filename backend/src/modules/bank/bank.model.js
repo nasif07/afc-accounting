@@ -20,6 +20,8 @@ const bankSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "ChartOfAccounts",
       required: [true, "Please link a chart of account"],
+      unique: true,
+      sparse: true,
       validate: {
         async: true,
         validator: async function (value) {
@@ -108,6 +110,7 @@ const bankSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -180,11 +183,7 @@ bankSchema.pre("save", async function (next) {
 });
 
 // Indexes for performance
-bankSchema.index({ accountNumber: 1 }, { unique: true });
-bankSchema.index({ coaAccount: 1 }, { unique: true, sparse: true });
 bankSchema.index({ bankName: 1, isActive: 1 });
-bankSchema.index({ createdBy: 1 });
-bankSchema.index({ deletedAt: 1 });
 bankSchema.index({ isActive: 1, deletedAt: 1 });
 
 module.exports = mongoose.model("Bank", bankSchema);

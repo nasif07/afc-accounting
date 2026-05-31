@@ -47,10 +47,12 @@ const vendorSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     deletedAt: {
       type: Date,
       default: null,
+      index: true,
     },
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -61,9 +63,6 @@ const vendorSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-vendorSchema.index({ vendorCode: 1 }, { unique: true });
 vendorSchema.index({ vendorName: 1, isActive: 1 });
-vendorSchema.index({ createdBy: 1 });
-vendorSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model("Vendor", vendorSchema);

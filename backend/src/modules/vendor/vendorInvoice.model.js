@@ -11,6 +11,7 @@ const vendorInvoiceSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     invoiceDate: {
       type: Date,
@@ -19,6 +20,7 @@ const vendorInvoiceSchema = new mongoose.Schema(
     dueDate: {
       type: Date,
       required: true,
+      index: true,
     },
     amount: {
       type: Number,
@@ -48,10 +50,12 @@ const vendorInvoiceSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     deletedAt: {
       type: Date,
       default: null,
+      index: true,
     },
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -63,9 +67,5 @@ const vendorInvoiceSchema = new mongoose.Schema(
 );
 
 vendorInvoiceSchema.index({ vendor: 1, status: 1 });
-vendorInvoiceSchema.index({ invoiceNumber: 1 });
-vendorInvoiceSchema.index({ dueDate: 1 });
-vendorInvoiceSchema.index({ createdBy: 1 });
-vendorInvoiceSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model("VendorInvoice", vendorInvoiceSchema);

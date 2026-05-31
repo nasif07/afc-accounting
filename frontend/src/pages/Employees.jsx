@@ -27,14 +27,10 @@ import {
   clearSuccess,
 } from "../store/slices/employeeSlice";
 import SectionHeader from "../components/common/SectionHeader";
+import Input from "../components/common/Input";
+import Select from "../components/common/Select";
+import Button from "../components/common/Button";
 
-const DESIGNATIONS = [
-  "director",
-  "teacher",
-  "accountant",
-  "admin",
-  "support",
-];
 const STATUS_OPTIONS = ["active", "inactive", "on-leave", "resigned"];
 
 export default function Employees() {
@@ -262,299 +258,231 @@ export default function Employees() {
 
       {/* Full Feature Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 p-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
                   {editingId
                     ? "Edit Employee Profile"
                     : "New Employee Registration"}
                 </h2>
+
                 <p className="text-sm text-gray-500">
                   Provide all details to maintain an accurate staff record.
                 </p>
               </div>
+
               <button
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-white rounded-full transition-colors text-gray-400 hover:text-gray-600">
+                className="rounded-full p-2 text-gray-400 transition-colors hover:bg-white hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
 
-            {/* Modal Body - Form */}
+            {/* Modal Body */}
             <form
               onSubmit={handleSubmit}
-              className="p-8 overflow-y-auto space-y-8">
-              {/* SECTION 1: PROFESSIONAL DETAILS */}
+              className="space-y-8 overflow-y-auto p-8">
+              {/* SECTION 1 */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <Briefcase size={16} /> Professional Info
+                <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-blue-600">
+                  <Briefcase size={16} />
+                  Professional Info
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Employee Code *
-                    </label>
-                    <input
-                      type="text"
-                      name="employeeCode"
-                      value={formData.employeeCode}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Status
-                    </label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none capitalize">
-                      {STATUS_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Designation
-                    </label>
-                    <select
-                      name="designation"
-                      value={formData.designation}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none capitalize">
-                      {DESIGNATIONS.map((d) => (
-                        <option key={d} value={d}>
-                          {d.replace("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Department
-                    </label>
-                    <input
-                      type="text"
-                      name="department"
-                      value={formData.department}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Joining Date *
-                    </label>
-                    <input
-                      type="date"
-                      name="dateOfJoining"
-                      value={formData.dateOfJoining}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Input
+                    label="Employee Code"
+                    name="employeeCode"
+                    value={formData.employeeCode}
+                    onChange={handleChange}
+                    required
+                  />
+
+                  <Input
+                    label="Full Name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                  />
+
+                  {/* Status */}
+                  <Select
+                    label="Status"
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    options={STATUS_OPTIONS.map((opt) => ({
+                      label: opt,
+                      value: opt,
+                    }))}
+                  />
+
+                  <Input
+                    label="Designation"
+                    name="designation"
+                    value={formData.designation}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="Department"
+                    name="department"
+                    value={formData.department}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="Joining Date"
+                    type="date"
+                    name="dateOfJoining"
+                    value={formData.dateOfJoining}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
               </div>
 
-              {/* SECTION 2: CONTACT & PERSONAL */}
+              {/* SECTION 2 */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <Mail size={16} /> Contact & Personal
+                <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-blue-600">
+                  <Mail size={16} />
+                  Contact & Personal
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Phone
-                    </label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Date of Birth
-                    </label>
-                    <input
-                      type="date"
-                      name="dateOfBirth"
-                      value={formData.dateOfBirth}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Input
+                    label="Email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="Phone"
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="Date of Birth"
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
 
-              {/* SECTION 3: ADDRESS */}
+              {/* SECTION 3 */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <MapPin size={16} /> Address Details
+                <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-blue-600">
+                  <MapPin size={16} />
+                  Address Details
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Street Address
-                    </label>
-                    <input
-                      type="text"
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Street Address"
                       name="address"
                       value={formData.address}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      State/Province
-                    </label>
-                    <input
-                      type="text"
-                      name="state"
-                      value={formData.state}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Zip Code
-                    </label>
-                    <input
-                      type="text"
-                      name="zipCode"
-                      value={formData.zipCode}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      name="country"
-                      value={formData.country}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
+
+                  <Input
+                    label="City"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="State/Province"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="Zip Code"
+                    name="zipCode"
+                    value={formData.zipCode}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="Country"
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
 
-              {/* SECTION 4: BANKING & NOTES */}
+              {/* SECTION 4 */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <CreditCard size={16} /> Financial & Notes
+                <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-blue-600">
+                  <CreditCard size={16} />
+                  Financial & Notes
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Bank Name
-                    </label>
-                    <input
-                      type="text"
-                      name="bankName"
-                      value={formData.bankName}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Account Number
-                    </label>
-                    <input
-                      type="text"
-                      name="bankAccountNumber"
-                      value={formData.bankAccountNumber}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Input
+                    label="Bank Name"
+                    name="bankName"
+                    value={formData.bankName}
+                    onChange={handleChange}
+                  />
+
+                  <Input
+                    label="Account Number"
+                    name="bankAccountNumber"
+                    value={formData.bankAccountNumber}
+                    onChange={handleChange}
+                  />
+
+                  {/* Notes */}
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
                       Administrative Notes
                     </label>
+
                     <textarea
                       name="notes"
                       value={formData.notes}
                       onChange={handleChange}
-                      rows="2"
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                      rows={3}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 transition focus:outline-none focus:ring-4 focus:ring-neutral-100"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-4 pt-6 border-t border-gray-100">
-                <button
+              <div className="flex gap-4 border-t border-gray-100 pt-6">
+                <Button
                   type="submit"
+                  variant="primary"
+                  size="lg"
                   disabled={loading}
-                  className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
-                  {loading ? (
-                    <Loader className="animate-spin" size={20} />
-                  ) : null}
+                  loading={loading}>
                   {editingId ? "Update Employee Record" : "Register Employee"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-all">
+                  variant="secondary"
+                  size="lg"
+                  onClick={() => setShowModal(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
           </div>

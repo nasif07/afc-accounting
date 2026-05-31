@@ -112,6 +112,7 @@ const coaSchema = new mongoose.Schema(
     deletedAt: {
       type: Date,
       default: null,
+      index: true,
     },
 
     deletedBy: {
@@ -266,10 +267,8 @@ coaSchema.methods.canPostTransactions = async function () {
 };
 
 // Indexes
-coaSchema.index({ accountCode: 1 }, { unique: true });
 coaSchema.index({ accountName: 1, accountType: 1 });
 coaSchema.index({ status: 1, accountType: 1 });
 coaSchema.index({ parentAccount: 1, status: 1 });
-coaSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model("ChartOfAccounts", coaSchema);

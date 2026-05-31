@@ -14,6 +14,7 @@ const bookEntrySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "ChartOfAccounts",
       required: [true, "Account is required"],
+      index: true,
     },
 
     debit: {
@@ -122,6 +123,7 @@ const journalEntrySchema = new mongoose.Schema(
       type: Date,
       required: [true, "Voucher date is required"],
       default: Date.now,
+      index: -1,
     },
 
     transactionType: {
@@ -188,6 +190,8 @@ const journalEntrySchema = new mongoose.Schema(
       type: String,
       enum: [
         "manual",
+        "bank_book",
+        "student_collection",
         "petty_cash",
         "payroll",
         "receipt",
@@ -273,6 +277,38 @@ const journalEntrySchema = new mongoose.Schema(
     attachments: {
       type: [String],
       default: [],
+    },
+
+    bankBook: {
+      paymentPurpose: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      amount: {
+        type: Number,
+        default: 0,
+        get: fromMinorUnit,
+        set: toMinorUnit,
+      },
+      paymentMethod: {
+        type: String,
+        enum: [
+          "cheque",
+          "bank_transfer",
+          "bank_deposit",
+          "card_pos",
+        ],
+      },
+      chequeNumber: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      chequeDate: {
+        type: Date,
+        default: null,
+      },
     },
 
     bankReconciliations: {
@@ -420,13 +456,11 @@ journalEntrySchema.pre("findOne", excludeDeleted);
 journalEntrySchema.pre("countDocuments", excludeDeleted);
 
 // Indexes
-journalEntrySchema.index({ voucherNumber: 1 }, { unique: true });
-journalEntrySchema.index({ voucherDate: -1 });
 journalEntrySchema.index({ createdBy: 1, voucherDate: -1 });
 journalEntrySchema.index({ approvalStatus: 1, status: 1 });
 journalEntrySchema.index({ status: 1, deletedAt: 1 });
-journalEntrySchema.index({ "bookEntries.account": 1 });
 journalEntrySchema.index({ referenceType: 1, referenceAccount: 1 });
+journalEntrySchema.index({ sourceModule: 1, voucherDate: -1 });
 journalEntrySchema.index({
   "bookEntries.account": 1,
   approvalStatus: 1,
@@ -434,6 +468,5 @@ journalEntrySchema.index({
   voucherDate: 1,
   createdAt: 1,
 });
-journalEntrySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("JournalEntry", journalEntrySchema);

@@ -29,6 +29,7 @@ import {
 } from "../store/slices/payrollSlice";
 import { fetchEmployees } from "../store/slices/employeeSlice";
 import SectionHeader from "../components/common/SectionHeader";
+import { payrollAPI } from "../services/apiMethods";
 
 const MONTHS = [
   "January",
@@ -131,6 +132,27 @@ export default function Payroll() {
     editingId
       ? dispatch(updatePayroll({ id: editingId, data: formData }))
       : dispatch(createPayroll(formData));
+  };
+
+  const handleDownloadPayslip = async (payroll) => {
+    try {
+      const response = await payrollAPI.generatePayslip(payroll._id);
+      const url = URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `payslip-${payroll.employee?.employeeCode || payroll._id}-${payroll.month}-${payroll.year}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("Payslip downloaded");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to download payslip",
+      );
+    }
   };
 
   const filteredPayroll = items.filter(
@@ -367,7 +389,10 @@ export default function Payroll() {
                             </button>
                           </>
                         )}
-                        <button className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg">
+                        <button
+                          onClick={() => handleDownloadPayslip(payroll)}
+                          title="Download payslip"
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                           <FileText size={16} />
                         </button>
                       </div>

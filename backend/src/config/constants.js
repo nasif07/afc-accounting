@@ -77,6 +77,8 @@ const APPROVAL_STATUS = {
 
 // Salary Types
 const SALARY_TYPES = {
+  MONTHLY: 'monthly',
+  CONTRACT: 'contract',
   FIXED: 'fixed',
   HOURLY: 'hourly',
   PER_CLASS: 'per-class',

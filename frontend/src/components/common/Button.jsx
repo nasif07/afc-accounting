@@ -44,13 +44,8 @@ export default function Button({
       onClick={onClick}
       disabled={disabled || loading}
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
-      {...props}
-    >
-      {loading ? (
-        <ButtonLoader />
-      ) : Icon ? (
-        <Icon size={16} />
-      ) : null}
+      {...props}>
+      {loading ? <ButtonLoader /> : Icon ? <Icon size={16} /> : null}
 
       {children}
     </button>

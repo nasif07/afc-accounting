@@ -18,6 +18,7 @@ import JournalEntries from "../pages/JournalEntries";
 import JournalEntryDetails from "../pages/JournalEntryDetails";
 import Ledger from "../pages/Ledger";
 import BankCash from "../pages/BankCash";
+import BankBook from "../pages/BankBook";
 import Reports from "../pages/Reports";
 import Settings from "../pages/Settings";
 import DirectorApprovals from "../pages/DirectorApprovals";
@@ -174,6 +175,10 @@ const router = createBrowserRouter([
       {
         path: "bank-cash",
         element: <BankCash />,
+      },
+      {
+        path: "bank-book",
+        element: <BankBook />,
       },
       {
         path: "reports",

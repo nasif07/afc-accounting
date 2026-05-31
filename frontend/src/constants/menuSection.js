@@ -108,6 +108,12 @@ export const menuSections = [
         roles: ["director", "accountant"],
       },
       {
+        title: "Student Collection",
+        path: "/dashboard/bank-book",
+        icon: NotebookText,
+        roles: ["director", "accountant"],
+      },
+      {
         title: "Reports",
         path: "/dashboard/reports",
         icon: BarChart3,

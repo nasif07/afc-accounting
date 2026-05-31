@@ -115,6 +115,7 @@ const expenseSchema = new mongoose.Schema(
     deletedAt: {
       type: Date,
       default: null,
+      index: true,
     },
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -125,7 +126,6 @@ const expenseSchema = new mongoose.Schema(
 );
 
 // Index for soft delete queries
-expenseSchema.index({ deletedAt: 1 });
 expenseSchema.index({ expenseNumber: 1, deletedAt: 1 });
 expenseSchema.index({ approvalStatus: 1, deletedAt: 1 });
 expenseSchema.index({ date: -1, deletedAt: 1 });

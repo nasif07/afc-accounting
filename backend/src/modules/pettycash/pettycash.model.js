@@ -93,6 +93,7 @@ const pettyCashSchema = new mongoose.Schema(
     deletedAt: {
       type: Date,
       default: null,
+      index: true,
     },
 
     deletedBy: {
@@ -104,7 +105,6 @@ const pettyCashSchema = new mongoose.Schema(
 );
 
 // Indexes
-pettyCashSchema.index({ deletedAt: 1 });
 pettyCashSchema.index({ pettyCashNumber: 1, deletedAt: 1 });
 pettyCashSchema.index({ date: -1, deletedAt: 1 });
 pettyCashSchema.index({ createdBy: 1, date: -1 });

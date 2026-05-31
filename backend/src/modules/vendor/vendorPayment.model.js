@@ -19,6 +19,7 @@ const vendorPaymentSchema = new mongoose.Schema(
     paymentDate: {
       type: Date,
       required: true,
+      index: true,
     },
     paymentMethod: {
       type: String,
@@ -45,10 +46,12 @@ const vendorPaymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     deletedAt: {
       type: Date,
       default: null,
+      index: true,
     },
     deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -60,8 +63,5 @@ const vendorPaymentSchema = new mongoose.Schema(
 );
 
 vendorPaymentSchema.index({ vendor: 1, paymentDate: 1 });
-vendorPaymentSchema.index({ paymentDate: 1 });
-vendorPaymentSchema.index({ createdBy: 1 });
-vendorPaymentSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model("VendorPayment", vendorPaymentSchema);

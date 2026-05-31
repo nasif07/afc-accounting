@@ -5,7 +5,21 @@ const ApiResponse = require('../../utils/apiResponse');
 class PayrollController {
   static async createPayroll(req, res, next) {
     try {
-      const { employee, month, year, baseSalary, allowances, bonus, deductions, leaveDeduction, description } = req.body;
+      const {
+        employee,
+        month,
+        year,
+        salaryType,
+        baseSalary,
+        allowances,
+        bonus,
+        deductions,
+        leaveDeduction,
+        leavesTaken,
+        workingDays,
+        attendancePercentage,
+        description,
+      } = req.body;
 
       if (!employee || !month || !year || !baseSalary) {
         return ApiResponse.badRequest(res, 'Employee, month, year, and base salary are required');
@@ -15,11 +29,15 @@ class PayrollController {
         employee,
         month,
         year,
+        salaryType: salaryType || 'monthly',
         baseSalary,
         allowances: allowances || 0,
         bonus: bonus || 0,
         deductions: deductions || 0,
         leaveDeduction: leaveDeduction || 0,
+        leavesTaken: leavesTaken || 0,
+        workingDays: workingDays || 0,
+        attendancePercentage: attendancePercentage || 0,
         description,
         createdBy: req.user.userId
       };
