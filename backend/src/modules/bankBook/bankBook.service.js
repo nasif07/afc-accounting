@@ -6,6 +6,7 @@ const AccountingService = require("../accounting/accounting.service");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const generateVoucherNumber = require("../../utils/generateVoucherNumber");
 const { createAuditLog } = require("../../middleware/auditLog");
+const SettingsService = require("../settings/settings.service");
 
 const SOURCE_MODULE = "student_collection";
 
@@ -495,63 +496,81 @@ class BankBookService {
 
   static async cancelTransaction(id, user, reason = "") {
     const userId = this.getUserId(user);
-    const entry = await JournalEntry.findOne({
-      _id: id,
-      sourceModule: SOURCE_MODULE,
-      deletedAt: null,
-    });
+    const mongoose = require("mongoose");
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!entry) throw new Error("Student collection not found");
-    if (["deleted", "reversed"].includes(entry.status)) {
-      throw new Error("Student collection is already cancelled");
+    try {
+      const entry = await JournalEntry.findOne({
+        _id: id,
+        sourceModule: SOURCE_MODULE,
+        deletedAt: null,
+      }).session(session);
+
+      if (!entry) throw new Error("Student collection not found");
+      if (["deleted", "reversed"].includes(entry.status)) {
+        throw new Error("Student collection is already cancelled");
+      }
+
+      if (entry.status !== "posted") {
+        entry.status = "deleted";
+        entry.deletedAt = new Date();
+        entry.deletedBy = userId;
+        await entry.save({ session });
+        await session.commitTransaction();
+        return entry.toJSON();
+      }
+
+      const reversalBookEntries = entry.bookEntries.map((line) => ({
+        account: line.account,
+        debit: line.credit,
+        credit: line.debit,
+        description: `Reversal of ${entry.voucherNumber}. ${reason}`.trim(),
+      }));
+
+      // Create reversal draft within the same session (requiresApproval: true so
+      // auto-approve does not run inside the open session)
+      const reversalData = await AccountingService.createJournalEntry({
+        voucherNumber: await generateVoucherNumber("SCR"),
+        voucherDate: new Date(),
+        transactionType: "receipt",
+        description: `Cancellation reversal for ${entry.voucherNumber}. ${reason}`.trim(),
+        referenceNumber: entry.voucherNumber,
+        referenceType: `${SOURCE_MODULE}_reversal`,
+        referenceAccount: entry.referenceAccount,
+        bookEntries: reversalBookEntries,
+        createdBy: userId,
+        requiresApproval: true,
+        sourceModule: SOURCE_MODULE,
+        bankBook: { ...entry.bankBook.toObject() },
+      }, { session });
+
+      entry.status = "reversed";
+      await entry.save({ session });
+
+      await session.commitTransaction();
+
+      // Approve the reversal outside the session so COA balances are updated
+      const reversal = await AccountingService.approveEntry(reversalData._id, userId);
+
+      // Best-effort audit log — already non-throwing internally
+      createAuditLog({
+        action: "DELETE",
+        entityType: "BankBook",
+        entityId: id,
+        userId,
+        userName: user?.name,
+        userRole: user?.role,
+        description: `Cancelled student collection voucher ${entry.voucherNumber}`,
+      });
+
+      return { original: entry.toJSON(), reversal };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
     }
-
-    if (entry.status !== "posted") {
-      entry.status = "deleted";
-      entry.deletedAt = new Date();
-      entry.deletedBy = userId;
-      await entry.save();
-      return entry.toJSON();
-    }
-
-    const reversalBookEntries = entry.bookEntries.map((line) => ({
-      account: line.account,
-      debit: line.credit,
-      credit: line.debit,
-      description: `Reversal of ${entry.voucherNumber}. ${reason}`.trim(),
-    }));
-
-    const reversal = await AccountingService.createJournalEntry({
-      voucherNumber: await generateVoucherNumber("SCR"),
-      voucherDate: new Date(),
-      transactionType: "receipt",
-      description: `Cancellation reversal for ${entry.voucherNumber}. ${reason}`.trim(),
-      referenceNumber: entry.voucherNumber,
-      referenceType: `${SOURCE_MODULE}_reversal`,
-      referenceAccount: entry.referenceAccount,
-      bookEntries: reversalBookEntries,
-      createdBy: userId,
-      requiresApproval: false,
-      sourceModule: SOURCE_MODULE,
-      bankBook: {
-        ...entry.bankBook.toObject(),
-      },
-    });
-
-    entry.status = "reversed";
-    await entry.save();
-
-    await createAuditLog({
-      action: "DELETE",
-      entityType: "BankBook",
-      entityId: id,
-      userId,
-      userName: user?.name,
-      userRole: user?.role,
-      description: `Cancelled student collection voucher ${entry.voucherNumber}`,
-    });
-
-    return { original: entry.toJSON(), reversal };
   }
 
   static async getStatement(filters = {}) {
@@ -715,7 +734,7 @@ class BankBookService {
     };
   }
 
-  static toExcelHtml(statement) {
+  static toExcelHtml(statement, orgInfo = {}) {
     const escape = (value) =>
       String(value ?? "")
         .replace(/&/g, "&amp;")
@@ -754,7 +773,7 @@ class BankBookService {
           </style>
         </head>
         <body>
-          <h2 class="center">Alliance Francaise de Chittagong</h2>
+          <h2 class="center">${escape(orgInfo.orgName || "Alliance Francaise de Chittagong")}</h2>
           <h3 class="center">Statement of Account</h3>
           <p><strong>Bank Account:</strong> ${escape(this.accountLabel(statement.account))}</p>
           <p><strong>Period:</strong> ${escape(this.formatPeriodLabel(statement.period))}</p>
@@ -827,15 +846,21 @@ class BankBookService {
   }
 
   static async exportStatementExcel(filters) {
-    const statement = await this.getStatement(filters);
+    const [statement, orgInfo] = await Promise.all([
+      this.getStatement(filters),
+      SettingsService.getOrgInfo(),
+    ]);
     return {
       filename: `bank-statement-${Date.now()}.xls`,
-      content: this.toExcelHtml(statement),
+      content: this.toExcelHtml(statement, orgInfo),
     };
   }
 
   static async exportStatementPdf(filters, stream) {
-    const statement = await this.getStatement(filters);
+    const [statement, orgInfo] = await Promise.all([
+      this.getStatement(filters),
+      SettingsService.getOrgInfo(),
+    ]);
     const doc = new PDFDocument({
       margin: 42,
       size: "A4",
@@ -866,7 +891,10 @@ class BankBookService {
     const movementMoney = (value) => (Number(value || 0) ? money(value) : "");
 
     const drawHeader = () => {
-      const logoPath = path.resolve(__dirname, "../../../../frontend/public/afc-logo.jpg");
+      const defaultLogoPath = path.resolve(__dirname, "../../../../frontend/public/afc-logo.jpg");
+      const logoPath = (orgInfo.orgLogo && fs.existsSync(orgInfo.orgLogo))
+        ? orgInfo.orgLogo
+        : defaultLogoPath;
       if (fs.existsSync(logoPath)) {
         doc.image(logoPath, left, top - 8, { width: 88 });
       }
@@ -874,7 +902,7 @@ class BankBookService {
       doc
         .font("Times-Bold")
         .fontSize(16)
-        .text("Alliance Francaise de Chittagong", left, top + 4, {
+        .text(orgInfo.orgName || "Alliance Francaise de Chittagong", left, top + 4, {
           width: tableWidth,
           align: "center",
         });

@@ -1,29 +1,27 @@
 const jwt = require("jsonwebtoken");
+const { randomUUID } = require("crypto");
 const User = require("../users/user.model");
 
 class AuthService {
   static async register(userData) {
-    const { name, email, password, userId } = userData;
+    const { name, email, password } = userData;
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       throw new Error("Email already registered");
     }
 
-    // Force new users to accountant/pending
     const user = new User({
-      userId,
+      userId: `USR-${randomUUID()}`,
       name,
       email,
       password,
-      role: 'accountant',  // FORCE accountant role
-      status: 'pending',   // FORCE pending status
+      role: "accountant",
+      status: "pending",
     });
 
     await user.save();
 
-    // Generate token
     const token = this.generateToken(user._id, user.email, user.role);
 
     return {
@@ -32,35 +30,38 @@ class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status,  // INCLUDE status in response
-        userId
+        status: user.status,
       },
       token,
     };
   }
 
   static async login(email, password) {
-    // Find user by email
     const user = await User.findOne({ email }).select("+password");
+
+    // Single generic message prevents user enumeration (#1)
+    const INVALID_CREDENTIALS = "Invalid email or password";
+
     if (!user) {
-      throw new Error("User not found");
+      throw new Error(INVALID_CREDENTIALS);
     }
 
-    // Check if account is locked
     if (user.isLocked()) {
       throw new Error("Account is locked. Try again later.");
     }
 
-    // CHECK STATUS BEFORE PASSWORD
-    if (user.status === 'pending') {
+    if (user.status === "pending") {
       throw new Error("Account pending Director approval");
     }
 
-    if (user.status === 'rejected') {
+    if (user.status === "rejected") {
       throw new Error("Account has been rejected");
     }
 
-    // Compare password
+    if (!user.isActive) {
+      throw new Error("Account has been deactivated");
+    }
+
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       user.loginAttempts += 1;
@@ -68,16 +69,14 @@ class AuthService {
         user.lockUntil = new Date(Date.now() + 30 * 60 * 1000);
       }
       await user.save();
-      throw new Error("Invalid email or password");
+      throw new Error(INVALID_CREDENTIALS);
     }
 
-    // Reset login attempts
     user.loginAttempts = 0;
     user.lockUntil = null;
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate token
     const token = this.generateToken(user._id, user.email, user.role);
 
     return {
@@ -86,7 +85,7 @@ class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status,  // INCLUDE status in response
+        status: user.status,
       },
       token,
     };
@@ -100,18 +99,15 @@ class AuthService {
 
   static async verifyToken(token) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      return decoded;
-    } catch (error) {
+      return jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
       throw new Error("Invalid or expired token");
     }
   }
 
   static async getUserById(userId) {
     const user = await User.findById(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
+    if (!user) throw new Error("User not found");
     return {
       id: user._id,
       name: user.name,

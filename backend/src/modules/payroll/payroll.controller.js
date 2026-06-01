@@ -51,16 +51,18 @@ class PayrollController {
 
   static async getAllPayroll(req, res, next) {
     try {
-      const { employee, month, year, approvalStatus, paymentStatus } = req.query;
+      const { employee, month, year, approvalStatus, paymentStatus, page, limit } = req.query;
       const filters = {};
       if (employee) filters.employee = employee;
       if (month) filters.month = month;
       if (year) filters.year = year;
       if (approvalStatus) filters.approvalStatus = approvalStatus;
       if (paymentStatus) filters.paymentStatus = paymentStatus;
+      if (page) filters.page = page;
+      if (limit) filters.limit = limit;
 
-      const payroll = await PayrollService.getAllPayroll(filters);
-      return ApiResponse.success(res, payroll, 'Payroll records retrieved successfully');
+      const result = await PayrollService.getAllPayroll(filters);
+      return ApiResponse.success(res, result, 'Payroll records retrieved successfully');
     } catch (error) {
       next(error);
     }
@@ -101,7 +103,7 @@ class PayrollController {
   static async deletePayroll(req, res, next) {
     try {
       const { id } = req.params;
-      const payroll = await PayrollService.deletePayroll(id);
+      const payroll = await PayrollService.deletePayroll(id, req.user.userId);
 
       if (!payroll) {
         return ApiResponse.notFound(res, 'Payroll record not found');

@@ -7,73 +7,61 @@ const userSchema = new mongoose.Schema(
     name: {
       type: String,
       required: [true, 'Please provide a name'],
-      trim: true
+      trim: true,
+      maxlength: [100, 'Name cannot exceed 100 characters'],
     },
     userId: {
-      type: String
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
     },
     email: {
       type: String,
       required: [true, 'Please provide an email'],
       unique: true,
       lowercase: true,
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+      trim: true,
+      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email'],
     },
     password: {
       type: String,
       required: [true, 'Please provide a password'],
-      minlength: 6,
-      select: false
+      minlength: 8,
+      select: false,
     },
     role: {
       type: String,
       enum: Object.values(USER_ROLES),
-      default: USER_ROLES.ACCOUNTANT
+      default: USER_ROLES.ACCOUNTANT,
     },
-    phone: {
-      type: String,
-      trim: true
-    },
-    department: {
-      type: String,
-      trim: true
-    },
-    isActive: {
-      type: Boolean,
-      default: true
-    },
+    phone: { type: String, trim: true },
+    department: { type: String, trim: true },
+    isActive: { type: Boolean, default: true },
     status: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],
-      default: 'pending'
+      default: 'pending',
     },
-    approvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null
-    },
-    approvedAt: {
-      type: Date,
-      default: null
-    },
-    lastLogin: {
-      type: Date
-    },
-    loginAttempts: {
-      type: Number,
-      default: 0
-    },
-    lockUntil: {
-      type: Date
-    }
+
+    // Approval tracking
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    approvedAt: { type: Date, default: null },
+
+    // Rejection tracking (separate from approval)
+    rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    rejectedAt: { type: Date, default: null },
+    rejectionReason: { type: String, trim: true, default: '' },
+
+    lastLogin: { type: Date },
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-
   try {
     const salt = await bcryptjs.genSalt(10);
     this.password = await bcryptjs.hash(this.password, salt);
@@ -83,12 +71,10 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Method to compare passwords
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  return await bcryptjs.compare(enteredPassword, this.password);
+  return bcryptjs.compare(enteredPassword, this.password);
 };
 
-// Method to check if account is locked
 userSchema.methods.isLocked = function () {
   return this.lockUntil && this.lockUntil > Date.now();
 };

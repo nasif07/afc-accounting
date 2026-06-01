@@ -1,13 +1,15 @@
 const Payroll = require('./payroll.model');
 const PDFGenerator = require('../../utils/pdfGenerator');
+const generateVoucherNumber = require('../../utils/generateVoucherNumber');
+const SettingsService = require('../settings/settings.service');
 
 class PayrollService {
   static async createPayroll(payrollData) {
-    // Calculate net salary
     const totals = this.calculateTotals(payrollData);
     payrollData.totalEarnings = totals.totalEarnings;
     payrollData.totalDeductions = totals.totalDeductions;
     payrollData.netSalary = totals.netSalary;
+    payrollData.payrollNumber = await generateVoucherNumber('PR');
 
     const payroll = new Payroll(payrollData);
     await payroll.save();
@@ -40,11 +42,30 @@ class PayrollService {
     if (filters.approvalStatus) query.approvalStatus = filters.approvalStatus;
     if (filters.paymentStatus) query.paymentStatus = filters.paymentStatus;
 
-    return await Payroll.find(query)
-      .populate('employee', 'name employeeCode designation')
-      .populate('createdBy', 'name email')
-      .populate('approvedBy', 'name email')
-      .sort({ year: -1, month: -1 });
+    const page = Math.max(1, parseInt(filters.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      Payroll.find(query)
+        .populate('employee', 'name employeeCode designation')
+        .populate('createdBy', 'name email')
+        .populate('approvedBy', 'name email')
+        .sort({ year: -1, month: -1 })
+        .skip(skip)
+        .limit(limit),
+      Payroll.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   static async getPayrollById(payrollId) {
@@ -70,8 +91,16 @@ class PayrollService {
     ).populate('employee');
   }
 
-  static async deletePayroll(payrollId) {
-    return await Payroll.findByIdAndDelete(payrollId);
+  static async deletePayroll(payrollId, deletedBy) {
+    const payroll = await Payroll.findById(payrollId);
+    if (!payroll) return null;
+    if (payroll.approvalStatus === 'approved') {
+      throw new Error('Cannot delete an approved payroll record');
+    }
+    payroll.deletedAt = new Date();
+    payroll.deletedBy = deletedBy;
+    await payroll.save();
+    return payroll;
   }
 
   static async approvePayroll(payrollId, approvedBy) {
@@ -119,11 +148,12 @@ class PayrollService {
   }
 
   static async generatePayslip(payrollId) {
-    const payroll = await this.getPayrollById(payrollId);
+    const [payroll, orgInfo] = await Promise.all([
+      this.getPayrollById(payrollId),
+      SettingsService.getOrgInfo(),
+    ]);
     if (!payroll) throw new Error('Payroll not found');
-
-    const pdfPath = await PDFGenerator.generatePayslip(payroll);
-    return pdfPath;
+    return PDFGenerator.generatePayslip(payroll, null, orgInfo);
   }
 
   static async getPayrollSummary(month, year) {

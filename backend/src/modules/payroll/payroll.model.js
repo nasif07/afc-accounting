@@ -95,8 +95,37 @@ const payrollSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   { timestamps: true },
 );
+
+// Prevent duplicate payroll for the same employee in the same month/year
+payrollSchema.index({ employee: 1, month: 1, year: 1 }, { unique: true, sparse: false });
+
+// Exclude soft-deleted records by default
+function excludeDeleted(next) {
+  const query = this.getQuery();
+  if (!query.includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
+}
+payrollSchema.pre("find", excludeDeleted);
+payrollSchema.pre("findOne", excludeDeleted);
+payrollSchema.pre("countDocuments", excludeDeleted);
 
 module.exports = mongoose.model("Payroll", payrollSchema);

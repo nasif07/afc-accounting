@@ -51,64 +51,6 @@ const bookEntrySchema = new mongoose.Schema(
   },
 );
 
-// Validate each journal line
-bookEntrySchema.pre("validate", async function (next) {
-  try {
-    if (!this.account) {
-      return next(new Error("Account is required for each line item"));
-    }
-
-    const debit = Number(this.debit || 0);
-    const credit = Number(this.credit || 0);
-
-    if (debit > 0 && credit > 0) {
-      return next(
-        new Error("Cannot have both debit and credit in the same line item"),
-      );
-    }
-
-    if (debit === 0 && credit === 0) {
-      return next(
-        new Error(
-          "Amount cannot be zero - each line must have either a debit or credit",
-        ),
-      );
-    }
-
-    const ChartOfAccounts = mongoose.model("ChartOfAccounts");
-    const account = await ChartOfAccounts.findById(this.account);
-
-    if (!account) {
-      return next(new Error("Invalid account selected"));
-    }
-
-    if (account.deletedAt) {
-      return next(new Error("Deleted account cannot be used in transactions"));
-    }
-
-    if (account.status !== "active") {
-      return next(new Error("Inactive account cannot be used in transactions"));
-    }
-
-    const hasChildren = await ChartOfAccounts.exists({
-      parentAccount: account._id,
-      deletedAt: null,
-      status: { $ne: "archived" },
-    });
-
-    if (hasChildren) {
-      return next(
-        new Error("Parent account cannot be used in journal transactions"),
-      );
-    }
-
-    this.wasLeafAtCreation = !hasChildren;
-
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
 
 const journalEntrySchema = new mongoose.Schema(
   {
@@ -372,10 +314,52 @@ journalEntrySchema.pre("validate", async function (next) {
 });
 
 // Validate totals and final journal state before save
-journalEntrySchema.pre("save", function (next) {
+journalEntrySchema.pre("save", async function (next) {
   try {
     if (!this.bookEntries || this.bookEntries.length < 2) {
       return next(new Error("Journal entry must have at least 2 line items"));
+    }
+
+    // Validate each line's debit/credit values inline (no DB needed)
+    for (const entry of this.bookEntries) {
+      if (!entry.account) return next(new Error("Account is required for each line item"));
+      const debit = Number(entry.get("debit", null, { getters: false }) || 0);
+      const credit = Number(entry.get("credit", null, { getters: false }) || 0);
+      if (debit > 0 && credit > 0)
+        return next(new Error("Cannot have both debit and credit in the same line item"));
+      if (debit === 0 && credit === 0)
+        return next(new Error("Amount cannot be zero - each line must have either a debit or credit"));
+    }
+
+    // Batch-fetch all accounts in one query instead of N individual queries
+    const ChartOfAccounts = mongoose.model("ChartOfAccounts");
+    const accountIds = this.bookEntries.map((e) => e.account);
+    const accounts = await ChartOfAccounts.find({
+      _id: { $in: accountIds },
+    }, '_id status deletedAt').lean();
+
+    const accountMap = new Map(accounts.map((a) => [String(a._id), a]));
+
+    for (const entry of this.bookEntries) {
+      const account = accountMap.get(String(entry.account));
+      if (!account) return next(new Error("Invalid account selected"));
+      if (account.deletedAt) return next(new Error("Deleted account cannot be used in transactions"));
+      if (account.status !== "active") return next(new Error("Inactive account cannot be used in transactions"));
+    }
+
+    // Single batch query to find which accounts have children
+    const parentIds = accountIds.map(String);
+    const childAccounts = await ChartOfAccounts.find({
+      parentAccount: { $in: accountIds },
+      deletedAt: null,
+      status: { $ne: "archived" },
+    }, 'parentAccount').lean();
+
+    const parentSet = new Set(childAccounts.map((c) => String(c.parentAccount)));
+    for (const entry of this.bookEntries) {
+      const isParent = parentSet.has(String(entry.account));
+      if (isParent) return next(new Error("Parent account cannot be used in journal transactions"));
+      entry.wasLeafAtCreation = !isParent;
     }
 
     const totalDebitMinor = this.bookEntries.reduce(
