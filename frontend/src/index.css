@@ -1,6 +1,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap");
 @import "tailwindcss";
 
+/* ── Brand design tokens (Tailwind v4 @theme) ────────────────────────────── */
+/* Usage: bg-brand-blue, text-brand-red, border-brand-white                  */
+@theme {
+  --color-brand-blue:  #002395;
+  --color-brand-red:   #ED1C24;
+  --color-brand-white: #FFFFFF;
+}
+
 /* Global Styles */
 * {
   font-family: "Quicksand", sans-serif;

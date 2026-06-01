@@ -18,17 +18,18 @@ import {
   useRejectReceiptAdvanced,
   useDeleteReceiptAdvanced,
 } from "../hooks/useReceiptsAdvanced";
-import Table from "../components/ui/Table";
-import Button from "../components/ui/Button";
-import Badge from "../components/ui/Badge";
+import { Table, Button, Badge, Card, CardContent, Modal, Textarea } from "../components/common";
+import { SectionSkeleton } from "../components/common/Loaders";
 import EmptyState from "../components/EmptyState";
-import { Card, CardContent } from "../components/ui/Card";
 import { formatCurrency } from "../utils/currency";
 import SectionHeader from "../components/common/SectionHeader";
 
 export default function Receipts() {
   const { user } = useSelector((state) => state.auth);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [pendingApprove, setPendingApprove] = useState(null);
 
   const { data: allReceipts, isLoading } = useReceiptsAdvanced();
 
@@ -41,15 +42,17 @@ export default function Receipts() {
   const rejectMutation = useRejectReceiptAdvanced();
   const deleteMutation = useDeleteReceiptAdvanced();
 
-  const handleApprove = async (id) => {
-    if (window.confirm("Confirm receipt approval?")) {
-      await approveMutation.mutateAsync(id);
-    }
+  const handleConfirmApprove = async () => {
+    await approveMutation.mutateAsync(pendingApprove);
+    setPendingApprove(null);
   };
 
-  const handleReject = async (id) => {
-    const reason = window.prompt("Enter rejection reason:");
-    if (reason) await rejectMutation.mutateAsync({ id, reason });
+  const handleConfirmReject = async () => {
+    if (rejectReason.trim()) {
+      await rejectMutation.mutateAsync({ id: rejectModal, reason: rejectReason.trim() });
+    }
+    setRejectModal(null);
+    setRejectReason("");
   };
 
   const columns = [
@@ -80,9 +83,7 @@ export default function Receipts() {
       key: "amount",
       label: "Amount",
       render: (value) => (
-        <span className="font-semibold text-neutral-900">
-          {formatCurrency(value)}
-        </span>
+        <span className="font-semibold text-neutral-900">{formatCurrency(value)}</span>
       ),
     },
     {
@@ -103,11 +104,7 @@ export default function Receipts() {
       render: (value) => (
         <Badge
           variant={
-            value === "approved"
-              ? "success"
-              : value === "rejected"
-                ? "danger"
-                : "warning"
+            value === "approved" ? "success" : value === "rejected" ? "danger" : "warning"
           }
           className="capitalize px-3 py-1">
           {value || "Pending"}
@@ -119,37 +116,41 @@ export default function Receipts() {
       label: "Actions",
       render: (value, row) => (
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => (window.location.href = `/receipts/${value}`)}
-            className="p-2 hover:bg-blue-50 text-blue-600 rounded-full transition-colors"
-            title="View Details">
-            <Eye size={18} />
-          </button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`View receipt ${row.receiptNumber}`}
+            onClick={() => (window.location.href = `/receipts/${value}`)}>
+            <Eye size={16} className="text-blue-600" />
+          </Button>
 
           {user?.role === "director" && row.approvalStatus === "pending" && (
             <>
-              <button
-                onClick={() => handleApprove(value)}
-                className="p-2 hover:bg-green-50 text-green-600 rounded-full transition-colors"
-                title="Approve">
-                <CheckCircle size={18} />
-              </button>
-              <button
-                onClick={() => handleReject(value)}
-                className="p-2 hover:bg-red-50 text-red-600 rounded-full transition-colors"
-                title="Reject">
-                <XCircle size={18} />
-              </button>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={`Approve receipt ${row.receiptNumber}`}
+                onClick={() => setPendingApprove(value)}>
+                <CheckCircle size={16} className="text-green-600" />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={`Reject receipt ${row.receiptNumber}`}
+                onClick={() => { setRejectModal(value); setRejectReason(""); }}>
+                <XCircle size={16} className="text-red-600" />
+              </Button>
             </>
           )}
 
           {row.approvalStatus === "pending" && (
-            <button
-              onClick={() => deleteMutation.mutateAsync(value)}
-              className="p-2 hover:bg-neutral-100 text-neutral-400 hover:text-red-600 rounded-full transition-all"
-              title="Delete">
-              <Trash2 size={18} />
-            </button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Delete receipt ${row.receiptNumber}`}
+              onClick={() => deleteMutation.mutateAsync(value)}>
+              <Trash2 size={16} className="text-neutral-400 hover:text-red-600" />
+            </Button>
           )}
         </div>
       ),
@@ -166,24 +167,21 @@ export default function Receipts() {
     },
     {
       label: "Pending Review",
-      value:
-        allReceipts?.filter((r) => r.approvalStatus === "pending").length || 0,
+      value: allReceipts?.filter((r) => r.approvalStatus === "pending").length || 0,
       icon: Clock,
       color: "text-amber-600",
       bg: "bg-amber-50",
     },
     {
       label: "Approved",
-      value:
-        allReceipts?.filter((r) => r.approvalStatus === "approved").length || 0,
+      value: allReceipts?.filter((r) => r.approvalStatus === "approved").length || 0,
       icon: Check,
       color: "text-emerald-600",
       bg: "bg-emerald-50",
     },
     {
       label: "Rejected",
-      value:
-        allReceipts?.filter((r) => r.approvalStatus === "rejected").length || 0,
+      value: allReceipts?.filter((r) => r.approvalStatus === "rejected").length || 0,
       icon: Ban,
       color: "text-rose-600",
       bg: "bg-rose-50",
@@ -199,17 +197,15 @@ export default function Receipts() {
         buttonText="New Receipt"
         onButtonClick={() => (window.location.href = "/receipts/new")}
         buttonIcon={Plus}
-        buttonColor="bg-red-600 hover:bg-red-700 shadow-lg shadow-red-100"
+        buttonVariant="primary"
         iconBg="bg-red-50"
         iconColor="text-red-600"
       />
 
-      {/* Modern Stats Grid */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, i) => (
-          <Card
-            key={i}
-            className="border-none shadow-sm bg-white overflow-hidden group">
+          <Card key={i} className="border-none shadow-sm bg-white overflow-hidden group">
             <CardContent className="p-6 flex items-center gap-4">
               <div
                 className={`p-3 rounded-2xl ${stat.bg} ${stat.color} transition-transform group-hover:scale-110`}>
@@ -219,9 +215,7 @@ export default function Receipts() {
                 <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
                   {stat.label}
                 </p>
-                <p className="text-2xl font-black text-neutral-900">
-                  {stat.value}
-                </p>
+                <p className="text-2xl font-black text-neutral-900">{stat.value}</p>
               </div>
             </CardContent>
           </Card>
@@ -251,14 +245,11 @@ export default function Receipts() {
           </div>
         </div>
 
-        {/* Dynamic Content Area */}
+        {/* Content */}
         <div className="p-0">
           {isLoading ? (
-            <div className="py-20 flex flex-col items-center justify-center space-y-4">
-              <div className="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm font-medium text-neutral-500">
-                Syncing ledger...
-              </p>
+            <div className="p-4">
+              <SectionSkeleton rows={5} />
             </div>
           ) : receipts && receipts.length > 0 ? (
             <Table
@@ -282,6 +273,63 @@ export default function Receipts() {
           )}
         </div>
       </div>
+
+      {/* Approve confirmation modal */}
+      <Modal
+        isOpen={!!pendingApprove}
+        onClose={() => setPendingApprove(null)}
+        title="Approve Receipt"
+        size="sm">
+        <p className="text-sm text-slate-600 mb-6">
+          Confirm approval of this receipt?
+        </p>
+        <div className="flex gap-3">
+          <Button variant="secondary" fullWidth onClick={() => setPendingApprove(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="success"
+            fullWidth
+            loading={approveMutation.isPending}
+            onClick={handleConfirmApprove}>
+            Approve
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Reject reason modal */}
+      <Modal
+        isOpen={!!rejectModal}
+        onClose={() => { setRejectModal(null); setRejectReason(""); }}
+        title="Reject Receipt"
+        size="md">
+        <div className="space-y-4">
+          <Textarea
+            label="Rejection Reason"
+            required
+            rows={3}
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Enter reason for rejection..."
+          />
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => { setRejectModal(null); setRejectReason(""); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              fullWidth
+              loading={rejectMutation.isPending}
+              disabled={!rejectReason.trim()}
+              onClick={handleConfirmReject}>
+              Confirm Rejection
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

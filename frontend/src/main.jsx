@@ -9,6 +9,7 @@ import store from "./store/store.js";
 import { queryClient } from "./lib/queryClient";
 import router from "./Routes/Routes.jsx";
 import { getCurrentUser } from "./store/slices/authSlice.js";
+import { fetchSettings } from "./store/slices/settingsSlice.js";
 import "./index.css";
 import LoadingSpinner from "./components/common/LoadingSpinner.jsx";
 
@@ -19,9 +20,12 @@ function AppInitializer() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        await dispatch(getCurrentUser()).unwrap?.();
+        await Promise.allSettled([
+          dispatch(getCurrentUser()).unwrap?.(),
+          dispatch(fetchSettings()),
+        ]);
       } catch (error) {
-        console.error("Failed to initialize auth:", error);
+        console.error("Failed to initialize app:", error);
       } finally {
         setIsInitialized(true);
       }

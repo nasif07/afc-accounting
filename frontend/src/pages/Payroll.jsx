@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import {
   fetchPayroll,
   createPayroll,
@@ -27,7 +27,7 @@ import {
   clearError,
   clearSuccess,
 } from "../store/slices/payrollSlice";
-import { fetchEmployees } from "../store/slices/employeeSlice";
+import { useEmployees } from "../hooks/useEmployees";
 import SectionHeader from "../components/common/SectionHeader";
 import { payrollAPI } from "../services/apiMethods";
 
@@ -52,7 +52,7 @@ export default function Payroll() {
   const { items, loading, error, success } = useSelector(
     (state) => state.payroll,
   );
-  const { items: employees } = useSelector((state) => state.employees);
+  const { data: employees = [] } = useEmployees();
   const { user } = useSelector((state) => state.auth);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,7 +71,6 @@ export default function Payroll() {
 
   useEffect(() => {
     dispatch(fetchPayroll());
-    dispatch(fetchEmployees());
   }, [dispatch]);
 
   useEffect(() => {

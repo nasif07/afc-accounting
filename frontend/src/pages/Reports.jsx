@@ -4,8 +4,7 @@ import {
   Printer,
   BarChart3,
 } from "lucide-react";
-import { Card, CardContent } from "../components/ui/Card";
-import Button from "../components/ui/Button";
+import { Card, CardContent, Button } from "../components/common";
 import KPICard from "../components/reports/KPICard";
 import ReportFilters from "../components/reports/ReportFilters";
 import TrialBalanceReport from "../components/reports/TrialBalanceReport";

@@ -1,10 +1,10 @@
-export default function Input({
+export default function Textarea({
   label,
   name,
-  type = "text",
   value,
   onChange,
   onBlur,
+  rows = 3,
   error,
   touched,
   placeholder,
@@ -27,18 +27,17 @@ export default function Input({
         </label>
       )}
 
-      <input
+      <textarea
         id={name}
         name={name}
-        type={type}
         value={value}
         onChange={onChange}
         onBlur={onBlur}
+        rows={rows}
         placeholder={placeholder}
         disabled={disabled}
         className={`
-          w-full rounded-xl border bg-white px-4
-          py-3 sm:py-2.5
+          w-full resize-none rounded-xl border bg-white px-4 py-3 sm:py-2.5
           text-sm text-slate-900 placeholder:text-slate-400 transition
           focus:outline-none focus:ring-4
           disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500

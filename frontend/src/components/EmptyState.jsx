@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '../utils/cn';
-import Button from './ui/Button';
+import { Button } from './common';
 
 const EmptyState = React.forwardRef(
   (

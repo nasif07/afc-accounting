@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
+import { selectOrgInfo } from "../store/slices/settingsSlice";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -25,23 +27,23 @@ import {
   YAxis,
 } from "recharts";
 import { dashboardAPI } from "../services/apiMethods";
+import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from "../components/common";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/Card";
-import Badge from "../components/ui/Badge";
-import { EmptyState, ErrorState, SectionSkeleton } from "../components/common/Loaders";
+  EmptyState,
+  ErrorState,
+  SectionSkeleton,
+} from "../components/common/Loaders";
 
-const chartColors = ["#0f766e", "#dc2626", "#2563eb", "#ca8a04", "#7c3aed", "#0891b2", "#be185d", "#4b5563"];
-
-const formatBDT = (amount) =>
-  new Intl.NumberFormat("en-BD", {
-    style: "currency",
-    currency: "BDT",
-    maximumFractionDigits: 2,
-  }).format(Number(amount || 0));
+const chartColors = [
+  "#0f766e",
+  "#dc2626",
+  "#2563eb",
+  "#ca8a04",
+  "#7c3aed",
+  "#0891b2",
+  "#be185d",
+  "#4b5563",
+];
 
 const formatDate = (date) => {
   if (!date) return "-";
@@ -77,7 +79,9 @@ function SummaryCard({ title, value, icon: Icon, tone, href }) {
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               {title}
             </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">{value}</p>
+            <p className="mt-2 text-lg font-bold text-slate-900 sm:mt-3 sm:text-xl lg:text-2xl">
+              {value}
+            </p>
           </div>
           <div className={`rounded-lg p-2 ${tone}`}>
             <Icon size={20} />
@@ -112,9 +116,23 @@ function StatusBadge({ status }) {
 }
 
 export default function Dashboard() {
+  const { currency, currencySymbol } = useSelector(selectOrgInfo);
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const formatMoney = (amount) => {
+    const num = Number(amount || 0);
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency || "BDT",
+        maximumFractionDigits: 2,
+      }).format(num);
+    } catch {
+      return `${currencySymbol}${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+    }
+  };
 
   const loadDashboard = async () => {
     try {
@@ -143,28 +161,28 @@ export default function Dashboard() {
     return [
       {
         title: "Petty Cash",
-        value: formatBDT(summary.pettyCash),
+        value: formatMoney(summary.pettyCash),
         icon: Wallet,
         tone: "bg-emerald-50 text-emerald-700",
         href: "/dashboard/petty-cash",
       },
       {
         title: "Bank Balance",
-        value: formatBDT(summary.bankBalance),
+        value: formatMoney(summary.bankBalance),
         icon: Landmark,
         tone: "bg-blue-50 text-blue-700",
         href: "/dashboard/bank-cash",
       },
       {
         title: "Monthly Income",
-        value: formatBDT(summary.monthlyIncome),
+        value: formatMoney(summary.monthlyIncome),
         icon: ArrowUpRight,
         tone: "bg-teal-50 text-teal-700",
         href: "/dashboard/reports",
       },
       {
         title: "Monthly Expense",
-        value: formatBDT(summary.monthlyExpense),
+        value: formatMoney(summary.monthlyExpense),
         icon: ArrowDownRight,
         tone: "bg-red-50 text-red-700",
         href: "/dashboard/expenses",
@@ -187,22 +205,24 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
+      <header className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:gap-4 sm:pb-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
             Accounting Dashboard
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Approved ledger balances, current month performance, and reconciliation signals.
+          <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+            Approved ledger balances, current month performance, and
+            reconciliation signals.
           </p>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={loadDashboard}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-          <RefreshCcw size={16} />
+          icon={RefreshCcw}
+          className="w-full md:w-auto">
           Refresh
-        </button>
+        </Button>
       </header>
 
       {dashboard?.warnings?.pettyCash && (
@@ -217,26 +237,30 @@ export default function Dashboard() {
         </div>
       )}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         {loading
           ? Array.from({ length: 5 }).map((_, index) => (
-              <Card key={index} className="rounded-lg shadow-none">
-                <CardContent className="p-5">
-                  <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
-                  <div className="mt-4 h-8 w-36 animate-pulse rounded bg-slate-100" />
+              <Card key={index} className="shadow-none">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                  <div className="mt-3 h-6 w-28 animate-pulse rounded bg-slate-100" />
                 </CardContent>
               </Card>
             ))
-          : summaryCards.map((card) => <SummaryCard key={card.title} {...card} />)}
+          : summaryCards.map((card) => (
+              <SummaryCard key={card.title} {...card} />
+            ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-        <Card className="rounded-lg shadow-none xl:col-span-3">
+      <section className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-5">
+        <Card className="shadow-none lg:col-span-1 xl:col-span-3">
           <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
             <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
               Income vs Expense
             </CardTitle>
-            <Link to="/dashboard/reports" className="text-xs font-bold text-[#DA002E]">
+            <Link
+              to="/dashboard/reports"
+              className="text-xs font-bold text-[#DA002E]">
               Reports
             </Link>
           </CardHeader>
@@ -246,7 +270,7 @@ export default function Dashboard() {
               error={error}
               empty={incomeVsExpense.length === 0}
               emptyText="No approved income or expense journals yet.">
-              <div className="h-[320px]">
+              <div className="h-55 sm:h-67.5 lg:h-75 xl:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={incomeVsExpense}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -256,10 +280,20 @@ export default function Dashboard() {
                       axisLine={false}
                       tickFormatter={(value) => `${Number(value) / 1000}k`}
                     />
-                    <Tooltip formatter={(value) => formatBDT(value)} />
+                    <Tooltip formatter={(value) => formatMoney(value)} />
                     <Legend />
-                    <Bar dataKey="income" name="Income" fill="#0f766e" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="expense" name="Expense" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="income"
+                      name="Income"
+                      fill="#0f766e"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="expense"
+                      name="Expense"
+                      fill="#dc2626"
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -267,7 +301,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-lg shadow-none xl:col-span-2">
+        <Card className="shadow-none lg:col-span-1 xl:col-span-2">
           <CardHeader className="border-b border-slate-100 p-5">
             <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
               Expense by Category
@@ -279,15 +313,17 @@ export default function Dashboard() {
               error={error}
               empty={expenseByCategory.length === 0}
               emptyText="No approved expense journals this month.">
-              <div className="h-[320px]">
+              <div className="h-72 sm:h-80 lg:h-75 xl:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={expenseByCategory}
                       dataKey="value"
                       nameKey="name"
-                      innerRadius={62}
-                      outerRadius={105}
+                      cx="50%"
+                      cy="42%"
+                      innerRadius="30%"
+                      outerRadius="55%"
                       paddingAngle={2}>
                       {expenseByCategory.map((entry, index) => (
                         <Cell
@@ -296,8 +332,15 @@ export default function Dashboard() {
                         />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatBDT(value)} />
-                    <Legend layout="vertical" verticalAlign="middle" align="right" />
+                    <Tooltip formatter={(value) => formatMoney(value)} />
+                    <Legend
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      align="center"
+                      iconSize={10}
+                      iconType="circle"
+                      wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -306,13 +349,15 @@ export default function Dashboard() {
         </Card>
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="rounded-lg shadow-none">
+      <section className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-3">
+        <Card className="shadow-none">
           <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
             <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
               Recent Journals
             </CardTitle>
-            <Link to="/dashboard/journal-entries" className="text-xs font-bold text-[#DA002E]">
+            <Link
+              to="/dashboard/journal-entries"
+              className="text-xs font-bold text-[#DA002E]">
               View all
             </Link>
           </CardHeader>
@@ -337,10 +382,13 @@ export default function Dashboard() {
                         <StatusBadge status={journal.status} />
                       </div>
                       <p className="mt-1 truncate text-xs text-slate-500">
-                        {journal.description || journal.referenceNumber || "Journal entry"}
+                        {journal.description ||
+                          journal.referenceNumber ||
+                          "Journal entry"}
                       </p>
                       <p className="mt-1 text-xs text-slate-400">
-                        {formatDate(journal.voucherDate)} · {formatBDT(journal.totalDebit)}
+                        {formatDate(journal.voucherDate)} ·{" "}
+                        {formatMoney(journal.totalDebit)}
                       </p>
                     </div>
                   </Link>
@@ -350,12 +398,14 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-lg shadow-none">
+        <Card className="shadow-none">
           <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
             <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
               Recent Petty Cash
             </CardTitle>
-            <Link to="/dashboard/petty-cash" className="text-xs font-bold text-[#DA002E]">
+            <Link
+              to="/dashboard/petty-cash"
+              className="text-xs font-bold text-[#DA002E]">
               View all
             </Link>
           </CardHeader>
@@ -384,7 +434,7 @@ export default function Dashboard() {
                               ? "text-sm font-bold text-emerald-700"
                               : "text-sm font-bold text-red-700"
                           }>
-                          {formatBDT(row.debit || row.credit)}
+                          {formatMoney(row.debit || row.credit)}
                         </span>
                       </div>
                       <p className="mt-1 truncate text-xs text-slate-500">
@@ -401,12 +451,14 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-lg shadow-none">
+        <Card className="shadow-none">
           <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
             <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
               Bank Reconciliation Alerts
             </CardTitle>
-            <Link to="/dashboard/bank-cash" className="text-xs font-bold text-[#DA002E]">
+            <Link
+              to="/dashboard/bank-cash"
+              className="text-xs font-bold text-[#DA002E]">
               Reconcile
             </Link>
           </CardHeader>
@@ -430,7 +482,7 @@ export default function Dashboard() {
                           {alert.voucherNumber}
                         </p>
                         <span className="text-sm font-bold text-slate-700">
-                          {formatBDT(alert.amount)}
+                          {formatMoney(alert.amount)}
                         </span>
                       </div>
                       <p className="mt-1 truncate text-xs text-slate-500">
@@ -442,7 +494,8 @@ export default function Dashboard() {
                         ) : (
                           <CheckCircle2 size={12} />
                         )}
-                        {alert.type.replace("-", " ")} · {formatDate(alert.date)}
+                        {alert.type.replace("-", " ")} ·{" "}
+                        {formatDate(alert.date)}
                       </p>
                     </div>
                   </div>

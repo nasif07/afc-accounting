@@ -2,19 +2,13 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
-import toast from "react-hot-toast";
-import {
-  Check,
-  X,
-  Loader,
-  ChevronDown,
-  Eye,
-  AlertCircle,
-  CheckCircle,
-} from "lucide-react";
-import Card from "../components/common/Card";
+import { toast } from "sonner";
+import { Check, X, ChevronDown, Eye, AlertCircle, CheckCircle } from "lucide-react";
+import { Card, CardContent } from "../components/common";
 import Badge from "../components/common/Badge";
 import SectionHeader from "../components/common/SectionHeader";
+import { Button, Modal, Textarea } from "../components/common";
+import { PageLoader } from "../components/common/Loaders";
 
 export default function JournalEntryApprovals() {
   const [pendingEntries, setPendingEntries] = useState([]);
@@ -28,25 +22,18 @@ export default function JournalEntryApprovals() {
   const user = useSelector((state) => state.auth.user);
   const navigate = useNavigate();
 
-  // Check if user is director
   useEffect(() => {
-    if (user?.role !== "director") {
-      navigate("/dashboard");
-      return;
-    }
+    if (user?.role !== "director") { navigate("/dashboard"); return; }
     fetchPendingEntries();
   }, [user, navigate]);
 
   const fetchPendingEntries = async () => {
     try {
       setLoading(true);
-      const response = await api.get(
-        "/accounting/journal-entries/pending-approvals",
-      );
+      const response = await api.get("/accounting/journal-entries/pending-approvals");
       setPendingEntries(response?.data?.data || []);
     } catch (error) {
       toast.error("Failed to load pending journal entries");
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -60,18 +47,13 @@ export default function JournalEntryApprovals() {
       fetchPendingEntries();
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to approve entry");
-      console.error(error);
     } finally {
       setApproving(null);
     }
   };
 
   const handleRejectSubmit = async (entryId) => {
-    if (!rejectionReason.trim()) {
-      toast.error("Please provide a rejection reason");
-      return;
-    }
-
+    if (!rejectionReason.trim()) { toast.error("Please provide a rejection reason"); return; }
     try {
       setRejecting(entryId);
       await api.patch(`/accounting/journal-entries/${entryId}/reject`, {
@@ -83,49 +65,24 @@ export default function JournalEntryApprovals() {
       fetchPendingEntries();
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to reject entry");
-      console.error(error);
     } finally {
       setRejecting(null);
     }
   };
 
-  const calculateTotalDebit = (entry) => {
-    return (
-      entry?.bookEntries?.reduce((sum, be) => sum + (be.debit || 0), 0) || 0
-    );
-  };
+  const totalDebit  = (e) => e?.bookEntries?.reduce((s, b) => s + (b.debit  || 0), 0) || 0;
+  const totalCredit = (e) => e?.bookEntries?.reduce((s, b) => s + (b.credit || 0), 0) || 0;
 
-  const calculateTotalCredit = (entry) => {
-    return (
-      entry?.bookEntries?.reduce((sum, be) => sum + (be.credit || 0), 0) || 0
-    );
-  };
+  const formatCurrency = (amount) =>
+    `৳ ${new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2 }).format(amount || 0)}`;
 
-  const formatCurrency = (amount) => {
-    return `৳ ${new Intl.NumberFormat("en-BD", {
-      minimumFractionDigits: 2,
-    }).format(amount || 0)}`;
-  };
+  const formatDate = (date) =>
+    new Date(date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader className="animate-spin text-blue-600" size={40} />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Loading pending entries…" className="min-h-screen" />;
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <SectionHeader
         icon={CheckCircle}
         title="Journal Entry Approvals"
@@ -135,118 +92,63 @@ export default function JournalEntryApprovals() {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <div className="p-6">
-            <p className="text-sm font-medium text-blue-600 uppercase tracking-wide">
-              Pending Approval
-            </p>
-            <p className="mt-2 text-3xl font-bold text-blue-900">
-              {pendingEntries.length}
-            </p>
-          </div>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <div className="p-6">
-            <p className="text-sm font-medium text-green-600 uppercase tracking-wide">
-              Total Debit
-            </p>
-            <p className="mt-2 text-2xl font-bold text-green-900">
-              {formatCurrency(
-                pendingEntries.reduce(
-                  (sum, e) => sum + calculateTotalDebit(e),
-                  0,
-                ),
-              )}
-            </p>
-          </div>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <div className="p-6">
-            <p className="text-sm font-medium text-orange-600 uppercase tracking-wide">
-              Total Credit
-            </p>
-            <p className="mt-2 text-2xl font-bold text-orange-900">
-              {formatCurrency(
-                pendingEntries.reduce(
-                  (sum, e) => sum + calculateTotalCredit(e),
-                  0,
-                ),
-              )}
-            </p>
-          </div>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[
+          { label: "Pending Approval", value: pendingEntries.length, color: "from-blue-50 to-blue-100 border-blue-200", textColor: "text-blue-900", labelColor: "text-blue-600" },
+          { label: "Total Debit",  value: formatCurrency(pendingEntries.reduce((s, e) => s + totalDebit(e),  0)), color: "from-green-50 to-green-100 border-green-200", textColor: "text-green-900", labelColor: "text-green-600" },
+          { label: "Total Credit", value: formatCurrency(pendingEntries.reduce((s, e) => s + totalCredit(e), 0)), color: "from-orange-50 to-orange-100 border-orange-200", textColor: "text-orange-900", labelColor: "text-orange-600" },
+        ].map(({ label, value, color, textColor, labelColor }) => (
+          <Card key={label} className={`bg-gradient-to-br ${color}`}>
+            <CardContent className="p-6">
+              <p className={`text-sm font-medium uppercase tracking-wide ${labelColor}`}>{label}</p>
+              <p className={`mt-2 text-2xl font-bold ${textColor}`}>{value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Empty State */}
+      {/* Empty state */}
       {pendingEntries.length === 0 ? (
         <Card className="border-2 border-dashed border-gray-300 bg-gray-50">
-          <div className="p-12 text-center">
+          <CardContent className="p-12 text-center">
             <Eye className="mx-auto mb-4 text-gray-400" size={48} />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No Pending Approvals
-            </h3>
-            <p className="text-gray-600">
-              All journal entries have been reviewed. Check back later for new
-              submissions.
-            </p>
-          </div>
+            <h3 className="mb-2 text-lg font-semibold text-gray-900">No Pending Approvals</h3>
+            <p className="text-gray-600">All journal entries have been reviewed.</p>
+          </CardContent>
         </Card>
       ) : (
-        /* Entries List */
         <div className="space-y-4">
           {pendingEntries.map((entry) => {
             const isExpanded = expandedId === entry._id;
-            const totalDebit = calculateTotalDebit(entry);
-            const totalCredit = calculateTotalCredit(entry);
-            const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+            const tD = totalDebit(entry);
+            const tC = totalCredit(entry);
+            const isBalanced = Math.abs(tD - tC) < 0.01;
 
             return (
               <Card key={entry._id} className="overflow-hidden">
-                {/* Entry Header */}
-                <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                {/* Entry header */}
+                <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <h3 className="text-lg font-bold text-gray-900">
-                          {entry.voucherNumber || "N/A"}
-                        </h3>
+                      <div className="mb-3 flex items-center gap-3">
+                        <h3 className="text-lg font-bold text-gray-900">{entry.voucherNumber || "N/A"}</h3>
                         <Badge variant={isBalanced ? "success" : "danger"}>
                           {isBalanced ? "Balanced" : "Unbalanced"}
                         </Badge>
                       </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-600 font-medium">Date</p>
-                          <p className="text-gray-900 font-semibold">
-                            {formatDate(entry.voucherDate)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-600 font-medium">
-                            Created By
-                          </p>
-                          <p className="text-gray-900 font-semibold">
-                            {entry.createdBy?.name || "Unknown"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-600 font-medium">Debit</p>
-                          <p className="text-green-600 font-semibold">
-                            {formatCurrency(totalDebit)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-600 font-medium">Credit</p>
-                          <p className="text-blue-600 font-semibold">
-                            {formatCurrency(totalCredit)}
-                          </p>
-                        </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+                        {[
+                          { label: "Date",       val: formatDate(entry.voucherDate),      cls: "text-gray-900" },
+                          { label: "Created By", val: entry.createdBy?.name || "Unknown", cls: "text-gray-900" },
+                          { label: "Debit",      val: formatCurrency(tD),                 cls: "text-green-600" },
+                          { label: "Credit",     val: formatCurrency(tC),                 cls: "text-blue-600"  },
+                        ].map(({ label, val, cls }) => (
+                          <div key={label}>
+                            <p className="font-medium text-gray-600">{label}</p>
+                            <p className={`font-semibold ${cls}`}>{val}</p>
+                          </div>
+                        ))}
                       </div>
-
                       {entry.description && (
                         <p className="mt-3 text-sm text-gray-700">
                           <strong>Description:</strong> {entry.description}
@@ -254,157 +156,94 @@ export default function JournalEntryApprovals() {
                       )}
                     </div>
 
-                    {/* Expand Button */}
-                    <button
-                      onClick={() =>
-                        setExpandedId(isExpanded ? null : entry._id)
-                      }
-                      className="ml-4 p-2 hover:bg-gray-200 rounded-lg transition">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => setExpandedId(isExpanded ? null : entry._id)}>
                       <ChevronDown
                         size={20}
-                        className={`text-gray-600 transition-transform ${
-                          isExpanded ? "rotate-180" : ""
-                        }`}
+                        className={`text-gray-600 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                       />
-                    </button>
+                    </Button>
                   </div>
 
-                  {/* Warning if Unbalanced */}
                   {!isBalanced && (
-                    <div className="mt-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <AlertCircle
-                        size={18}
-                        className="text-red-600 flex-shrink-0 mt-0.5"
-                      />
+                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                      <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-600" />
                       <div>
-                        <p className="text-sm font-semibold text-red-900">
-                          Entry is not balanced
-                        </p>
-                        <p className="text-xs text-red-700">
-                          Difference:{" "}
-                          {formatCurrency(Math.abs(totalDebit - totalCredit))}
-                        </p>
+                        <p className="text-sm font-semibold text-red-900">Entry is not balanced</p>
+                        <p className="text-xs text-red-700">Difference: {formatCurrency(Math.abs(tD - tC))}</p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Expanded Details */}
+                {/* Expanded line items */}
                 {isExpanded && (
-                  <div className="p-6 bg-white">
-                    {/* Book Entries Table */}
-                    <div className="mb-6">
-                      <h4 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">
-                        Line Items
-                      </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b-2 border-gray-300">
-                              <th className="text-left py-2 px-3 text-gray-700 font-semibold">
-                                Account
+                  <div className="bg-white p-6">
+                    <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-900">Line Items</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b-2 border-gray-300">
+                            {["Account", "Debit", "Credit", "Description"].map((h) => (
+                              <th key={h} className={`py-2 px-3 font-semibold text-gray-700 ${h !== "Account" && h !== "Description" ? "text-right" : "text-left"}`}>
+                                {h}
                               </th>
-                              <th className="text-right py-2 px-3 text-gray-700 font-semibold">
-                                Debit
-                              </th>
-                              <th className="text-right py-2 px-3 text-gray-700 font-semibold">
-                                Credit
-                              </th>
-                              <th className="text-left py-2 px-3 text-gray-700 font-semibold">
-                                Description
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {entry.bookEntries?.map((be, idx) => (
-                              <tr
-                                key={idx}
-                                className="border-b border-gray-200 hover:bg-gray-50">
-                                <td className="py-3 px-3">
-                                  <div>
-                                    <p className="font-semibold text-gray-900">
-                                      {be.account?.accountCode}
-                                    </p>
-                                    <p className="text-xs text-gray-600">
-                                      {be.account?.accountName}
-                                    </p>
-                                  </div>
-                                </td>
-                                <td className="py-3 px-3 text-right">
-                                  {be.debit ? (
-                                    <span className="font-semibold text-green-600">
-                                      {formatCurrency(be.debit)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-3 text-right">
-                                  {be.credit ? (
-                                    <span className="font-semibold text-blue-600">
-                                      {formatCurrency(be.credit)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-3 text-gray-700">
-                                  {be.description || "-"}
-                                </td>
-                              </tr>
                             ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
-                              <td className="py-3 px-3">TOTAL</td>
-                              <td className="py-3 px-3 text-right text-green-600">
-                                {formatCurrency(totalDebit)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entry.bookEntries?.map((be, idx) => (
+                            <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
+                              <td className="px-3 py-3">
+                                <p className="font-semibold text-gray-900">{be.account?.accountCode}</p>
+                                <p className="text-xs text-gray-600">{be.account?.accountName}</p>
                               </td>
-                              <td className="py-3 px-3 text-right text-blue-600">
-                                {formatCurrency(totalCredit)}
+                              <td className="px-3 py-3 text-right">
+                                {be.debit
+                                  ? <span className="font-semibold text-green-600">{formatCurrency(be.debit)}</span>
+                                  : <span className="text-gray-400">-</span>}
                               </td>
-                              <td className="py-3 px-3"></td>
+                              <td className="px-3 py-3 text-right">
+                                {be.credit
+                                  ? <span className="font-semibold text-blue-600">{formatCurrency(be.credit)}</span>
+                                  : <span className="text-gray-400">-</span>}
+                              </td>
+                              <td className="px-3 py-3 text-gray-700">{be.description || "-"}</td>
                             </tr>
-                          </tfoot>
-                        </table>
-                      </div>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
+                            <td className="px-3 py-3">TOTAL</td>
+                            <td className="px-3 py-3 text-right text-green-600">{formatCurrency(tD)}</td>
+                            <td className="px-3 py-3 text-right text-blue-600">{formatCurrency(tC)}</td>
+                            <td className="px-3 py-3" />
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-3 pt-4 border-t border-gray-200">
-                      <button
+                    {/* Approve / Reject */}
+                    <div className="flex gap-3 border-t border-gray-200 pt-4">
+                      <Button
+                        variant="success"
+                        size="lg"
+                        fullWidth
                         onClick={() => handleApprove(entry._id)}
-                        disabled={approving === entry._id || !isBalanced}
-                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition">
-                        {approving === entry._id ? (
-                          <>
-                            <Loader size={18} className="animate-spin" />
-                            Approving...
-                          </>
-                        ) : (
-                          <>
-                            <Check size={18} />
-                            Approve Entry
-                          </>
-                        )}
-                      </button>
-
-                      <button
+                        loading={approving === entry._id}
+                        disabled={!isBalanced}>
+                        <Check size={18} /> Approve Entry
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="lg"
+                        fullWidth
                         onClick={() => setShowRejectModal(entry._id)}
-                        disabled={rejecting === entry._id}
-                        className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition">
-                        {rejecting === entry._id ? (
-                          <>
-                            <Loader size={18} className="animate-spin" />
-                            Rejecting...
-                          </>
-                        ) : (
-                          <>
-                            <X size={18} />
-                            Reject Entry
-                          </>
-                        )}
-                      </button>
+                        loading={rejecting === entry._id}>
+                        <X size={18} /> Reject Entry
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -414,52 +253,39 @@ export default function JournalEntryApprovals() {
         </div>
       )}
 
-      {/* Rejection Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">
-                Reject Journal Entry
-              </h3>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rejection Reason *
-                </label>
-                <textarea
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Enter reason for rejection..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                  rows="4"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowRejectModal(null);
-                    setRejectionReason("");
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition">
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleRejectSubmit(showRejectModal)}
-                  disabled={
-                    !rejectionReason.trim() || rejecting === showRejectModal
-                  }
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition">
-                  {rejecting === showRejectModal
-                    ? "Rejecting..."
-                    : "Confirm Rejection"}
-                </button>
-              </div>
-            </div>
-          </Card>
+      {/* Reject reason modal */}
+      <Modal
+        isOpen={!!showRejectModal}
+        onClose={() => { setShowRejectModal(null); setRejectionReason(""); }}
+        title="Reject Journal Entry"
+        size="md">
+        <div className="space-y-4">
+          <Textarea
+            label="Rejection Reason"
+            required
+            rows={4}
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            placeholder="Enter reason for rejection..."
+          />
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => { setShowRejectModal(null); setRejectionReason(""); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              fullWidth
+              onClick={() => handleRejectSubmit(showRejectModal)}
+              loading={rejecting === showRejectModal}
+              disabled={!rejectionReason.trim()}>
+              Confirm Rejection
+            </Button>
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

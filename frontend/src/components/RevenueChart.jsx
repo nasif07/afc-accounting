@@ -9,8 +9,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
-import { CardSkeleton } from './ui/Skeleton';
+import { Card, CardHeader, CardTitle, CardContent, CardSkeleton } from './common';
 import { formatCurrency } from '../utils/currency';
 
 const RevenueChart = React.forwardRef(

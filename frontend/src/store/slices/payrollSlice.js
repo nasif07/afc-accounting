@@ -116,7 +116,9 @@ const payrollSlice = createSlice({
       })
       .addCase(fetchPayroll.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.data || action.payload;
+        // API now returns { data: { data: [], pagination: {} } }
+        const payload = action.payload?.data;
+        state.items = Array.isArray(payload) ? payload : (payload?.data ?? action.payload ?? []);
       })
       .addCase(fetchPayroll.rejected, (state, action) => {
         state.loading = false;

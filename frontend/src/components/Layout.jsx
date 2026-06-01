@@ -1,28 +1,41 @@
 import { useEffect, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import Sidebar from "../components/Sidebar";
 import { logoutAsync } from "../store/slices/authSlice";
+import { menuSections } from "../constants/menuSection";
+import Button from "./common/Button";
+
+function usePageTitle() {
+  const { pathname } = useLocation();
+  for (const section of menuSections) {
+    for (const item of section.items) {
+      if (item.path === pathname) return item.title;
+    }
+  }
+  return "Dashboard";
+}
 
 export default function DashboardLayout() {
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const pageTitle = usePageTitle();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setMobileOpen(false);
-      }
+      if (window.innerWidth >= 1024) setMobileOpen(false);
     };
-
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  const { pathname } = useLocation();
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const handleLogout = async () => {
     await dispatch(logoutAsync());
@@ -42,55 +55,51 @@ export default function DashboardLayout() {
         className={`flex min-h-screen flex-col transition-all duration-300 ${
           desktopOpen ? "lg:ml-64" : "lg:ml-20"
         }`}>
-        {/* Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-6">
-          <div className="flex items-center gap-2">
-            {/* Mobile Menu Button */}
-            <button
+
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-3 sm:h-16 sm:px-4 lg:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            {/* Mobile menu toggle */}
+            <Button
+              size="icon"
+              variant="ghost"
               onClick={() => setMobileOpen(true)}
-              className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
               aria-label="Open sidebar"
-              type="button">
+              className="lg:hidden">
               <Menu size={20} />
-            </button>
+            </Button>
 
-            {/* Desktop Collapse Button */}
-            <button
-              onClick={() => setDesktopOpen((prev) => !prev)}
-              className="hidden items-center justify-center rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:inline-flex"
-              aria-label="Toggle sidebar"
-              type="button">
-              {desktopOpen ? (
-                <PanelLeftClose size={20} />
-              ) : (
-                <PanelLeftOpen size={20} />
-              )}
-            </button>
+            {/* Desktop sidebar collapse */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setDesktopOpen((p) => !p)}
+              aria-label={desktopOpen ? "Collapse sidebar" : "Expand sidebar"}
+              className="hidden lg:flex">
+              {desktopOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+            </Button>
 
-            <h1 className="text-sm font-semibold text-slate-800 sm:text-base">
-              Dashboard
-            </h1>
+            <span className="truncate text-sm font-semibold text-slate-800 sm:text-base">
+              {pageTitle}
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden text-sm text-slate-700 sm:block">
-              Welcome,{" "}
-              <span className="font-semibold">{user?.name || "User"}</span>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <div className="hidden text-sm text-slate-600 sm:block">
+              Welcome, <span className="font-semibold">{user?.name || "User"}</span>
             </div>
 
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleLogout}
-              type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              aria-label="Logout">
-              <LogOut size={16} />
+              aria-label="Logout"
+              icon={LogOut}>
               <span className="hidden sm:inline">Logout</span>
-            </button>
+            </Button>
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 p-4 sm:p-5 lg:p-6">
+        <main className="flex-1 p-3 sm:p-4 lg:p-6">
           <Outlet />
         </main>
       </div>

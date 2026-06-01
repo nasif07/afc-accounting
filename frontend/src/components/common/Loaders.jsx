@@ -1,4 +1,5 @@
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import Button from "./Button";
 
 export function ButtonLoader({ className = "" }) {
   return <Loader2 className={`h-4 w-4 animate-spin ${className}`} />;
@@ -89,13 +90,9 @@ export function ErrorState({
           </div>
         </div>
         {onRetry && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100">
-            <RefreshCw size={14} />
+          <Button variant="outline" size="sm" onClick={onRetry} icon={RefreshCw}>
             Retry
-          </button>
+          </Button>
         )}
       </div>
     </div>

@@ -4,52 +4,40 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  // Enable sending cookies with requests (httpOnly cookies from backend)
+  timeout: 15000, // 15 s — prevents indefinite hangs on slow/unresponsive backend
+  headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
 
-// REQUEST INTERCEPTOR - ATTACH STORED JWT
+// Attach stored JWT token to every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-
+  const token = localStorage.getItem('authToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
   return config;
 });
 
-// RESPONSE INTERCEPTOR - HANDLE 401
+// Global response error handling
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Clear local auth data
       localStorage.removeItem('authToken');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
 
-      // Don't redirect for auth check endpoint (getCurrentUser)
-      // This endpoint returns 401 if no session exists, which is normal
-      const isAuthCheckEndpoint = error.config?.url?.includes('/auth/me');
-      
-      // Only redirect if not already on auth pages AND not checking auth status
-      const pathname = window.location.pathname;
-      if (
-        !isAuthCheckEndpoint &&
-        pathname !== '/login' &&
-        pathname !== '/register' &&
-        pathname !== '/'
-      ) {
+      // /auth/me returning 401 is expected when not logged in — don't redirect
+      const isAuthCheck = error.config?.url === '/auth/me';
+      const onAuthPage = ['/login', '/register', '/'].includes(window.location.pathname);
+
+      if (!isAuthCheck && !onAuthPage) {
+        // Use history API to avoid a full hard reload where possible.
+        // A full redirect is acceptable here since it also resets React/Redux state cleanly.
         window.location.href = '/login';
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

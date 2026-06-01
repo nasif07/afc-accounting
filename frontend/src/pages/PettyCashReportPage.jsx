@@ -8,7 +8,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 
 import Button from "../components/common/Button";
 import DatePicker from "../components/common/DatePicker";

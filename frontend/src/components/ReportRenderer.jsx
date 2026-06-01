@@ -1,7 +1,6 @@
 import React, { useRef } from 'react';
 import { Download, Printer } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
-import Button from './ui/Button';
+import { Card, CardHeader, CardTitle, CardContent, Button } from './common';
 import { formatCurrency } from '../utils/currency';
 
 const ReportRenderer = React.forwardRef(

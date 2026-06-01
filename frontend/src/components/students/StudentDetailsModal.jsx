@@ -13,7 +13,7 @@ import {
   Notebook,
   Wallet,
 } from "lucide-react";
-import { Card, CardContent } from "../ui/Card";
+import { Card, CardContent } from "../common";
 import { formatCurrency } from "../../utils/currency";
 
 const StudentDetailsModal = ({ isOpen, onClose, student }) => {

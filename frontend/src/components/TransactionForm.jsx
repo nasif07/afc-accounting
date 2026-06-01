@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Trash2, Plus } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from './ui/Card';
-import { Modal, Input, Select, FormField, Button, Badge } from './ui/index';
+import {
+  Card, CardHeader, CardTitle, CardContent, CardFooter,
+  Modal, Input, Select, FormField, Button, Badge,
+} from './common';
 import { parseCurrencyInput } from '../utils/currency';
 import DatePicker from './common/DatePicker';
 import { todayISO, toISODate } from '../utils/date';
@@ -300,14 +302,15 @@ const TransactionForm = React.forwardRef(
                         />
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
+                        <Button
                           type="button"
+                          size="icon-sm"
+                          variant="ghost"
                           onClick={() => handleRemoveEntry(index)}
                           disabled={formData.bookEntries.length <= 2}
-                          className="text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <Trash2 size={16} />
-                        </button>
+                          <Trash2 size={15} className="text-red-600" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
