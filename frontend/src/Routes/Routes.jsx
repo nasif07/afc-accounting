@@ -1,5 +1,6 @@
+﻿/* eslint-disable react-refresh/only-export-components */
 import { lazy, Suspense } from "react";
-import { createBrowserRouter, Navigate, Outlet, Link } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, Link } from "react-router";
 import { useSelector } from "react-redux";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Layout from "../components/Layout";
@@ -32,15 +33,6 @@ const Settings             = lazy(() => import("../pages/Settings"));
 const DirectorApprovals    = lazy(() => import("../pages/DirectorApprovals"));
 const JournalEntryApprovals = lazy(() => import("../pages/JournalEntryApprovals"));
 
-// Suspense wrapper so lazy page components show a consistent fallback
-function LazyPage() {
-  return (
-    <Suspense fallback={<PageLoader message="Loading page..." />}>
-      <Outlet />
-    </Suspense>
-  );
-}
-
 // Redirect from / based on auth state
 function RootRedirect() {
   const { isAuthenticated, loading } = useSelector((state) => state.auth);
@@ -71,17 +63,6 @@ function DirectorLayoutWrapper() {
         </Suspense>
       </Layout>
     </ProtectedRoute>
-  );
-}
-
-function ComingSoon() {
-  return (
-    <div className="flex items-center justify-center min-h-[400px]">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Coming Soon</h2>
-        <p className="text-slate-600">This feature is under development</p>
-      </div>
-    </div>
   );
 }
 

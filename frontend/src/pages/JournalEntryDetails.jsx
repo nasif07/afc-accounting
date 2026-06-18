@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+﻿import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 import {
   AlertCircle,
   ArrowLeft,
@@ -127,7 +127,10 @@ export default function JournalEntryDetails() {
     };
   }, [id]);
 
-  const lineItems = Array.isArray(entry?.bookEntries) ? entry.bookEntries : [];
+  const lineItems = useMemo(
+    () => (Array.isArray(entry?.bookEntries) ? entry.bookEntries : []),
+    [entry?.bookEntries],
+  );
   const totals = useMemo(() => {
     return lineItems.reduce(
       (sum, line) => ({

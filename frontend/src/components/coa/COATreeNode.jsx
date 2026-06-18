@@ -34,9 +34,9 @@ const COATreeNode = ({
   onView,
   onToggleStatus,
 }) => {
-  if (!node) return null;
-
   const [isExpanded, setIsExpanded] = useState(level < 1);
+
+  if (!node) return null;
 
   const children = Array.isArray(node.children)
     ? node.children.filter(Boolean)

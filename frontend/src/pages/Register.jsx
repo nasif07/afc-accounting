@@ -1,6 +1,6 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router";
 import { register } from "../store/slices/authSlice";
 import { toast } from "sonner";
 import { User, Mail, Lock, ClipboardCheck } from "lucide-react";
@@ -65,7 +65,7 @@ export default function Register() {
       return;
     }
 
-    const { confirmPassword, ...payload } = formData;
+    const { confirmPassword: _confirmPassword, ...payload } = formData;
 
     try {
       const result = await dispatch(register(payload)).unwrap();

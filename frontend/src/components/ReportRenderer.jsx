@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { Download, Printer } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, Button } from './common';
+import { Card, CardContent, Button } from './common';
 import { formatCurrency } from '../utils/currency';
 
 const ReportRenderer = React.forwardRef(
@@ -25,17 +25,109 @@ const ReportRenderer = React.forwardRef(
       printWindow.print();
     };
 
-    const handleDownload = () => {
-      const element = printRef.current;
-      const opt = {
-        margin: 10,
-        filename: `${title}-${new Date().toISOString().split('T')[0]}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-      };
-      // Note: Requires html2pdf library to be installed
-      console.log('Download PDF functionality requires html2pdf library');
+    const handleDownload = async () => {
+      const source = printRef.current;
+      if (!source) return;
+
+      let clone = null;
+      try {
+        const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+          import('html2canvas'),
+          import('jspdf'),
+        ]);
+
+        clone = source.cloneNode(true);
+        Object.assign(clone.style, {
+          position: 'fixed', top: '0', left: '0', width: '794px',
+          zIndex: '-9999', pointerEvents: 'none', opacity: '1',
+          backgroundColor: '#ffffff', background: '#ffffff', overflow: 'visible',
+        });
+
+        clone.querySelectorAll('button, svg').forEach((el) => el.remove());
+
+        const oklchRegex = /oklch\([^)]+\)/g;
+        const replaceOklch = (css) => css.replace(oklchRegex, (m) => {
+          try {
+            const l = parseFloat(m.replace('oklch(', '').split(/[\s,/]+/)[0]);
+            const g = Math.round((l > 1 ? l / 100 : l) * 255).toString(16).padStart(2, '0');
+            return `#${g}${g}${g}`;
+          } catch { return '#888888'; }
+        });
+
+        let allCSS = '';
+        for (const sheet of Array.from(document.styleSheets)) {
+          try { for (const r of Array.from(sheet.cssRules || [])) allCSS += r.cssText + '\n'; }
+          catch { /* cross-origin */ }
+        }
+        const style = document.createElement('style');
+        style.textContent = replaceOklch(allCSS);
+        clone.prepend(style);
+        document.body.appendChild(clone);
+
+        await new Promise((r) => requestAnimationFrame(r));
+        await new Promise((r) => setTimeout(r, 400));
+
+        const origNodes = Array.from(source.querySelectorAll('*'));
+        const cloneNodes = Array.from(clone.querySelectorAll('*'));
+        const colorProps = ['color','backgroundColor','borderColor','borderTopColor',
+          'borderBottomColor','borderLeftColor','borderRightColor','fill','stroke'];
+        origNodes.forEach((orig, i) => {
+          const el = cloneNodes[i];
+          if (!(el instanceof HTMLElement)) return;
+          const cs = window.getComputedStyle(orig);
+          colorProps.forEach((p) => { if (cs[p]?.includes('oklch')) el.style[p] = p === 'backgroundColor' ? '#ffffff' : '#111827'; });
+        });
+
+        clone.querySelectorAll('tr').forEach((el) => { el.style.backgroundColor = '#ffffff'; });
+        clone.querySelectorAll('thead tr, tfoot tr').forEach((el) => { el.style.backgroundColor = '#f9fafb'; });
+        clone.querySelectorAll('td, th').forEach((el) => { el.style.backgroundColor = 'transparent'; });
+        clone.querySelectorAll('*').forEach((el) => {
+          if (!(el instanceof HTMLElement)) return;
+          if (el.style.backgroundColor?.includes('oklch')) el.style.backgroundColor = '#ffffff';
+          const cs = window.getComputedStyle(el);
+          if (parseFloat(cs.minHeight) >= 100) {
+            el.style.setProperty('min-height', '0', 'important');
+            el.style.setProperty('height', 'auto', 'important');
+          }
+        });
+
+        await new Promise((r) => setTimeout(r, 300));
+
+        let maxBottom = 0;
+        Array.from(clone.querySelectorAll('*')).forEach((el) => {
+          if (el instanceof HTMLElement) maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom);
+        });
+        const contentHeight = Math.min(clone.scrollHeight, maxBottom + 32);
+
+        const canvas = await html2canvas(clone, {
+          scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff',
+          logging: false, scrollX: 0, scrollY: 0,
+          windowWidth: 794, windowHeight: contentHeight, height: contentHeight, width: 794,
+        });
+
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const pw = pdf.internal.pageSize.getWidth();
+        const ph = pdf.internal.pageSize.getHeight();
+        const imgH = (canvas.height * pw) / canvas.width;
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+        if (imgH <= ph) {
+          pdf.addImage(imgData, 'JPEG', 0, 0, pw, imgH);
+        } else {
+          let yOff = 0, rem = imgH;
+          while (rem > 0) {
+            pdf.addImage(imgData, 'JPEG', 0, yOff === 0 ? 0 : -yOff, pw, imgH);
+            rem -= ph;
+            if (rem > 0) { pdf.addPage(); yOff += ph; }
+          }
+        }
+
+        pdf.save(`${title}-${new Date().toISOString().split('T')[0]}.pdf`);
+      } catch (err) {
+        console.error('PDF export error:', err);
+      } finally {
+        if (clone && document.body.contains(clone)) document.body.removeChild(clone);
+      }
     };
 
     if (loading) {

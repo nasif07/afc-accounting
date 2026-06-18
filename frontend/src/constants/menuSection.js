@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   GraduationCap,
-  Receipt,
   Wallet,
   Briefcase,
   Users,
@@ -11,7 +10,6 @@ import {
   Landmark,
   CheckCircle2,
   BarChart3,
-  ShieldCheck,
   ClipboardList,
   Settings,
 } from "lucide-react";

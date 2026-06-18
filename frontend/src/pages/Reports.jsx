@@ -197,7 +197,7 @@ export default function Reports() {
             const parts = match
               .replace("oklch(", "")
               .replace(")", "")
-              .split(/[\s,\/]+/)
+              .split(/[\s,/]+/)
               .map((p) => p.trim())
               .filter(Boolean);
 

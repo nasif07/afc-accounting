@@ -148,9 +148,8 @@ export default function BankBook() {
     }
   };
 
-  useEffect(() => {
-    loadAccounts();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAccounts(); }, []);
 
   // ─── Form handlers ───────────────────────────────────────────────────────────
 

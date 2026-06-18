@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Plus, Edit2, Trash2, CheckCircle, DollarSign, Calendar, Tag } from "lucide-react";
 import { useSelector } from "react-redux";
 import { z } from "zod";
@@ -55,7 +55,7 @@ export default function Expenses() {
     useForm({ resolver: zodResolver(expenseSchema), defaultValues: EMPTY_VALUES });
 
   const openCreate = () => { reset(EMPTY_VALUES); setEditingId(null); setShowModal(true); };
-  const openEdit   = (expense) => {
+  const openEdit   = useCallback((expense) => {
     reset({
       ...EMPTY_VALUES,
       ...expense,
@@ -65,7 +65,7 @@ export default function Expenses() {
     });
     setEditingId(expense._id);
     setShowModal(true);
-  };
+  }, [reset, setEditingId, setShowModal]);
 
   const onSubmit = async (data) => {
     if (editingId) {
@@ -157,7 +157,7 @@ export default function Expenses() {
         </div>
       ),
     },
-  ], [user, approveMutation]);
+  ], [user, approveMutation, openEdit]);
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 

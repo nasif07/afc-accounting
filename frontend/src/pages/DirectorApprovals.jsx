@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import api from "../services/api";
 import { toast } from "sonner";
 import { Check, X, UserCheck } from "lucide-react";

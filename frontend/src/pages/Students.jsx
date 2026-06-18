@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Plus,
   Edit2,
@@ -10,7 +10,7 @@ import {
   ChevronsRight,
   Users,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import {
   useStudents,
@@ -20,7 +20,7 @@ import {
   useBulkCreateStudents,
 } from "../hooks/useStudents";
 
-import { Table, Badge, Card, Button, Modal } from "../components/common";
+import { Table, Badge, Button, Modal } from "../components/common";
 import { SectionSkeleton } from "../components/common/Loaders";
 import EmptyState from "../components/EmptyState";
 import { formatCurrency } from "../utils/currency";
@@ -72,6 +72,7 @@ export default function Students() {
       }
     }, 500);
     return () => clearTimeout(timeout);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams read inside timeout intentionally; adding it would reset the debounce on every navigation
   }, [localSearch, setSearchParams]);
 
   const handlePageChange = (newPage) => {

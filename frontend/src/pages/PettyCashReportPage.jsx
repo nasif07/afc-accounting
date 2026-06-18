@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import {
   Download,
   FileSpreadsheet,
@@ -7,7 +7,7 @@ import {
   RefreshCcw,
   Wallet,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 
 import Button from "../components/common/Button";
@@ -402,9 +402,8 @@ export default function PettyCashReportPage() {
     }
   };
 
-  useEffect(() => {
-    loadReport();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadReport(); }, []);
 
   const handlePrint = () => {
     if (!reportRef.current) return;

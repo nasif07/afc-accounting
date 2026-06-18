@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Trash2, Plus, Eye, EyeOff } from 'lucide-react';
+import { Trash2, Plus, Eye } from 'lucide-react';
 import {
-  Card, CardHeader, CardTitle, CardContent,
-  Modal, Input, Select, FormField, Button, Badge,
+  Modal, Input, Select, FormField, Button,
 } from './common';
 import { formatCurrency, parseCurrencyInput } from '../utils/currency';
 
@@ -15,9 +14,9 @@ const InvoiceBuilder = React.forwardRef(
       initialData = null,
       students = [],
       loading = false,
-      ...props
+      ..._props
     },
-    ref
+    _ref
   ) => {
     const [showPreview, setShowPreview] = useState(false);
     const [formData, setFormData] = useState({

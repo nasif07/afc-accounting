@@ -19,8 +19,6 @@ const StatusPipeline = React.forwardRef(
           const Icon = stage.icon;
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
-          const isNext = index === currentIndex + 1;
-
           return (
             <React.Fragment key={stage.id}>
               {/* Stage */}

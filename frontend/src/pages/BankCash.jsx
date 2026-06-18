@@ -274,6 +274,7 @@ const BankCash = () => {
 
       return () => clearTimeout(timer);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- deps use ?._id intentionally to avoid re-firing on unrelated property changes
   }, [showReconcileModal, editingAccount?._id, transactionSearch, reconciliationStatus]);
 
   const toggleReconcileTransaction = (journalEntryId) => {

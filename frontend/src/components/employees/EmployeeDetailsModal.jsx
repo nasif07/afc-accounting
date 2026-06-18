@@ -81,9 +81,6 @@ export default function EmployeeDetailsModal({ employee, isOpen, onClose, onEdit
   const status = statusConfig[emp.status] ?? statusConfig.inactive;
   const avatar = avatarColor(emp.name);
 
-  const fullAddress = [emp.address, emp.city, emp.state, emp.zipCode, emp.country]
-    .filter(Boolean)
-    .join(", ");
 
   const hasEmergencyContact =
     emp.emergencyContactName ||

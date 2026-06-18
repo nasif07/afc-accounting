@@ -1,8 +1,9 @@
+﻿/* eslint-disable react-refresh/only-export-components */
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Provider, useDispatch } from "react-redux";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { RouterProvider } from "react-router-dom";
+import { RouterProvider } from "react-router";
 import { Toaster } from "sonner";
 
 import store from "./store/store.js";

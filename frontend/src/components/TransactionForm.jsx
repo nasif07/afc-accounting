@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Trash2, Plus } from 'lucide-react';
 import {
-  Card, CardHeader, CardTitle, CardContent, CardFooter,
+  Card, CardContent,
   Modal, Input, Select, FormField, Button, Badge,
 } from './common';
 import { parseCurrencyInput } from '../utils/currency';
@@ -17,9 +17,9 @@ const TransactionForm = React.forwardRef(
       initialData = null,
       accounts = [],
       loading = false,
-      ...props
+      ..._props
     },
-    ref
+    _ref
   ) => {
     const [formData, setFormData] = useState({
       voucherNumber: '',

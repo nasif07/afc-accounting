@@ -56,7 +56,7 @@ function InfoRow({ label, value, bold }) {
   );
 }
 
-function TRow({ cells = [], boldRow = false, noRightBorder = false, widths }) {
+function TRow({ cells = [], boldRow = false, _noRightBorder = false, widths }) {
   return (
     <tr>
       {cells.map((cell, i) => {

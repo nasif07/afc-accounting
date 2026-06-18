@@ -7,29 +7,16 @@ import {
   Phone,
   MapPin,
   User,
-  Calendar,
   Globe,
   GraduationCap,
   Notebook,
   Wallet,
 } from "lucide-react";
-import { Card, CardContent, Modal } from "../common";
+import { Modal } from "../common";
 import { formatCurrency } from "../../utils/currency";
 
 const StudentDetailsModal = ({ isOpen, onClose, student }) => {
   if (!isOpen || !student) return null;
-  const formatDate = (dateObj) => {
-    if (!dateObj) return "N/A";
-    const date = dateObj?.$date ? new Date(dateObj.$date) : new Date(dateObj);
-
-    if (Number.isNaN(date.getTime())) return "N/A";
-
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  };
 
   const financials = student.financials || {};
   const totalPayable = financials.totalPayable || 0;

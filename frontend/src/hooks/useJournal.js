@@ -46,7 +46,7 @@ export const useCreateJournalEntry = () => {
       const response = await api.post('/accounting/journal-entries', data);
       return response.data.data || response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: JOURNAL_KEY });
       toast.success('Journal entry created successfully');
     },

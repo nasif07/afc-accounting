@@ -1,10 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import {
-  X,
   UserPlus,
   AlertCircle,
   CheckCircle2,
-  FileSpreadsheet,
   Save,
   ChevronDown,
   Download,

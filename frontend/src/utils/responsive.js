@@ -1,7 +1,8 @@
-/**
+﻿/**
  * Responsive Design Utilities
  * Tailwind breakpoints: sm (640px), md (768px), lg (1024px), xl (1280px), 2xl (1536px)
  */
+import { useState, useEffect } from 'react';
 
 export const breakpoints = {
   mobile: 'max-w-md',
@@ -55,9 +56,9 @@ export const createResponsiveComponent = (mobileClasses, tabletClasses, desktopC
  * Check if viewport is mobile
  */
 export const useIsMobile = () => {
-  const [isMobile, setIsMobile] = React.useState(window.innerWidth < 768);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -73,11 +74,11 @@ export const useIsMobile = () => {
  * Check if viewport is tablet
  */
 export const useIsTablet = () => {
-  const [isTablet, setIsTablet] = React.useState(
+  const [isTablet, setIsTablet] = useState(
     window.innerWidth >= 768 && window.innerWidth < 1024
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleResize = () => {
       setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
     };
@@ -93,9 +94,9 @@ export const useIsTablet = () => {
  * Check if viewport is desktop
  */
 export const useIsDesktop = () => {
-  const [isDesktop, setIsDesktop] = React.useState(window.innerWidth >= 1024);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleResize = () => {
       setIsDesktop(window.innerWidth >= 1024);
     };
@@ -111,12 +112,12 @@ export const useIsDesktop = () => {
  * Get current viewport size
  */
 export const useViewportSize = () => {
-  const [size, setSize] = React.useState({
+  const [size, setSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleResize = () => {
       setSize({
         width: window.innerWidth,

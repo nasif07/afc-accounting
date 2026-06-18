@@ -12,7 +12,6 @@ import {
   Banknote,
   ShieldCheck,
   Save,
-  Loader2,
 } from "lucide-react";
 import SectionHeader from "../components/common/SectionHeader";
 import {

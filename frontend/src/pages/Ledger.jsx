@@ -34,7 +34,7 @@ const Ledger = () => {
       try {
         const response = await coaAPI.getLeafNodes();
         setAccounts(response.data.data || []);
-      } catch (error) {
+      } catch {
         toast.error("Failed to load accounts");
       } finally {
         setLoadingAccounts(false);

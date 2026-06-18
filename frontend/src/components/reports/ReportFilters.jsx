@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Filter, X } from "lucide-react";
 import { toast } from "sonner";
 import Button from "../common/Button";
-import Input from "../common/Input";
 import Select from "../common/Select";
 import DatePicker from "../common/DatePicker";
 import { coaAPI } from "../../services/apiMethods";
@@ -45,7 +44,7 @@ const ReportFilters = ({
       try {
         const response = await coaAPI.getLeafNodes();
         setAccounts(response?.data?.data || []);
-      } catch (error) {
+      } catch {
         toast.error("Failed to load accounts");
         setAccounts([]);
       } finally {

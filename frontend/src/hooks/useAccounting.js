@@ -13,7 +13,7 @@ export const useAccountingSummary = (options = {}) => {
       try {
         const response = await api.get('/accounting/summary');
         return response.data.data || response.data;
-      } catch (error) {
+      } catch {
         // Return default values if endpoint doesn't exist
         return {
           cashOnHand: 0,
@@ -41,7 +41,7 @@ export const useRevenueData = (startDate, endDate, options = {}) => {
           params: { startDate, endDate },
         });
         return response.data.data || response.data;
-      } catch (error) {
+      } catch {
         // Return empty array if endpoint doesn't exist
         return [];
       }
@@ -64,7 +64,7 @@ export const useRecentTransactions = (limit = 5, options = {}) => {
           params: { limit },
         });
         return response.data.data || response.data;
-      } catch (error) {
+      } catch {
         // Return empty array if endpoint doesn't exist
         return [];
       }

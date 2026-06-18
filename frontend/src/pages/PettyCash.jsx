@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertCircle,
   Coins,
   FileText,
@@ -7,10 +7,9 @@ import {
   Search,
   TrendingDown,
   TrendingUp,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
 
@@ -190,9 +189,8 @@ export default function PettyCash() {
     setCurrentPage(1);
   }, [dateFrom, dateTo]);
 
-  useEffect(() => {
-    fetchPettyCashHistory();
-  }, [currentPage, searchTerm, dateFrom, dateTo]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchPettyCashHistory(); }, [currentPage, searchTerm, dateFrom, dateTo]);
 
   useEffect(() => {
     if (error) {
