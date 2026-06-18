@@ -1,13 +1,5 @@
 import api from "./api";
 
-// ==================== AUTHENTICATION ====================
-export const authAPI = {
-  register: (data) => api.post("/auth/register", data),
-  login: (data) => api.post("/auth/login", data),
-  logout: () => api.post("/auth/logout"),
-  getCurrentUser: () => api.get("/auth/me"),
-};
-
 // ==================== DASHBOARD ====================
 export const dashboardAPI = {
   getSummary: () => api.get("/dashboard/summary"),
@@ -35,38 +27,6 @@ export const receiptAPI = {
   reject: (id, data) => api.post(`/receipts/${id}/reject`, data),
   generatePDF: (id) => api.get(`/receipts/${id}/pdf`, { responseType: "blob" }),
   search: (query) => api.get("/receipts/search", { params: { query } }),
-};
-
-// ==================== EXPENSES ====================
-export const expenseAPI = {
-  getAll: (params) => api.get("/expenses", { params }),
-  getById: (id) => api.get(`/expenses/${id}`),
-  create: (data) => api.post("/expenses", data),
-  update: (id, data) => api.put(`/expenses/${id}`, data),
-  delete: (id) => api.delete(`/expenses/${id}`),
-  approve: (id) => api.post(`/expenses/${id}/approve`),
-  reject: (id, data) => api.post(`/expenses/${id}/reject`, data),
-  search: (query) => api.get("/expenses/search", { params: { query } }),
-};
-
-// ==================== VENDORS ====================
-export const vendorAPI = {
-  getAll: (params) => api.get("/vendors", { params }),
-  getById: (id) => api.get(`/vendors/${id}`),
-  create: (data) => api.post("/vendors", data),
-  update: (id, data) => api.put(`/vendors/${id}`, data),
-  delete: (id) => api.delete(`/vendors/${id}`),
-  search: (query) => api.get("/vendors/search", { params: { query } }),
-};
-
-// ==================== EMPLOYEES ====================
-export const employeeAPI = {
-  getAll: (params) => api.get("/employees", { params }),
-  getById: (id) => api.get(`/employees/${id}`),
-  create: (data) => api.post("/employees", data),
-  update: (id, data) => api.put(`/employees/${id}`, data),
-  delete: (id) => api.delete(`/employees/${id}`),
-  search: (query) => api.get("/employees/search", { params: { query } }),
 };
 
 // ==================== PAYROLL ====================
@@ -163,11 +123,6 @@ export const reportAPI = {
       params,
       responseType: "blob",
     }),
-};
-
-// ==================== AUDIT LOGS ====================
-export const auditAPI = {
-  getAll: (params) => api.get("/audit", { params }),
 };
 
 // ==================== PETTY CASH ====================

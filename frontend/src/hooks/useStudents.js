@@ -22,21 +22,6 @@ export const useStudents = (params = {}) => {
   });
 };
 
-/**
- * Fetch student by ID
- */
-export const useStudentById = (id, options = {}) => {
-  return useQuery({
-    queryKey: [...STUDENTS_KEY, 'detail', id],
-    queryFn: async () => {
-      const response = await api.get(`/students/${id}`);
-      return response.data.data || response.data;
-    },
-    enabled: !!id,
-    staleTime: 5 * 60 * 1000,
-    ...options,
-  });
-};
 
 /**
  * Create student

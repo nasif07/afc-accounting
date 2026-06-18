@@ -3,9 +3,8 @@ export default {
   // ── Entry points ─────────────────────────────────────────────────────────────
   // knip starts its graph walk from these files.
   entry: [
-    "src/main.jsx",        // React app root
     "src/Routes/Routes.jsx", // router — contains all React.lazy() page imports
-    "index.html",           // Vite HTML entry (picks up <script type="module">)
+    "index.html",
   ],
 
   // ── Project files (the universe knip may report on) ───────────────────────
@@ -13,9 +12,6 @@ export default {
 
   // ── Test files — excluded from "unused file" reporting ────────────────────
   // but scanned for their own import graph
-  ignore: [
-    "tailwind.config.js",
-  ],
 
   // ── Plugins ──────────────────────────────────────────────────────────────────
   // knip ships a built-in "react" plugin that understands:

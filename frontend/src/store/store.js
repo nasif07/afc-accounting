@@ -19,7 +19,7 @@ import receiptReducer  from "./slices/receiptSlice";
 // Redux state is now only used for: auth, settings, and legacy slices
 // that haven't yet been migrated to React Query.
 
-export const store = configureStore({
+const store = configureStore({
   reducer: {
     auth:       authReducer,
     payroll:    payrollReducer,

@@ -33,5 +33,3 @@ export const formatDisplayDate = (value, options = {}) => {
     ...dateOptions,
   });
 };
-
-export const isValidISODate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || "");

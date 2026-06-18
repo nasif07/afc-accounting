@@ -139,9 +139,4 @@ const authSlice = createSlice({
 });
 
 export const { logout, clearError, setUser } = authSlice.actions;
-export const selectUser            = (state) => state.auth.user;
-export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
-export const selectAuthLoading     = (state) => state.auth.loading;
-export const selectAuthError       = (state) => state.auth.error;
-export const selectIsPending       = (state) => state.auth.isPending;
 export default authSlice.reducer;

@@ -226,13 +226,4 @@ export const {
   resetCoaState,
 } = coaSlice.actions;
 
-// ==================== SELECTORS ====================
-
-export const selectCoaItems = (state) => state.coa.items;
-export const selectCoaItem = (state) => state.coa.item;
-export const selectCoaBalance = (state) => state.coa.balance;
-export const selectCoaLoading = (state) => state.coa.loading;
-export const selectCoaError = (state) => state.coa.error;
-export const selectCoaSuccess = (state) => state.coa.success;
-
 export default coaSlice.reducer;

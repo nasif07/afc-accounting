@@ -234,23 +234,6 @@ export const {
   resetPettyCashState,
 } = pettyCashSlice.actions;
 
-// ==================== SELECTORS ====================
-
-export const selectPettyCashItems = (state) =>
-  state.pettyCash.items;
-
-export const selectPettyCashItem = (state) =>
-  state.pettyCash.item;
-
-export const selectPettyCashLoading = (state) =>
-  state.pettyCash.loading;
-
-export const selectPettyCashError = (state) =>
-  state.pettyCash.error;
-
-export const selectPettyCashSuccess = (state) =>
-  state.pettyCash.success;
-
 // ==================== REDUCER ====================
 
 export default pettyCashSlice.reducer;

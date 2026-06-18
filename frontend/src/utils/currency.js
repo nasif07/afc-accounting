@@ -56,12 +56,3 @@ export const calculatePercentage = (amount, percentage) => {
   if (!amount || !percentage) return 0;
   return (Number(amount) * Number(percentage)) / 100;
 };
-
-export default {
-  formatCurrency,
-  formatCurrencyForInput,
-  parseCurrencyInput,
-  calculateTotal,
-  calculatePercentage,
-  CURRENCY_CONFIG,
-};
