@@ -2,33 +2,21 @@ const { StatusCodes } = require('http-status-codes');
 const EmployeeService = require('./employee.service');
 const ApiResponse = require('../../utils/apiResponse');
 
+const VALID_STATUSES = ['active', 'inactive', 'on-leave', 'resigned'];
+
 class EmployeeController {
   static async createEmployee(req, res, next) {
     try {
-      const { employeeCode, name, designation, department, email, phone, dateOfJoining, salaryType, baseSalary, address, city, state, pinCode } = req.body;
+      const { employeeCode, name, designation } = req.body;
 
-      if (!employeeCode || !name || !designation || !department) {
-        return ApiResponse.badRequest(res, 'Employee code, name, designation, and department are required');
+      if (!employeeCode || !name || !designation) {
+        return ApiResponse.badRequest(res, 'Employee code, name, and designation are required');
       }
 
-      const employeeData = {
-        employeeCode,
-        name,
-        designation,
-        department,
-        email,
-        phone,
-        dateOfJoining,
-        salaryType,
-        baseSalary,
-        address,
-        city,
-        state,
-        pinCode,
-        createdBy: req.user.userId
-      };
-
-      const employee = await EmployeeService.createEmployee(employeeData);
+      const employee = await EmployeeService.createEmployee({
+        ...req.body,
+        createdBy: req.user.userId,
+      });
       return ApiResponse.created(res, employee, 'Employee created successfully');
     } catch (error) {
       next(error);
@@ -38,6 +26,11 @@ class EmployeeController {
   static async getAllEmployees(req, res, next) {
     try {
       const { department, designation, status, search } = req.query;
+
+      if (status && !VALID_STATUSES.includes(status)) {
+        return ApiResponse.badRequest(res, `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`);
+      }
+
       const filters = {};
       if (department) filters.department = department;
       if (designation) filters.designation = designation;
@@ -69,7 +62,26 @@ class EmployeeController {
   static async updateEmployee(req, res, next) {
     try {
       const { id } = req.params;
-      const updateData = req.body;
+      const {
+        name, email, phone, designation, department,
+        dateOfJoining, dateOfBirth,
+        address, city, state, zipCode, country,
+        bankAccountNumber, bankName, notes,
+        emergencyContactName, emergencyContactRelationship,
+        emergencyContactPhone, emergencyContactAltPhone, emergencyContactAddress,
+      } = req.body;
+
+      const updateData = {
+        name, email, phone, designation, department,
+        dateOfJoining, dateOfBirth,
+        address, city, state, zipCode, country,
+        bankAccountNumber, bankName, notes,
+        emergencyContactName, emergencyContactRelationship,
+        emergencyContactPhone, emergencyContactAltPhone, emergencyContactAddress,
+      };
+
+      // Strip undefined so Mongoose doesn't unset fields the caller didn't send
+      Object.keys(updateData).forEach((k) => updateData[k] === undefined && delete updateData[k]);
 
       const employee = await EmployeeService.updateEmployee(id, updateData);
 
@@ -114,6 +126,10 @@ class EmployeeController {
 
       if (!status) {
         return ApiResponse.badRequest(res, 'Status is required');
+      }
+
+      if (!VALID_STATUSES.includes(status)) {
+        return ApiResponse.badRequest(res, `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`);
       }
 
       const employee = await EmployeeService.updateEmployeeStatus(id, status, reason);

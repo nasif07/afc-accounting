@@ -9,23 +9,11 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Attach stored JWT token to every request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 // Global response error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear local auth data
-      localStorage.removeItem('authToken');
-
       // /auth/me returning 401 is expected when not logged in — don't redirect
       const isAuthCheck = error.config?.url === '/auth/me';
       const onAuthPage = ['/login', '/register', '/'].includes(window.location.pathname);

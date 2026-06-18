@@ -18,6 +18,7 @@ import { createPettyCash, clearError } from "../store/slices/pettyCashSlice";
 import { fetchCoa } from "../store/slices/coaSlice";
 import { pettyCashAPI } from "../services/apiMethods";
 import SectionHeader from "../components/common/SectionHeader";
+import { Modal } from "../components/common";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
 import Button from "../components/common/Button";
@@ -108,9 +109,36 @@ export default function PettyCash() {
         endDate: dateTo || undefined,
       });
       const payload = response?.data?.data || {};
+      // Defensive: ensure backend returned the expected petty cash account
+      const returnedAccount = payload.account || null;
+      if (
+        returnedAccount &&
+        String(returnedAccount.accountCode) !== PETTY_CASH_ACCOUNT_CODE
+      ) {
+        setPettyCashAccount(null);
+        setTransactions([]);
+        setSummary({
+          totalDebit: 0,
+          totalCredit: 0,
+          balance: 0,
+          count: 0,
+        });
+        setPagination({
+          total: 0,
+          page: 1,
+          limit: DEFAULT_PAGE_SIZE,
+          totalPages: 1,
+        });
+        setHistoryError(
+          `Petty cash account code ${PETTY_CASH_ACCOUNT_CODE} not found`,
+        );
+        return;
+      }
 
-      setPettyCashAccount(payload.account || null);
-      setTransactions(Array.isArray(payload.transactions) ? payload.transactions : []);
+      setPettyCashAccount(returnedAccount);
+      setTransactions(
+        Array.isArray(payload.transactions) ? payload.transactions : [],
+      );
       setSummary({
         totalDebit: Number(payload.summary?.totalDebit || 0),
         totalCredit: Number(payload.summary?.totalCredit || 0),
@@ -290,7 +318,7 @@ export default function PettyCash() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
             title: "Current Balance",
@@ -326,18 +354,20 @@ export default function PettyCash() {
           return (
             <div
               key={item.title}
-              className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-4">
+              className="rounded-xl border border-slate-200 bg-white p-3 md:p-4 transition-all hover:shadow-sm">
+              <div className="flex flex-row items-center gap-3 sm:gap-4">
+                {/* Icon Container: Slightly smaller on mobile */}
                 <div
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${item.iconBg}`}>
+                  className={`flex h-8 md:h-10 w-8 md:w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-lg ${item.iconBg}`}>
                   <Icon className={`h-5 w-5 ${item.iconColor}`} />
                 </div>
 
+                {/* Text Content: Using min-w-0 to allow truncation to work */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wide text-slate-500">
                     {item.title}
                   </p>
-                  <p className="mt-1 truncate text-xl font-bold text-slate-900">
+                  <p className="mt-0.5 sm:mt-1 truncate text-base md:text-lg sm:text-xl font-bold text-slate-900">
                     {item.value}
                   </p>
                 </div>
@@ -363,15 +393,9 @@ export default function PettyCash() {
             />
           </div>
 
-          <DatePicker
-            value={dateFrom}
-            onChange={setDateFrom}
-          />
+          <DatePicker value={dateFrom} onChange={setDateFrom} />
 
-          <DatePicker
-            value={dateTo}
-            onChange={setDateTo}
-          />
+          <DatePicker value={dateTo} onChange={setDateTo} />
 
           <Button
             type="button"
@@ -464,7 +488,9 @@ export default function PettyCash() {
                       </span>
                     </td>
                     <td className="max-w-xs px-4 py-4 text-sm text-slate-700">
-                      <div className="truncate">{item.description || "---"}</div>
+                      <div className="truncate">
+                        {item.description || "---"}
+                      </div>
                       {item.referenceNumber && (
                         <div className="mt-1 text-xs text-slate-400">
                           Ref: {item.referenceNumber}
@@ -536,133 +562,113 @@ export default function PettyCash() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
-          <div className="min-h-full px-3 py-6 sm:px-4">
-            <div className="mx-auto w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
-              <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    New Petty Cash Expense
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    This creates an auto-approved journal entry that credits
-                    petty cash account {PETTY_CASH_ACCOUNT_CODE}.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  disabled={isSubmitting}
-                  className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50">
-                  <X className="h-5 w-5" />
-                </button>
+        <Modal
+          isOpen={showModal}
+          onClose={handleCloseModal}
+          title="New Petty Cash Expense"
+          description={`This creates an auto-approved journal entry that credits petty cash account ${PETTY_CASH_ACCOUNT_CODE}.`}
+          size="2xl">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {formError && (
+              <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{formError}</p>
               </div>
+            )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {formError && (
-                  <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <p>{formError}</p>
-                  </div>
-                )}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <DatePicker
+                label="Date"
+                name="date"
+                value={toDateInputValue(formData.date)}
+                onChange={(value) =>
+                  setFormData((prev) => ({ ...prev, date: value }))
+                }
+                required
+                disabled={isSubmitting || pettyCashSaving}
+              />
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <DatePicker
-                    label="Date"
-                    name="date"
-                    value={toDateInputValue(formData.date)}
-                    onChange={(value) =>
-                      setFormData((prev) => ({ ...prev, date: value }))
-                    }
-                    required
-                    disabled={isSubmitting || pettyCashSaving}
-                  />
-
-                  <Input
-                    label="Amount"
-                    type="number"
-                    name="amount"
-                    placeholder="0.00"
-                    value={formData.amount}
-                    onChange={handleChange}
-                    required
-                    min="0.01"
-                    step="0.01"
-                    disabled={isSubmitting || pettyCashSaving}
-                  />
-                </div>
-
-                <Input
-                  label="Description"
-                  name="description"
-                  placeholder="Describe the petty cash expense"
-                  value={formData.description}
-                  onChange={handleChange}
-                  required
-                  textarea
-                  rows={3}
-                  disabled={isSubmitting || pettyCashSaving}
-                />
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Select
-                    label="Expense Account"
-                    name="expenseAccount"
-                    value={formData.expenseAccount}
-                    onChange={handleChange}
-                    required
-                    disabled={isSubmitting || pettyCashSaving}
-                    placeholder="Select expense account"
-                    options={expenseAccounts.map((account) => ({
-                      label: `${account.accountCode} - ${account.accountName}`,
-                      value: account._id,
-                    }))}
-                  />
-                  <Input
-                    label="Paid To"
-                    name="paidTo"
-                    placeholder="Person who received cash"
-                    value={formData.paidTo}
-                    onChange={handleChange}
-                    disabled={isSubmitting || pettyCashSaving}
-                  />
-                </div>
-
-                <Input
-                  label="Reference Number"
-                  name="referenceNumber"
-                  value={formData.referenceNumber}
-                  onChange={handleChange}
-                  placeholder="Optional reference number"
-                  disabled={isSubmitting || pettyCashSaving}
-                />
-
-                <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCloseModal}
-                    disabled={isSubmitting}
-                    className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 sm:w-auto">
-                    Cancel
-                  </Button>
-
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={isSubmitting || pettyCashSaving}
-                    loading={isSubmitting || pettyCashSaving}
-                    className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto">
-                    {isSubmitting || pettyCashSaving
-                      ? "Posting..."
-                      : "Post Expense"}
-                  </Button>
-                </div>
-              </form>
+              <Input
+                label="Amount"
+                type="number"
+                name="amount"
+                placeholder="0.00"
+                value={formData.amount}
+                onChange={handleChange}
+                required
+                min="0.01"
+                step="0.01"
+                disabled={isSubmitting || pettyCashSaving}
+              />
             </div>
-          </div>
-        </div>
+
+            <Input
+              label="Description"
+              name="description"
+              placeholder="Describe the petty cash expense"
+              value={formData.description}
+              onChange={handleChange}
+              required
+              textarea
+              rows={3}
+              disabled={isSubmitting || pettyCashSaving}
+            />
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Select
+                label="Expense Account"
+                name="expenseAccount"
+                value={formData.expenseAccount}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting || pettyCashSaving}
+                placeholder="Select expense account"
+                options={expenseAccounts.map((account) => ({
+                  label: `${account.accountCode} - ${account.accountName}`,
+                  value: account._id,
+                }))}
+              />
+              <Input
+                label="Paid To"
+                name="paidTo"
+                placeholder="Person who received cash"
+                value={formData.paidTo}
+                onChange={handleChange}
+                disabled={isSubmitting || pettyCashSaving}
+              />
+            </div>
+
+            <Input
+              label="Reference Number"
+              name="referenceNumber"
+              value={formData.referenceNumber}
+              onChange={handleChange}
+              placeholder="Optional reference number"
+              disabled={isSubmitting || pettyCashSaving}
+            />
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseModal}
+                disabled={isSubmitting}
+                className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 sm:w-auto">
+                Cancel
+              </Button>
+
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={isSubmitting || pettyCashSaving}
+                loading={isSubmitting || pettyCashSaving}>
+                {isSubmitting || pettyCashSaving
+                  ? "Posting..."
+                  : "Post Expense"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

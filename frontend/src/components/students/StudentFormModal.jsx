@@ -7,7 +7,36 @@ import {
   FileSpreadsheet,
   Save,
   ChevronDown,
+  Download,
+  Upload,
+  Info,
 } from "lucide-react";
+import { Button, Modal } from "../common";
+
+// ── Template config ────────────────────────────────────────────────────────────
+const TEMPLATE_COLUMNS = [
+  "rollNumber", "name", "class", "section",
+  "email", "phone", "nationality", "profession",
+  "parentName", "parentEmail", "parentPhone",
+  "address", "status", "totalPayable", "totalPaid", "notes",
+];
+
+const REQUIRED_COLUMNS = ["rollNumber", "name", "class"];
+
+
+const downloadTemplate = () => {
+  const rows   = [TEMPLATE_COLUMNS];
+  const csv    = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+  const blob   = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url    = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href     = url;
+  anchor.download = "student-import-template.csv";
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 const initialFormData = {
   rollNumber: "",
@@ -68,8 +97,6 @@ const StudentFormModal = ({
     setErrors({});
     setSelectedFile(null);
   }, [student, open]);
-
-  if (!open) return null;
 
   // --- CSV Logic ---
   const handleFileChange = (e) => {
@@ -146,42 +173,30 @@ const StudentFormModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl my-auto rounded-2xl bg-white shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-neutral-900">
-              {student ? "Edit Student Profile" : "New Student Admission"}
-            </h2>
-            <p className="text-xs text-neutral-500">
-              Ensure all mandatory fields are filled.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white rounded-full transition">
-            <X size={20} />
-          </button>
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      title={student ? "Edit Student Profile" : "New Student Admission"}
+      description="Ensure all mandatory fields are filled."
+      size="3xl"
+    >
+      {/* Tabs */}
+      {!student && (
+        <div className="flex px-6 border-b border-neutral-100 bg-neutral-50/50 mb-3">
+          <TabBtn
+            active={activeTab === "single"}
+            onClick={() => setActiveTab("single")}
+            label="Single Entry"
+          />
+          <TabBtn
+            active={activeTab === "bulk"}
+            onClick={() => setActiveTab("bulk")}
+            label="Bulk CSV Upload"
+          />
         </div>
+      )}
 
-        {/* Tabs */}
-        {!student && (
-          <div className="flex px-6 border-b border-neutral-100 bg-neutral-50/50">
-            <TabBtn
-              active={activeTab === "single"}
-              onClick={() => setActiveTab("single")}
-              label="Single Entry"
-            />
-            <TabBtn
-              active={activeTab === "bulk"}
-              onClick={() => setActiveTab("bulk")}
-              label="Bulk CSV Upload"
-            />
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="p-6">
+      <form onSubmit={handleSubmit}>
           {activeTab === "single" ? (
             <div className="space-y-6">
               {/* Personal Info */}
@@ -266,11 +281,65 @@ const StudentFormModal = ({
               </div>
             </div>
           ) : (
-            /* Bulk CSV UI */
-            <div className="space-y-4 py-8 text-center">
+            /* ── Bulk CSV UI ── */
+            <div className="space-y-4">
+
+              {/* Instructions panel */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Info size={15} className="text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-sm font-bold text-blue-900">
+                      CSV Format Instructions
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  Upload a <span className="font-semibold">.csv</span> file where
+                  the <span className="font-semibold">first row is the header</span>.
+                  Columns marked <span className="font-semibold text-blue-900">bold</span> are
+                  required — all others are optional.
+                  Use the template above to get the exact column order and sample data.
+                </p>
+
+                {/* Column tags */}
+                <div className="flex flex-wrap gap-1.5">
+                  {TEMPLATE_COLUMNS.map((col) => {
+                    const required = REQUIRED_COLUMNS.includes(col);
+                    return (
+                      <span
+                        key={col}
+                        className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${
+                          required
+                            ? "border-blue-300 bg-blue-100 font-bold text-blue-800"
+                            : "border-neutral-200 bg-white text-neutral-500"
+                        }`}>
+                        {col}
+                        {required && <span className="ml-0.5 text-blue-500">*</span>}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[11px] text-blue-500">
+                  <span className="font-semibold">status</span> must be one of:{" "}
+                  <code className="rounded bg-blue-100 px-1">active</code>,{" "}
+                  <code className="rounded bg-blue-100 px-1">inactive</code>,{" "}
+                  <code className="rounded bg-blue-100 px-1">suspended</code>.{" "}
+                  <span className="font-semibold">totalPayable</span> and{" "}
+                  <span className="font-semibold">totalPaid</span> must be numbers.
+                </p>
+              </div>
+
+              {/* Drop zone */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center cursor-pointer transition ${selectedFile ? "border-emerald-500 bg-emerald-50" : "border-neutral-200 hover:border-neutral-900 bg-neutral-50"}`}>
+                className={`flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed p-10 transition ${
+                  selectedFile
+                    ? "border-emerald-400 bg-emerald-50"
+                    : "border-neutral-200 bg-neutral-50 hover:border-neutral-400 hover:bg-white"
+                }`}>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -279,56 +348,76 @@ const StudentFormModal = ({
                   className="hidden"
                 />
                 <div
-                  className={`p-4 rounded-full mb-4 ${selectedFile ? "bg-emerald-500 text-white" : "bg-white text-neutral-400 shadow-sm"}`}>
-                  {selectedFile ? (
-                    <CheckCircle2 size={32} />
-                  ) : (
-                    <FileSpreadsheet size={32} />
-                  )}
+                  className={`mb-3 rounded-full p-3 ${
+                    selectedFile
+                      ? "bg-emerald-500 text-white"
+                      : "bg-white text-neutral-400 shadow-sm"
+                  }`}>
+                  {selectedFile ? <CheckCircle2 size={28} /> : <Upload size={28} />}
                 </div>
                 <p className="font-bold text-neutral-900">
-                  {selectedFile
-                    ? selectedFile.name
-                    : "Click to select CSV File"}
+                  {selectedFile ? selectedFile.name : "Click to select a CSV file"}
                 </p>
-                <p className="text-sm text-neutral-500 mt-1">
-                  Expected columns: rollNumber, name, class, section, email...
+                <p className="mt-1 text-xs text-neutral-400">
+                  {selectedFile
+                    ? "File ready — click Import CSV below to upload"
+                    : "Only .csv files are accepted"}
                 </p>
               </div>
+
               {errors.bulk && (
-                <p className="text-red-500 text-sm">{errors.bulk}</p>
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
+                  <AlertCircle size={14} className="shrink-0" />
+                  {errors.bulk}
+                </div>
               )}
+
             </div>
           )}
 
           {/* Footer Actions */}
-          <div className="mt-8 flex items-center justify-end gap-3 border-t border-neutral-100 pt-6">
-            <button
+          <div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-neutral-100 pt-6">
+            <Button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 text-sm font-bold text-neutral-500 hover:text-neutral-900 transition">
+              variant="secondary"
+              size="sm"
+            >
               Cancel
-            </button>
-            <button
+            </Button>
+
+            {/* Download Template — shown in footer only on bulk tab */}
+            {activeTab === "bulk" && (
+              <Button
+                type="button"
+                onClick={downloadTemplate}
+                variant="outline"
+                size="sm"
+              >
+                <Download size={12} />
+                Download Template
+              </Button>
+            )}
+
+            <Button
               type="submit"
               disabled={isSubmitting || (activeTab === "bulk" && !selectedFile)}
-              className="flex items-center gap-2 bg-neutral-900 text-white px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-neutral-800 disabled:opacity-50 transition shadow-lg shadow-neutral-200">
+              variant="default"
+              size="sm"
+            >
               {isSubmitting ? (
-                "Processing..."
+                "Processing…"
               ) : student ? (
-                <>
-                  <Save size={18} /> Update Record
-                </>
+                <><Save size={18} /> Update Record</>
+              ) : activeTab === "bulk" ? (
+                <><Upload size={18} /> Import CSV</>
               ) : (
-                <>
-                  <UserPlus size={18} /> Admission Done
-                </>
+                <><UserPlus size={18} /> Admission Done</>
               )}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

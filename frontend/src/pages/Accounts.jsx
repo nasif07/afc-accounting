@@ -37,7 +37,7 @@ const INITIAL_FORM_DATA = {
   accountName: "",
   accountType: "asset",
   description: "",
-  openingBalance: 0,
+  openingBalance: "",
   openingBalanceType: "debit",
   openingDate: "",
   parentAccount: "",
@@ -283,7 +283,7 @@ export default function Accounts() {
           ? account.parentAccount?._id || ""
           : account.parentAccount || "",
       description: account.description || "",
-      openingBalance: Number(account.openingBalance) || 0,
+      openingBalance: account.openingBalance ?? "",
       openingBalanceType:
         account.openingBalanceType || getDefaultBalanceType(accountType),
       openingDate: toISODate(account.openingDate),
@@ -426,7 +426,7 @@ export default function Accounts() {
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    openingBalance: parseFloat(e.target.value) || 0,
+                    openingBalance: e.target.value,
                   }))
                 }
                 step="0.01"

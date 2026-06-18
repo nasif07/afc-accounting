@@ -3,6 +3,8 @@ const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const COAService = require("../chartOfAccounts/coa.service");
 const JournalEntry = require("../accounting/accounting.model");
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 class BankService {
   static async getBankParentAccount() {
     return await ChartOfAccounts.findOne({
@@ -151,7 +153,7 @@ class BankService {
 
     // Apply additional filters if provided
     if (filters.bankName) {
-      query.bankName = { $regex: filters.bankName, $options: "i" };
+      query.bankName = { $regex: escapeRegex(String(filters.bankName).slice(0, 100)), $options: "i" };
     }
     if (filters.accountType) {
       query.accountType = filters.accountType;

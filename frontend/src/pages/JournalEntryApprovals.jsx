@@ -3,23 +3,74 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { toast } from "sonner";
-import { Check, X, ChevronDown, Eye, AlertCircle, CheckCircle } from "lucide-react";
-import { Card, CardContent } from "../components/common";
-import Badge from "../components/common/Badge";
+import {
+  Check, X, ChevronDown, AlertCircle, CheckCircle2,
+  ClipboardList, RefreshCcw, TrendingUp, TrendingDown,
+  FileText, Calendar, User, Clock,
+} from "lucide-react";
+import { Button, Badge, Modal, Textarea } from "../components/common";
 import SectionHeader from "../components/common/SectionHeader";
-import { Button, Modal, Textarea } from "../components/common";
-import { PageLoader } from "../components/common/Loaders";
+import { SectionSkeleton } from "../components/common/Loaders";
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+const TYPE_CONFIG = {
+  receipt:         { label: "Receipt",       variant: "info"      },
+  payment:         { label: "Payment",       variant: "warning"   },
+  "journal-entry": { label: "Journal Entry", variant: "secondary" },
+  transfer:        { label: "Transfer",      variant: "primary"   },
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const numFmt = (n) =>
+  new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+
+const fmtCurrency = (n) => `৳ ${numFmt(n)}`;
+
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+const totalDebit  = (e) => e?.bookEntries?.reduce((s, b) => s + (b.debit  || 0), 0) || 0;
+const totalCredit = (e) => e?.bookEntries?.reduce((s, b) => s + (b.credit || 0), 0) || 0;
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function StatCard({ label, value, icon: Icon, iconBg, iconColor }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
+        <div className={`rounded-lg p-2 ${iconBg}`}>
+          <Icon size={15} className={iconColor} />
+        </div>
+      </div>
+      <p className="truncate text-xl font-bold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function MetaPill({ icon: Icon, children }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+      <Icon size={12} className="shrink-0 text-slate-400" aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function JournalEntryApprovals() {
-  const [pendingEntries, setPendingEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState(null);
-  const [approving, setApproving] = useState(null);
-  const [rejecting, setRejecting] = useState(null);
+  const [pendingEntries,  setPendingEntries]  = useState([]);
+  const [loading,         setLoading]         = useState(true);
+  const [expandedId,      setExpandedId]      = useState(null);
+  const [approving,       setApproving]       = useState(null);
+  const [rejecting,       setRejecting]       = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState(null);
 
-  const user = useSelector((state) => state.auth.user);
+  const user     = useSelector((s) => s.auth.user);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,9 +81,9 @@ export default function JournalEntryApprovals() {
   const fetchPendingEntries = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/accounting/journal-entries/pending-approvals");
-      setPendingEntries(response?.data?.data || []);
-    } catch (error) {
+      const res = await api.get("/accounting/journal-entries/pending-approvals");
+      setPendingEntries(res?.data?.data || []);
+    } catch {
       toast.error("Failed to load pending journal entries");
     } finally {
       setLoading(false);
@@ -43,10 +94,10 @@ export default function JournalEntryApprovals() {
     try {
       setApproving(entryId);
       await api.patch(`/accounting/journal-entries/${entryId}/approve`);
-      toast.success("Journal entry approved successfully");
+      toast.success("Journal entry approved");
       fetchPendingEntries();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to approve entry");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to approve entry");
     } finally {
       setApproving(null);
     }
@@ -59,206 +110,295 @@ export default function JournalEntryApprovals() {
       await api.patch(`/accounting/journal-entries/${entryId}/reject`, {
         rejectionReason: rejectionReason.trim(),
       });
-      toast.success("Journal entry rejected successfully");
+      toast.success("Journal entry rejected");
       setShowRejectModal(null);
       setRejectionReason("");
       fetchPendingEntries();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to reject entry");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to reject entry");
     } finally {
       setRejecting(null);
     }
   };
 
-  const totalDebit  = (e) => e?.bookEntries?.reduce((s, b) => s + (b.debit  || 0), 0) || 0;
-  const totalCredit = (e) => e?.bookEntries?.reduce((s, b) => s + (b.credit || 0), 0) || 0;
+  const closeRejectModal = () => { setShowRejectModal(null); setRejectionReason(""); };
 
-  const formatCurrency = (amount) =>
-    `৳ ${new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2 }).format(amount || 0)}`;
-
-  const formatDate = (date) =>
-    new Date(date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-
-  if (loading) return <PageLoader message="Loading pending entries…" className="min-h-screen" />;
+  // Aggregate stats
+  const totalPendingDebit  = pendingEntries.reduce((s, e) => s + totalDebit(e),  0);
+  const totalPendingCredit = pendingEntries.reduce((s, e) => s + totalCredit(e), 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+
+      {/* ── Header ── */}
       <SectionHeader
-        icon={CheckCircle}
+        icon={ClipboardList}
+        iconBg="bg-amber-50"
+        iconColor="text-amber-600"
         title="Journal Entry Approvals"
-        description="Review and approve pending journal entries"
-        iconBg="bg-red-50"
-        iconColor="text-red-600"
+        description="Review pending double-entry submissions and post them to the ledger."
+        buttonText="Refresh"
+        onButtonClick={fetchPendingEntries}
+        buttonIcon={RefreshCcw}
+        buttonVariant="outline"
+        isLoading={loading}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {[
-          { label: "Pending Approval", value: pendingEntries.length, color: "from-blue-50 to-blue-100 border-blue-200", textColor: "text-blue-900", labelColor: "text-blue-600" },
-          { label: "Total Debit",  value: formatCurrency(pendingEntries.reduce((s, e) => s + totalDebit(e),  0)), color: "from-green-50 to-green-100 border-green-200", textColor: "text-green-900", labelColor: "text-green-600" },
-          { label: "Total Credit", value: formatCurrency(pendingEntries.reduce((s, e) => s + totalCredit(e), 0)), color: "from-orange-50 to-orange-100 border-orange-200", textColor: "text-orange-900", labelColor: "text-orange-600" },
-        ].map(({ label, value, color, textColor, labelColor }) => (
-          <Card key={label} className={`bg-gradient-to-br ${color}`}>
-            <CardContent className="p-6">
-              <p className={`text-sm font-medium uppercase tracking-wide ${labelColor}`}>{label}</p>
-              <p className={`mt-2 text-2xl font-bold ${textColor}`}>{value}</p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* ── Stats ── */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Awaiting Approval"
+          value={loading ? "—" : `${pendingEntries.length} ${pendingEntries.length !== 1 ? "entries" : "entry"}`}
+          icon={Clock}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-600"
+        />
+        <StatCard
+          label="Total Pending Debit"
+          value={loading ? "—" : fmtCurrency(totalPendingDebit)}
+          icon={TrendingUp}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Total Pending Credit"
+          value={loading ? "—" : fmtCurrency(totalPendingCredit)}
+          icon={TrendingDown}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+        />
       </div>
 
-      {/* Empty state */}
-      {pendingEntries.length === 0 ? (
-        <Card className="border-2 border-dashed border-gray-300 bg-gray-50">
-          <CardContent className="p-12 text-center">
-            <Eye className="mx-auto mb-4 text-gray-400" size={48} />
-            <h3 className="mb-2 text-lg font-semibold text-gray-900">No Pending Approvals</h3>
-            <p className="text-gray-600">All journal entries have been reviewed.</p>
-          </CardContent>
-        </Card>
+      {/* ── Loading skeleton ── */}
+      {loading ? (
+        <div className="space-y-3">
+          <SectionSkeleton rows={5} />
+          <SectionSkeleton rows={4} />
+          <SectionSkeleton rows={6} />
+        </div>
+      ) : /* ── Empty state ── */
+      pendingEntries.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/40 py-16 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
+            <CheckCircle2 size={26} className="text-emerald-500" />
+          </div>
+          <h3 className="text-sm font-semibold text-slate-700">All caught up</h3>
+          <p className="mt-1 text-xs text-slate-400">No journal entries are pending approval right now.</p>
+        </div>
       ) : (
-        <div className="space-y-4">
+
+        /* ── Entry list ── */
+        <div className="space-y-3">
           {pendingEntries.map((entry) => {
             const isExpanded = expandedId === entry._id;
-            const tD = totalDebit(entry);
-            const tC = totalCredit(entry);
+            const tD         = totalDebit(entry);
+            const tC         = totalCredit(entry);
             const isBalanced = Math.abs(tD - tC) < 0.01;
+            const diff       = Math.abs(tD - tC);
+            const typeConf   = TYPE_CONFIG[entry.transactionType] ?? { label: entry.transactionType || "Journal", variant: "secondary" };
 
             return (
-              <Card key={entry._id} className="overflow-hidden">
-                {/* Entry header */}
-                <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="mb-3 flex items-center gap-3">
-                        <h3 className="text-lg font-bold text-gray-900">{entry.voucherNumber || "N/A"}</h3>
-                        <Badge variant={isBalanced ? "success" : "danger"}>
+              <div
+                key={entry._id}
+                className={`overflow-hidden rounded-xl border bg-white transition-shadow hover:shadow-md ${
+                  isBalanced ? "border-slate-200" : "border-rose-200"
+                }`}
+              >
+                {/* ── Top accent bar ── */}
+                <div className={`h-1 ${isBalanced ? "bg-emerald-400" : "bg-rose-400"}`} />
+
+                {/* ── Card summary ── */}
+                <div className="p-5">
+                  <div className="flex items-start gap-4">
+                    {/* Avatar icon */}
+                    <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isBalanced ? "bg-emerald-50" : "bg-rose-50"}`}>
+                      <FileText size={17} className={isBalanced ? "text-emerald-600" : "text-rose-500"} aria-hidden="true" />
+                    </div>
+
+                    {/* Main details */}
+                    <div className="flex-1 min-w-0">
+                      {/* Voucher + badges */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-900">{entry.voucherNumber || "N/A"}</h3>
+                        <Badge variant={typeConf.variant} size="sm">{typeConf.label}</Badge>
+                        <Badge variant={isBalanced ? "success" : "danger"} size="sm">
                           {isBalanced ? "Balanced" : "Unbalanced"}
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-                        {[
-                          { label: "Date",       val: formatDate(entry.voucherDate),      cls: "text-gray-900" },
-                          { label: "Created By", val: entry.createdBy?.name || "Unknown", cls: "text-gray-900" },
-                          { label: "Debit",      val: formatCurrency(tD),                 cls: "text-green-600" },
-                          { label: "Credit",     val: formatCurrency(tC),                 cls: "text-blue-600"  },
-                        ].map(({ label, val, cls }) => (
-                          <div key={label}>
-                            <p className="font-medium text-gray-600">{label}</p>
-                            <p className={`font-semibold ${cls}`}>{val}</p>
-                          </div>
-                        ))}
+
+                      {/* Meta row */}
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <MetaPill icon={Calendar}>{fmtDate(entry.voucherDate)}</MetaPill>
+                        <MetaPill icon={User}>{entry.createdBy?.name || "Unknown"}</MetaPill>
+                        {entry.referenceNumber && (
+                          <MetaPill icon={FileText}>Ref: {entry.referenceNumber}</MetaPill>
+                        )}
                       </div>
+
+                      {/* Amounts */}
+                      <div className="mt-4 flex flex-wrap items-start gap-6">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Debit</p>
+                          <p className="mt-0.5 text-base font-bold text-emerald-700">{fmtCurrency(tD)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Credit</p>
+                          <p className="mt-0.5 text-base font-bold text-blue-700">{fmtCurrency(tC)}</p>
+                        </div>
+                        {!isBalanced && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Difference</p>
+                            <p className="mt-0.5 text-base font-bold text-rose-600">{fmtCurrency(diff)}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Description */}
                       {entry.description && (
-                        <p className="mt-3 text-sm text-gray-700">
-                          <strong>Description:</strong> {entry.description}
+                        <p className="mt-3 border-t border-slate-50 pt-3 text-sm text-slate-500 leading-relaxed">
+                          {entry.description}
                         </p>
                       )}
                     </div>
-
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      onClick={() => setExpandedId(isExpanded ? null : entry._id)}>
-                      <ChevronDown
-                        size={20}
-                        className={`text-gray-600 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      />
-                    </Button>
                   </div>
 
+                  {/* Unbalanced alert */}
                   {!isBalanced && (
-                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                      <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-600" />
+                    <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-rose-100 bg-rose-50 px-3.5 py-3">
+                      <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-500" aria-hidden="true" />
                       <div>
-                        <p className="text-sm font-semibold text-red-900">Entry is not balanced</p>
-                        <p className="text-xs text-red-700">Difference: {formatCurrency(Math.abs(tD - tC))}</p>
+                        <p className="text-xs font-semibold text-rose-800">Approval disabled — entry is not balanced</p>
+                        <p className="mt-0.5 text-[11px] text-rose-500">
+                          Debit and credit totals must match. Difference is {fmtCurrency(diff)}.
+                        </p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Expanded line items */}
+                {/* ── Always-visible action footer ── */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/50 px-5 py-3">
+                  <Button
+                    variant="success"
+                    size="sm"
+                    icon={Check}
+                    loading={approving === entry._id}
+                    disabled={!isBalanced || !!approving}
+                    onClick={() => handleApprove(entry._id)}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    icon={X}
+                    disabled={!!approving || !!rejecting}
+                    onClick={() => setShowRejectModal(entry._id)}
+                  >
+                    Reject
+                  </Button>
+
+                  {/* Spacer */}
+                  <div className="flex-1" />
+
+                  {/* Expand toggle */}
+                  <button
+                    onClick={() => setExpandedId(isExpanded ? null : entry._id)}
+                    aria-expanded={isExpanded}
+                    aria-label={isExpanded ? "Hide line items" : "View line items"}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                  >
+                    {isExpanded ? "Hide details" : `View line items (${entry.bookEntries?.length ?? 0})`}
+                    <ChevronDown
+                      size={13}
+                      className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </div>
+
+                {/* ── Expanded: line items only ── */}
                 {isExpanded && (
-                  <div className="bg-white p-6">
-                    <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-900">Line Items</h4>
+                  <div className="border-t border-slate-100">
+                    {/* Line items table */}
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b-2 border-gray-300">
-                            {["Account", "Debit", "Credit", "Description"].map((h) => (
-                              <th key={h} className={`py-2 px-3 font-semibold text-gray-700 ${h !== "Account" && h !== "Description" ? "text-right" : "text-left"}`}>
-                                {h}
-                              </th>
-                            ))}
+                          <tr className="border-b border-slate-100 bg-slate-50/80">
+                            <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                              Account
+                            </th>
+                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+                              Debit (৳)
+                            </th>
+                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                              Credit (৳)
+                            </th>
+                            <th className="hidden px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 sm:table-cell">
+                              Narration
+                            </th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-50">
                           {entry.bookEntries?.map((be, idx) => (
-                            <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
-                              <td className="px-3 py-3">
-                                <p className="font-semibold text-gray-900">{be.account?.accountCode}</p>
-                                <p className="text-xs text-gray-600">{be.account?.accountName}</p>
+                            <tr key={idx} className="transition-colors hover:bg-slate-50/60">
+                              <td className="px-5 py-3.5">
+                                <p className="font-semibold text-slate-800">{be.account?.accountName || "—"}</p>
+                                <p className="font-mono text-[11px] text-slate-400">{be.account?.accountCode}</p>
                               </td>
-                              <td className="px-3 py-3 text-right">
+                              <td className="px-5 py-3.5 text-right">
                                 {be.debit
-                                  ? <span className="font-semibold text-green-600">{formatCurrency(be.debit)}</span>
-                                  : <span className="text-gray-400">-</span>}
+                                  ? <span className="font-semibold text-emerald-700">{numFmt(be.debit)}</span>
+                                  : <span className="text-slate-300">—</span>}
                               </td>
-                              <td className="px-3 py-3 text-right">
+                              <td className="px-5 py-3.5 text-right">
                                 {be.credit
-                                  ? <span className="font-semibold text-blue-600">{formatCurrency(be.credit)}</span>
-                                  : <span className="text-gray-400">-</span>}
+                                  ? <span className="font-semibold text-blue-700">{numFmt(be.credit)}</span>
+                                  : <span className="text-slate-300">—</span>}
                               </td>
-                              <td className="px-3 py-3 text-gray-700">{be.description || "-"}</td>
+                              <td className="hidden px-5 py-3.5 text-slate-500 sm:table-cell">
+                                {be.description || "—"}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                         <tfoot>
-                          <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
-                            <td className="px-3 py-3">TOTAL</td>
-                            <td className="px-3 py-3 text-right text-green-600">{formatCurrency(tD)}</td>
-                            <td className="px-3 py-3 text-right text-blue-600">{formatCurrency(tC)}</td>
-                            <td className="px-3 py-3" />
+                          <tr className="border-t-2 border-slate-200 bg-slate-50">
+                            <td className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                              Total
+                            </td>
+                            <td className="px-5 py-3 text-right text-sm font-bold text-emerald-700">{numFmt(tD)}</td>
+                            <td className="px-5 py-3 text-right text-sm font-bold text-blue-700">{numFmt(tC)}</td>
+                            <td className="hidden px-5 py-3 sm:table-cell">
+                              {isBalanced ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                                  <CheckCircle2 size={12} /> Balanced
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600">
+                                  <AlertCircle size={12} /> Off by {fmtCurrency(diff)}
+                                </span>
+                              )}
+                            </td>
                           </tr>
                         </tfoot>
                       </table>
                     </div>
-
-                    {/* Approve / Reject */}
-                    <div className="flex gap-3 border-t border-gray-200 pt-4">
-                      <Button
-                        variant="success"
-                        size="lg"
-                        fullWidth
-                        onClick={() => handleApprove(entry._id)}
-                        loading={approving === entry._id}
-                        disabled={!isBalanced}>
-                        <Check size={18} /> Approve Entry
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="lg"
-                        fullWidth
-                        onClick={() => setShowRejectModal(entry._id)}
-                        loading={rejecting === entry._id}>
-                        <X size={18} /> Reject Entry
-                      </Button>
-                    </div>
                   </div>
                 )}
-              </Card>
+              </div>
             );
           })}
         </div>
       )}
 
-      {/* Reject reason modal */}
+      {/* ── Reject modal ── */}
       <Modal
         isOpen={!!showRejectModal}
-        onClose={() => { setShowRejectModal(null); setRejectionReason(""); }}
+        onClose={closeRejectModal}
         title="Reject Journal Entry"
-        size="md">
+        description="Provide a clear reason so the accountant can revise and resubmit."
+        size="md"
+      >
         <div className="space-y-4">
           <Textarea
             label="Rejection Reason"
@@ -266,21 +406,19 @@ export default function JournalEntryApprovals() {
             rows={4}
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
-            placeholder="Enter reason for rejection..."
+            placeholder="e.g. Incorrect account — debit should be posted to 5001 (Salaries Expense), not 5002."
           />
           <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              fullWidth
-              onClick={() => { setShowRejectModal(null); setRejectionReason(""); }}>
+            <Button variant="secondary" fullWidth onClick={closeRejectModal}>
               Cancel
             </Button>
             <Button
               variant="danger"
               fullWidth
-              onClick={() => handleRejectSubmit(showRejectModal)}
               loading={rejecting === showRejectModal}
-              disabled={!rejectionReason.trim()}>
+              disabled={!rejectionReason.trim()}
+              onClick={() => handleRejectSubmit(showRejectModal)}
+            >
               Confirm Rejection
             </Button>
           </div>

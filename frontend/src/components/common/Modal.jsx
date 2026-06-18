@@ -10,6 +10,7 @@ const sizes = {
   lg:   "sm:max-w-lg",
   xl:   "sm:max-w-xl",
   "2xl":"sm:max-w-2xl",
+  "3xl":"sm:max-w-3xl",
   "4xl":"sm:max-w-4xl",
 };
 
@@ -19,7 +20,7 @@ export default function Modal({
   title,
   description,
   children,
-  size = "md",
+  size = "3xl",
   closeOnBackdrop = true,
   className = "",
 }) {
@@ -78,8 +79,9 @@ export default function Modal({
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-0 sm:p-4"
-      onClick={closeOnBackdrop ? onClose : undefined}>
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      onClick={closeOnBackdrop ? onClose : undefined}
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -87,22 +89,16 @@ export default function Modal({
         aria-labelledby="modal-title"
         aria-describedby={description ? "modal-description" : undefined}
         onClick={(e) => e.stopPropagation()}
-        className={`
-          relative flex flex-col bg-white shadow-xl
-          w-full max-h-[92dvh] sm:max-h-[90vh]
-          rounded-t-2xl sm:rounded-xl
-          ${sizes[size] ?? sizes.md}
-          overflow-hidden
-          ${className}
-        `}>
+        className={`relative flex flex-col bg-white shadow-2xl w-full max-h-[92dvh] sm:max-h-[90vh] rounded-2xl ${sizes[size] ?? sizes["3xl"]} overflow-hidden ${className}`}>
+
         {/* Header */}
-        <div className="flex shrink-0 items-start justify-between border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
+        <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4 flex items-start justify-between">
           <div>
-            <h2 id="modal-title" className="text-base font-semibold text-slate-900 sm:text-lg">
+            <h2 id="modal-title" className="text-xl font-bold text-neutral-900">
               {title}
             </h2>
             {description && (
-              <p id="modal-description" className="mt-1 text-xs text-slate-500 sm:text-sm">
+              <p id="modal-description" className="mt-1 text-xs text-neutral-500">
                 {description}
               </p>
             )}
@@ -110,13 +106,14 @@ export default function Modal({
           <button
             onClick={onClose}
             aria-label="Close dialog"
-            className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 active:bg-slate-200">
-            <X size={18} />
+            className="p-2 hover:bg-white rounded-full transition text-neutral-500"
+          >
+            <X size={20} />
           </button>
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto p-4 sm:p-5">{children}</div>
+        <div className="overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );

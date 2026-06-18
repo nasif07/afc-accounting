@@ -137,7 +137,14 @@ class PettyCashService {
       .populate("bookEntries.account", "accountCode accountName accountType")
       .sort({ voucherDate: 1, createdAt: 1, _id: 1 });
 
-    const rows = entries
+    // Defensive: ensure entries actually reference the petty cash account by accountCode
+    const filteredEntries = entries.filter((entry) =>
+      (entry.bookEntries || []).some(
+        (line) => line.account && String(line.account.accountCode) === PETTY_CASH_ACCOUNT_CODE,
+      ),
+    );
+
+    const rows = filteredEntries
       .map((entry) =>
         this.buildPettyCashRow(entry.toJSON(), pettyCashAccount._id),
       )
@@ -274,17 +281,28 @@ class PettyCashService {
         .sort({ voucherDate: 1, createdAt: 1, _id: 1 }),
     ]);
 
-    const openingBalance = openingEntries.reduce((sum, entry) => {
+    // Defensive: ensure fetched entries actually reference petty cash account by accountCode
+    const filteredOpeningEntries = openingEntries.filter((entry) =>
+      (entry.bookEntries || []).some(
+        (line) => line.account && String(line.account.accountCode) === PETTY_CASH_ACCOUNT_CODE,
+      ),
+    );
+
+    const filteredPeriodEntries = periodEntries.filter((entry) =>
+      (entry.bookEntries || []).some(
+        (line) => line.account && String(line.account.accountCode) === PETTY_CASH_ACCOUNT_CODE,
+      ),
+    );
+
+    const openingBalance = filteredOpeningEntries.reduce((sum, entry) => {
       const row = this.buildPettyCashRow(entry.toJSON(), pettyCashAccount._id);
       if (!row) return sum;
       return sum + row.debit - row.credit;
     }, 0);
 
     let runningBalance = openingBalance;
-    const transactions = periodEntries
-      .map((entry) =>
-        this.buildPettyCashRow(entry.toJSON(), pettyCashAccount._id),
-      )
+    const transactions = filteredPeriodEntries
+      .map((entry) => this.buildPettyCashRow(entry.toJSON(), pettyCashAccount._id))
       .filter(Boolean)
       .map((row) => {
         runningBalance += row.debit - row.credit;

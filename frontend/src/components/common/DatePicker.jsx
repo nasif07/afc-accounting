@@ -30,8 +30,7 @@ export default function DatePicker({
         </label>
       )}
 
-      <div className="relative">
-        <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <div className="w-full">
         <input
           id={name}
           name={name}
@@ -42,11 +41,17 @@ export default function DatePicker({
           disabled={disabled}
           className={`
             w-full rounded-xl border bg-white
-            py-3 sm:py-2.5
-            pl-10 pr-4
+            min-h-11 py-2.5
+            px-3
             text-sm text-slate-900 transition
             focus:outline-none focus:ring-4
             disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500
+            [&::-webkit-calendar-picker-indicator]:h-5
+            [&::-webkit-calendar-picker-indicator]:w-5
+            [&::-webkit-calendar-picker-indicator]:opacity-40
+            [&::-webkit-calendar-picker-indicator]:cursor-pointer
+            [&::-webkit-clear-button]:hidden
+            [&::-webkit-inner-spin-button]:hidden
             ${error
               ? "border-red-500 focus:border-red-500 focus:ring-red-100"
               : "border-slate-300 focus:border-slate-800 focus:ring-slate-100"}

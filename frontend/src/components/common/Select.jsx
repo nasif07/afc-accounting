@@ -1,4 +1,5 @@
 import React from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "../../utils/cn";
 
 // Supports two usage patterns:
@@ -31,34 +32,44 @@ const Select = React.forwardRef(
     const useOptions = Array.isArray(options) && options.length > 0;
 
     const selectEl = (
-      <select
-        ref={ref}
-        id={name}
-        name={name}
-        value={value}
-        onChange={onChange}
-        onBlur={onBlur}
-        disabled={disabled}
-        className={cn(
-          "w-full rounded-xl border bg-white px-4 py-3 sm:py-2.5 text-sm text-slate-900 transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
-          hasError
-            ? "border-red-500 focus:border-red-500 focus:ring-red-100"
-            : "border-slate-300 focus:border-slate-800 focus:ring-slate-100",
-          className,
-        )}
-        {...props}
-      >
-        {useOptions ? (
-          <>
-            <option value="" className="text-slate-400">{placeholder}</option>
-            {options.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </>
-        ) : (
-          children
-        )}
-      </select>
+      <div className="relative w-full">
+        <select
+          ref={ref}
+          id={name}
+          name={name}
+          value={value}
+          onChange={onChange}
+          onBlur={onBlur}
+          disabled={disabled}
+          className={cn(
+            "w-full appearance-none rounded-xl border bg-white px-4 pr-10 text-sm text-slate-900 transition",
+            "min-h-[44px] py-2.5",
+            "focus:outline-none focus:ring-4",
+            "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+            hasError
+              ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+              : "border-slate-300 focus:border-slate-800 focus:ring-slate-100",
+            className,
+          )}
+          {...props}
+        >
+          {useOptions ? (
+            <>
+              <option value="" className="text-slate-400">{placeholder}</option>
+              {options.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </>
+          ) : (
+            children
+          )}
+        </select>
+        <ChevronDown
+          size={16}
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+          aria-hidden="true"
+        />
+      </div>
     );
 
     // When used without label (bare select, children API), return the element directly

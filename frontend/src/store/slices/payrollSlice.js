@@ -88,6 +88,7 @@ export const rejectPayroll = createAsyncThunk(
 
 const initialState = {
   items: [],
+  pagination: { total: 0, page: 1, limit: 20, totalPages: 1 },
   item: null,
   loading: false,
   error: null,
@@ -116,9 +117,15 @@ const payrollSlice = createSlice({
       })
       .addCase(fetchPayroll.fulfilled, (state, action) => {
         state.loading = false;
-        // API now returns { data: { data: [], pagination: {} } }
-        const payload = action.payload?.data;
-        state.items = Array.isArray(payload) ? payload : (payload?.data ?? action.payload ?? []);
+        // API returns { success, data: { data: [], pagination: {} }, message }
+        const outer = action.payload?.data;
+        if (outer && Array.isArray(outer.data)) {
+          state.items      = outer.data;
+          state.pagination = outer.pagination ?? state.pagination;
+        } else {
+          // Fallback for any non-paginated shape
+          state.items = Array.isArray(outer) ? outer : [];
+        }
       })
       .addCase(fetchPayroll.rejected, (state, action) => {
         state.loading = false;

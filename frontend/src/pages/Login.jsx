@@ -8,12 +8,12 @@ import { Input, Button } from "../components/common";
 import logo from "/afc-logo.jpg";
 
 const authInputClass =
-  "pl-10 rounded-sm focus:ring-1 focus:ring-[#002395] focus:border-[#002395] py-2.5 sm:py-2.5";
+  "pl-10 rounded-sm! focus:ring-1! focus:ring-[#002395]! focus:border-[#002395]! py-2.5 sm:py-2.5";
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const dispatch = useDispatch();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); 
   const location = useLocation();
   const { loading, error } = useSelector((state) => state.auth);
 
@@ -120,7 +120,7 @@ export default function Login() {
               fullWidth
               loading={loading}
               icon={ShieldCheck}
-              className="bg-[#002395]! hover:bg-[#001a6e]! rounded-sm! font-bold! uppercase tracking-widest text-xs! py-3 shadow-md">
+              className="bg-[#002395]! hover:bg-[#001a6e]! rounded-sm! font-bold! uppercase tracking-widest text-xs! py-3! shadow-md">
               {loading ? "Authenticating..." : "Access Ledger"}
             </Button>
           </form>

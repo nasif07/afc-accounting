@@ -13,12 +13,11 @@ import {
   Notebook,
   Wallet,
 } from "lucide-react";
-import { Card, CardContent } from "../common";
+import { Card, CardContent, Modal } from "../common";
 import { formatCurrency } from "../../utils/currency";
 
 const StudentDetailsModal = ({ isOpen, onClose, student }) => {
   if (!isOpen || !student) return null;
-
   const formatDate = (dateObj) => {
     if (!dateObj) return "N/A";
     const date = dateObj?.$date ? new Date(dateObj.$date) : new Date(dateObj);
@@ -38,58 +37,36 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
   const pending = financials.pending || 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <Card className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
-        <CardContent className="p-0">
-          {/* Header */}
-          <div className="sticky top-0 z-10 border-b border-neutral-200 bg-white">
-            <div className="px-6 py-5 sm:px-8">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-500">
-                    Alliance Française Student Record
-                  </p>
-
-                  <h2 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl break-words">
-                    {student.name || "Unnamed Student"}
-                  </h2>
-
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-600">
-                    <StatusBadge status={student.status} />
-
-                    <span className="inline-flex items-center gap-2">
-                      <Hash size={14} className="text-[#DA002E]" />
-                      Roll: {student.rollNumber || "N/A"}
-                    </span>
-
-                    {/* <span className="inline-flex items-center gap-2">
-                      <Calendar size={14} className="text-[#DA002E]" />
-                      Admitted: {formatDate(student.admissionDate)}
-                    </span> */}
-                  </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={student.name || "Unnamed Student"}
+      description="Alliance Française Student Record"
+      size="4xl"
+    >
+      <div className="space-y-4">
+        <div className="px-0">
+          <div className="min-w-0 space-y-2 px-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-500">Alliance Française Student Record</div>
+                <h2 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl break-words">{student.name || "Unnamed Student"}</h2>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-600 mt-1">
+                  <StatusBadge status={student.status} />
+                  <span className="inline-flex items-center gap-2"><Hash size={14} className="text-[#DA002E]" /> Roll: {student.rollNumber || "N/A"}</span>
                 </div>
+              </div>
 
-                <button
-                  onClick={onClose}
-                  className="shrink-0 rounded-full border border-neutral-200 p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
-                  aria-label="Close modal">
-                  <X size={18} />
-                </button>
+              <div className="shrink-0">
+                <button onClick={onClose} className="shrink-0 rounded-full border border-neutral-200 p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900" aria-label="Close modal"><X size={18} /></button>
               </div>
             </div>
-
-            <div className="h-1 w-full bg-[#DA002E]" />
           </div>
+        </div>
 
-          {/* Body */}
-          <div className=" px-6 py-6 sm:px-8 sm:py-8 space-y-4">
+        <div className="h-1 w-full bg-[#DA002E]" />
+
+        <div className="px-0 py-0 sm:px-0 sm:py-0 space-y-4">
             {/* Academic + Guardian */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <InfoSection
@@ -207,9 +184,8 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
               </button>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+    </Modal>
   );
 };
 

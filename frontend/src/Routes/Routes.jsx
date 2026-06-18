@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Layout from "../components/Layout";
 import ProtectedRoute from "../components/ProtectedRoute";
+import PublicRoute from "../components/PublicRoute";
 import { PageLoader } from "../components/common/Loaders";
 
 // ── Lazy-loaded pages ─────────────────────────────────────────────────────────
@@ -20,7 +21,6 @@ const Vendors              = lazy(() => import("../pages/Vendors"));
 const Expenses             = lazy(() => import("../pages/Expenses"));
 const PettyCash            = lazy(() => import("../pages/PettyCash"));
 const PettyCashReportPage  = lazy(() => import("../pages/PettyCashReportPage"));
-const Accounting           = lazy(() => import("../pages/Accounting"));
 const Accounts             = lazy(() => import("../pages/Accounts"));
 const JournalEntries       = lazy(() => import("../pages/JournalEntries"));
 const JournalEntryDetails  = lazy(() => import("../pages/JournalEntryDetails"));
@@ -104,8 +104,8 @@ function NotFound() {
 
 const router = createBrowserRouter([
   { path: "/",         element: <RootRedirect />,      errorElement: <ErrorBoundary /> },
-  { path: "/login",    element: <Suspense fallback={<PageLoader />}><Login /></Suspense>,    errorElement: <ErrorBoundary /> },
-  { path: "/register", element: <Suspense fallback={<PageLoader />}><Register /></Suspense>, errorElement: <ErrorBoundary /> },
+  { path: "/login",    element: <PublicRoute><Suspense fallback={<PageLoader />}><Login /></Suspense></PublicRoute>,    errorElement: <ErrorBoundary /> },
+  { path: "/register", element: <PublicRoute><Suspense fallback={<PageLoader />}><Register /></Suspense></PublicRoute>, errorElement: <ErrorBoundary /> },
 
   {
     path: "/dashboard",
@@ -121,7 +121,6 @@ const router = createBrowserRouter([
       { path: "expenses",              element: <Expenses /> },
       { path: "petty-cash",            element: <PettyCash /> },
       { path: "petty-cash/report",     element: <PettyCashReportPage /> },
-      { path: "accounting",            element: <Accounting /> },
       { path: "accounts",              element: <Accounts /> },
       { path: "journal-entries",       element: <JournalEntries /> },
       { path: "journal-entries/:id",   element: <JournalEntryDetails /> },
@@ -130,7 +129,7 @@ const router = createBrowserRouter([
       { path: "bank-book",             element: <BankBook /> },
       { path: "reports",               element: <Reports /> },
       { path: "settings",              element: <Settings /> },
-      { path: "audit-log",             element: <ComingSoon /> },
+      // { path: "audit-log",             element: <ComingSoon /> },
     ],
   },
 

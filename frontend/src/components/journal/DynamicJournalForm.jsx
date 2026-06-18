@@ -10,8 +10,9 @@ import Input from "../common/Input";
 import Select from "../common/Select";
 import Button from "../common/Button";
 import DatePicker from "../common/DatePicker";
+import Modal from "../common/Modal";
 import { SectionSkeleton } from "../common/Loaders";
-import { todayISO, toISODate } from "../../utils/date";
+import { todayISO, toISODate, formatDisplayDate } from "../../utils/date";
 
 const DynamicJournalForm = ({
   onSubmit,
@@ -50,24 +51,22 @@ const DynamicJournalForm = ({
     initialData ? initialData.approvalStatus === "pending" : false,
   );
 
-  const [bookEntries, setBookEntries] = useState(
-    initialData?.bookEntries || [
-      {
-        account: "",
-        debit: 0,
-        credit: 0,
-        description: "",
-      },
-      {
-        account: "",
-        debit: 0,
-        credit: 0,
-        description: "",
-      },
-    ],
-  );
+  const [bookEntries, setBookEntries] = useState(() => {
+    const normalize = (e) => ({
+      ...e,
+      debit: e.debit || "",
+      credit: e.credit || "",
+    });
+    return initialData?.bookEntries
+      ? initialData.bookEntries.map(normalize)
+      : [
+          { account: "", debit: "", credit: "", description: "" },
+          { account: "", debit: "", credit: "", description: "" },
+        ];
+  });
 
   const [errors, setErrors] = useState({});
+  const [confirmPayload, setConfirmPayload] = useState(null);
 
   // ==============================
   // BALANCE CALCULATION
@@ -169,12 +168,7 @@ const DynamicJournalForm = ({
   const handleAddRow = () => {
     setBookEntries([
       ...bookEntries,
-      {
-        account: "",
-        debit: 0,
-        credit: 0,
-        description: "",
-      },
+      { account: "", debit: "", credit: "", description: "" },
     ]);
   };
 
@@ -195,7 +189,23 @@ const DynamicJournalForm = ({
       bookEntries,
     };
 
+    if (!initialData) {
+      setConfirmPayload(payload);
+      return;
+    }
+
     await onSubmit(payload);
+  };
+
+  const handleConfirm = async () => {
+    await onSubmit(confirmPayload);
+    setConfirmPayload(null);
+  };
+
+  const getAccountName = (accountId) => {
+    const acc = leafAccounts.find((a) => a._id === accountId);
+    if (!acc) return accountId;
+    return acc.accountCode ? `${acc.accountCode} - ${acc.accountName}` : acc.accountName;
   };
 
   // ==============================
@@ -211,6 +221,7 @@ const DynamicJournalForm = ({
   // ==============================
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="relative space-y-4">
       {/* Close Button */}
       {onCancel && (
@@ -342,6 +353,119 @@ const DynamicJournalForm = ({
         </Button>
       </div>
     </form>
+
+    {/* ── Confirmation Modal (new entries only) ── */}
+    <Modal
+      isOpen={!!confirmPayload}
+      onClose={() => setConfirmPayload(null)}
+      title="Confirm Journal Entry"
+      description="Review all details carefully before creating this entry."
+      size="lg"
+    >
+      {confirmPayload && (
+        <div className="space-y-5">
+          {/* Meta */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Date</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">
+                {formatDisplayDate(confirmPayload.voucherDate)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Transaction Type</p>
+              <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
+                {confirmPayload.transactionType?.replace(/-/g, " ")}
+              </p>
+            </div>
+            {confirmPayload.description && (
+              <div className="col-span-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Description</p>
+                <p className="mt-1 text-sm text-slate-700">{confirmPayload.description}</p>
+              </div>
+            )}
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Debit entries */}
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+              Debit Accounts
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-100">
+              {confirmPayload.bookEntries
+                .filter((e) => parseFloat(e.debit) > 0)
+                .map((e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between border-b border-slate-50 px-4 py-2.5 last:border-0">
+                    <span className="text-sm text-slate-700">{getAccountName(e.account)}</span>
+                    <span className="font-mono text-sm font-semibold text-slate-900">
+                      ৳{Number(e.debit).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Credit entries */}
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-rose-500">
+              Credit Accounts
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-100">
+              {confirmPayload.bookEntries
+                .filter((e) => parseFloat(e.credit) > 0)
+                .map((e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between border-b border-slate-50 px-4 py-2.5 last:border-0">
+                    <span className="text-sm text-slate-700">{getAccountName(e.account)}</span>
+                    <span className="font-mono text-sm font-semibold text-slate-900">
+                      ৳{Number(e.credit).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Totals */}
+          <div className="flex justify-between rounded-xl bg-slate-50 px-5 py-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Debit</p>
+              <p className="mt-0.5 font-mono text-base font-bold text-slate-900">
+                ৳{totalDebit.toLocaleString()}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Credit</p>
+              <p className="mt-0.5 font-mono text-base font-bold text-slate-900">
+                ৳{totalCredit.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-1">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmPayload(null)}
+              disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              loading={isSubmitting}>
+              Confirm &amp; Create
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+    </>
   );
 };
 

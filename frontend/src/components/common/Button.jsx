@@ -69,7 +69,7 @@ const Button = React.forwardRef(
           className,
         )}
         {...props}>
-        {isSubmitting ? <ButtonLoader /> : Icon ? <Icon size={16} /> : null}
+        {isSubmitting ? <ButtonLoader /> : Icon ? <Icon size={13} /> : null}
         {children}
       </button>
     );

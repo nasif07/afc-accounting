@@ -1,7 +1,11 @@
 const { StatusCodes } = require("http-status-codes");
 
 const errorMiddleware = (err, req, res, next) => {
-  console.error("Error:", err);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error("Error:", err);
+  } else {
+    console.error(`[${new Date().toISOString()}] ${err.name || 'Error'}: ${err.message}`);
+  }
 
   // Default error
   let statusCode = err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;

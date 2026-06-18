@@ -19,8 +19,9 @@ const ReportRenderer = React.forwardRef(
 
     const handlePrint = () => {
       const printWindow = window.open('', '', 'height=600,width=800');
-      printWindow.document.write(printRef.current.innerHTML);
+      printWindow.document.write('<html><head><title>Print</title></head><body></body></html>');
       printWindow.document.close();
+      printWindow.document.body.appendChild(printRef.current.cloneNode(true));
       printWindow.print();
     };
 

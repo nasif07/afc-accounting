@@ -1,5 +1,7 @@
 const Student = require("./student.model");
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 class StudentService {
   /**
    * Create a new student
@@ -21,12 +23,12 @@ class StudentService {
     if (filters.class) query.class = filters.class;
     if (filters.status) query.status = filters.status;
 
-    // Regex Search
     if (filters.search) {
+      const safe = escapeRegex(String(filters.search).slice(0, 100));
       query.$or = [
-        { name: { $regex: filters.search, $options: "i" } },
-        { rollNumber: { $regex: filters.search, $options: "i" } },
-        { email: { $regex: filters.search, $options: "i" } },
+        { name: { $regex: safe, $options: "i" } },
+        { rollNumber: { $regex: safe, $options: "i" } },
+        { email: { $regex: safe, $options: "i" } },
       ];
     }
 

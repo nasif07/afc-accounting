@@ -9,24 +9,16 @@ const normalizeAuthPayload = (payload) => {
   };
 };
 
-// Only the token is persisted — never the user object.
-// Caching the user object causes stale role/permission data after an admin changes a user's role.
-// The authoritative user state is always loaded fresh from GET /auth/me on startup.
-const persistToken = (token) => {
-  if (token) localStorage.setItem('authToken', token);
-};
-
+// Auth is cookie-based (httpOnly). The token is never stored in localStorage.
+// State is always loaded fresh from GET /auth/me on startup.
 const clearAuthSession = () => {
-  localStorage.removeItem('authToken');
+  // Nothing to clear locally — the server clears the httpOnly cookie via POST /auth/logout.
 };
 
 export const register = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/register', userData);
     const authData = normalizeAuthPayload(response.data);
-    if (authData.user?.status === 'approved') {
-      persistToken(authData.token);
-    }
     return authData;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Registration failed');
@@ -37,7 +29,6 @@ export const login = createAsyncThunk('auth/login', async (credentials, { reject
   try {
     const response = await api.post('/auth/login', credentials);
     const authData = normalizeAuthPayload(response.data);
-    persistToken(authData.token);
     return authData;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Login failed');

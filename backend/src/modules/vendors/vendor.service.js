@@ -1,5 +1,7 @@
 const Vendor = require('./vendor.model');
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 class VendorService {
   /**
    * Create a new vendor
@@ -39,10 +41,11 @@ class VendorService {
     }
 
     if (filters.search) {
+      const safe = escapeRegex(String(filters.search).slice(0, 100));
       query.$or = [
-        { vendorName: { $regex: filters.search, $options: 'i' } },
-        { vendorCode: { $regex: filters.search.toUpperCase(), $options: 'i' } },
-        { email: { $regex: filters.search, $options: 'i' } },
+        { vendorName: { $regex: safe, $options: 'i' } },
+        { vendorCode: { $regex: safe.toUpperCase(), $options: 'i' } },
+        { email: { $regex: safe, $options: 'i' } },
       ];
     }
 

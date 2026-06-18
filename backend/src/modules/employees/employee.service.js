@@ -1,5 +1,7 @@
 const Employee = require('./employee.model');
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 class EmployeeService {
   static async createEmployee(employeeData) {
     const employee = new Employee(employeeData);
@@ -13,10 +15,11 @@ class EmployeeService {
     if (filters.designation) query.designation = filters.designation;
     if (filters.status) query.status = filters.status;
     if (filters.search) {
+      const safe = escapeRegex(String(filters.search).slice(0, 100));
       query.$or = [
-        { name: { $regex: filters.search, $options: 'i' } },
-        { employeeCode: { $regex: filters.search, $options: 'i' } },
-        { email: { $regex: filters.search, $options: 'i' } }
+        { name: { $regex: safe, $options: 'i' } },
+        { employeeCode: { $regex: safe, $options: 'i' } },
+        { email: { $regex: safe, $options: 'i' } },
       ];
     }
 

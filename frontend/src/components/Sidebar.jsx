@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useMemo } from "react";
-import { LogOut, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { LogOut, X, ChevronUp  } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { menuSections } from "../constants/menuSection";
 import { logoutAsync } from "../store/slices/authSlice";
@@ -16,6 +16,7 @@ export default function Sidebar({
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const role = user?.role || "";
+  const [showLogout, setShowLogout] = useState(false);
 
   const authorizedSections = useMemo(() => {
     if (!role) return [];
@@ -39,7 +40,9 @@ export default function Sidebar({
         onClick={onClose}
         aria-hidden="true"
         className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 lg:hidden ${
-          mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+          mobileOpen
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
         }`}
       />
 
@@ -53,7 +56,6 @@ export default function Sidebar({
           w-70 sm:w-72
           ${desktopOpen ? "lg:w-64" : "lg:w-20"}
         `}>
-
         {/* Logo row */}
         <div className="relative flex min-h-15 items-center justify-center border-b border-slate-200 px-4 py-3 sm:min-h-17 lg:min-h-18">
           <button
@@ -65,9 +67,17 @@ export default function Sidebar({
           </button>
 
           {desktopOpen ? (
-            <img className="h-auto w-24 object-contain sm:w-28" src={logo} alt="AFC Logo" />
+            <img
+              className="h-auto w-24 object-contain sm:w-28"
+              src={logo}
+              alt="AFC Logo"
+            />
           ) : (
-            <img className="hidden h-9 w-9 rounded-md object-cover lg:block" src={logo} alt="AFC Logo" />
+            <img
+              className="hidden h-9 w-9 rounded-md object-cover lg:block"
+              src={logo}
+              alt="AFC Logo"
+            />
           )}
         </div>
 
@@ -89,14 +99,18 @@ export default function Sidebar({
                   <NavLink
                     key={item.path}
                     to={item.path}
-                    onClick={() => { if (window.innerWidth < 1024) onClose(); }}
+                    onClick={() => {
+                      if (window.innerWidth < 1024) onClose();
+                    }}
                     className={`
                       group relative flex items-center gap-3 rounded-xl
                       px-3 py-3 sm:py-2.5
                       text-sm font-medium transition-all duration-150
-                      ${isActive
-                        ? "bg-slate-100 text-slate-900"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100"}
+                      ${
+                        isActive
+                          ? "bg-slate-100 text-slate-900"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100"
+                      }
                       ${!desktopOpen ? "lg:justify-center lg:px-0" : ""}
                     `}>
                     {isActive && (
@@ -107,12 +121,15 @@ export default function Sidebar({
                       size={18}
                       strokeWidth={isActive ? 2.4 : 2}
                       className={`shrink-0 ${
-                        isActive ? "text-slate-900" : "text-slate-400 group-hover:text-slate-700"
+                        isActive
+                          ? "text-slate-900"
+                          : "text-slate-400 group-hover:text-slate-700"
                       }`}
                     />
 
                     {desktopOpen && (
-                      <span className={`truncate ${isActive ? "font-semibold" : ""}`}>
+                      <span
+                        className={`truncate ${isActive ? "font-semibold" : ""}`}>
                         {item.title}
                       </span>
                     )}
@@ -122,31 +139,51 @@ export default function Sidebar({
             </div>
           ))}
         </nav>
-
         {/* User footer */}
-        <div className="border-t border-slate-200 p-3 sm:p-4">
-          <div className={`flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5 ${!desktopOpen ? "lg:justify-center" : ""}`}>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold uppercase text-slate-700 sm:h-9 sm:w-9">
+        <div className="border-t border-red-100 p-3 sm:p-4">
+          <div
+            onClick={() => setShowLogout((v) => !v)}
+            className={`flex cursor-pointer items-center gap-3 rounded-xl border border-red-100 bg-red-50 p-2.5 transition-all duration-200 hover:border-red-200 hover:bg-red-100 ${!desktopOpen ? "lg:justify-center" : ""}`}>
+            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#A32D2D] text-xs font-bold uppercase text-white sm:h-9 sm:w-9">
               {user?.name?.[0] || "U"}
+              <span
+                className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white transition-colors duration-300 ${showLogout ? "bg-[#A32D2D]" : "bg-emerald-400"}`}
+              />
             </div>
             {desktopOpen && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-800">{user?.name || "User"}</p>
-                <p className="truncate text-xs capitalize text-slate-500">
+                <p className="truncate text-sm font-semibold text-[#501313]">
+                  {user?.name || "User"}
+                </p>
+                <p className="truncate text-xs capitalize text-[#993556]">
                   {role ? role.replace("-", " ") : "—"}
                 </p>
               </div>
             )}
+            {desktopOpen && (
+              <span
+                className={`text-[#A32D2D] transition-transform duration-300 ${showLogout ? "rotate-180" : "rotate-0"}`}>
+                <ChevronUp size={15} />
+              </span>
+            )}
           </div>
 
-          <button
-            onClick={handleLogout}
-            type="button"
-            className={`mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-700 active:bg-red-100 sm:py-2.5 ${!desktopOpen ? "lg:justify-center" : ""}`}
-            aria-label="Logout">
-            <LogOut size={17} />
-            {desktopOpen && <span>Logout</span>}
-          </button>
+          {/* Slide down logout */}
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              showLogout
+                ? "max-h-20 opacity-100 mt-2"
+                : "max-h-0 opacity-0 mt-0"
+            }`}>
+            <button
+              onClick={handleLogout}
+              type="button"
+              className={`flex w-full items-center gap-3 rounded-xl border border-red-100 bg-white px-3 py-2.5 text-sm font-semibold text-[#A32D2D] shadow-sm transition-all hover:bg-red-50 hover:border-red-200 hover:shadow-none active:bg-red-100 ${!desktopOpen ? "lg:justify-center" : ""}`}
+              aria-label="Logout">
+              <LogOut size={16} />
+              {desktopOpen && <span>Logout</span>}
+            </button>
+          </div>
         </div>
       </aside>
     </>

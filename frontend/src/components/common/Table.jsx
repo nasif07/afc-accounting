@@ -75,7 +75,7 @@ const Table = React.forwardRef(
           </div>
         )}
 
-        <div className="w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+        <div className="w-full overflow-x-auto rounded-xl border border-neutral-200 bg-white">
           <table className="w-full min-w-max md:min-w-full">
             <thead>
               <tr className="border-b border-neutral-200 bg-neutral-50">

@@ -7,6 +7,45 @@ export const fetchJournalEntries = createAsyncThunk(
   "journals/fetchJournalEntries",
   async (params = {}, { rejectWithValue }) => {
     try {
+      // If a search term is provided, use the search service endpoint
+      if (params.search) {
+        const searchParams = { q: params.search };
+        if (params.dateFrom) searchParams.dateFrom = params.dateFrom;
+        if (params.dateTo) searchParams.dateTo = params.dateTo;
+        if (params.transactionType) searchParams.transactionType = params.transactionType;
+        if (params.approvalStatus) searchParams.approvalStatus = params.approvalStatus;
+
+        const response = await api.get("/search/journal-entries", { params: searchParams });
+        const payload = response?.data?.data ?? response?.data;
+
+        // Search returns plain array of matching entries
+        if (Array.isArray(payload)) {
+          return {
+            entries: sortEntries(payload),
+            pagination: {
+              total: payload.length,
+              page: 1,
+              limit: payload.length || 20,
+              pages: 1,
+              hasNextPage: false,
+              hasPrevPage: false,
+            },
+          };
+        }
+
+        return {
+          entries: [],
+          pagination: {
+            total: 0,
+            page: 1,
+            limit: 20,
+            pages: 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        };
+      }
+
       const response = await api.get("/accounting/journal-entries", { params });
 
       const payload = response?.data?.data ?? response?.data;

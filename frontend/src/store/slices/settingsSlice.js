@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import { settingsAPI } from '../../services/apiMethods';
 
 export const fetchSettings = createAsyncThunk(
@@ -65,22 +65,25 @@ const settingsSlice = createSlice({
 
 export const { clearError, clearSuccess } = settingsSlice.actions;
 
-// Convenience selector — returns the settings object or safe defaults
-export const selectOrgInfo = (state) => ({
-  orgName:              state.settings.data?.orgName    || 'Alliance Francaise de Chittagong',
-  orgEmail:             state.settings.data?.orgEmail   || '',
-  orgPhone:             state.settings.data?.orgPhone   || '',
-  orgAddress:           state.settings.data?.orgAddress || '',
-  orgWebsite:           state.settings.data?.orgWebsite || '',
-  orgLogo:              state.settings.data?.orgLogo    || '/afc-logo.jpg',
-  directorName:         state.settings.data?.directorName  || 'Bruno LACRAMPE',
-  directorTitle:        state.settings.data?.directorTitle || 'Director',
-  leaveYearLabel:       state.settings.data?.leaveYearLabel     || "July'2025 - June'2026",
-  benefitPeriodLabel:   state.settings.data?.benefitPeriodLabel || '01-07-2023 to 30-06-2025',
-  bankNameForPayment:   state.settings.data?.bankNameForPayment   || 'Brac Bank PLC',
-  bankAccountForPayment: state.settings.data?.bankAccountForPayment || 'XXXXXXXXXXXXXXX',
-  currency:       state.settings.data?.currency       || 'BDT',
-  currencySymbol: state.settings.data?.currencySymbol || '৳',
-});
+// Memoized selector — only recomputes when settings.data reference changes,
+// preventing unnecessary rerenders in every consumer on unrelated state updates.
+const selectSettingsData = (state) => state.settings.data;
+
+export const selectOrgInfo = createSelector(selectSettingsData, (data) => ({
+  orgName:               data?.orgName    || 'Alliance Francaise de Chittagong',
+  orgEmail:              data?.orgEmail   || '',
+  orgPhone:              data?.orgPhone   || '',
+  orgAddress:            data?.orgAddress || '',
+  orgWebsite:            data?.orgWebsite || '',
+  orgLogo:               data?.orgLogo    || '/afc-logo.jpg',
+  directorName:          data?.directorName  || 'Bruno LACRAMPE',
+  directorTitle:         data?.directorTitle || 'Director',
+  leaveYearLabel:        data?.leaveYearLabel     || "July'2025 - June'2026",
+  benefitPeriodLabel:    data?.benefitPeriodLabel || '01-07-2023 to 30-06-2025',
+  bankNameForPayment:    data?.bankNameForPayment   || 'Brac Bank PLC',
+  bankAccountForPayment: data?.bankAccountForPayment || 'XXXXXXXXXXXXXXX',
+  currency:              data?.currency       || 'BDT',
+  currencySymbol:        data?.currencySymbol || '৳',
+}));
 
 export default settingsSlice.reducer;

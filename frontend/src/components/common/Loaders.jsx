@@ -8,7 +8,7 @@ export function ButtonLoader({ className = "" }) {
 export function PageLoader({ message = "Loading...", className = "" }) {
   return (
     <div
-      className={`flex min-h-[320px] items-center justify-center bg-slate-50 ${className}`}>
+      className={`flex min-h-screen items-center justify-center bg-slate-50 ${className}`}>
       <div className="text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white ring-1 ring-slate-200">
           <Loader2 className="h-6 w-6 animate-spin text-red-600" />

@@ -423,8 +423,7 @@ export default function PettyCashReportPage() {
             body { padding: 24px; font-family: Arial, sans-serif; color: #020617; }
             table { width: 100%; border-collapse: collapse; }
             th, td { padding: 8px; border: 1px solid #020617; text-align: left; }
-            table thead tr,
-            table thead th {
+            table thead tr, table thead th {
               background: #e2f0d9 !important;
               background-color: #e2f0d9 !important;
               color: #000000 !important;
@@ -441,11 +440,12 @@ export default function PettyCashReportPage() {
             @media print { body { margin: 0; padding: 12mm; } }
           </style>
         </head>
-        <body>${reportRef.current.innerHTML}</body>
+        <body></body>
       </html>
     `);
 
     printWindow.document.close();
+    printWindow.document.body.appendChild(reportRef.current.cloneNode(true));
     printWindow.focus();
     printWindow.print();
   };

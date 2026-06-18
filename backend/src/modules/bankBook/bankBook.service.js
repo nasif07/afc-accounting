@@ -6,6 +6,8 @@ const AccountingService = require("../accounting/accounting.service");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const generateVoucherNumber = require("../../utils/generateVoucherNumber");
 const { createAuditLog } = require("../../middleware/auditLog");
+
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const SettingsService = require("../settings/settings.service");
 
 const SOURCE_MODULE = "student_collection";
@@ -361,11 +363,11 @@ class BankBookService {
     }
 
     if (filters.voucherNo) {
-      query.voucherNumber = { $regex: filters.voucherNo, $options: "i" };
+      query.voucherNumber = { $regex: escapeRegex(String(filters.voucherNo).slice(0, 100)), $options: "i" };
     }
 
     if (filters.referenceNo) {
-      query.referenceNumber = { $regex: filters.referenceNo, $options: "i" };
+      query.referenceNumber = { $regex: escapeRegex(String(filters.referenceNo).slice(0, 100)), $options: "i" };
     }
 
     if (filters.dateFrom || filters.dateTo) {

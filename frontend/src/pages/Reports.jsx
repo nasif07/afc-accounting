@@ -136,29 +136,17 @@ export default function Reports() {
           <title>Print Report</title>
           <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
           <style>
-            body {
-              padding: 24px;
-              font-family: Arial, sans-serif;
-              color: #111827;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            th, td {
-              padding: 8px;
-              border: 1px solid #e5e7eb;
-              text-align: left;
-            }
+            body { padding: 24px; font-family: Arial, sans-serif; color: #111827; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 8px; border: 1px solid #e5e7eb; text-align: left; }
           </style>
         </head>
-        <body>
-          ${printRef.current.innerHTML}
-        </body>
+        <body></body>
       </html>
     `);
 
     printWindow.document.close();
+    printWindow.document.body.appendChild(printRef.current.cloneNode(true));
 
     setTimeout(() => {
       printWindow.focus();
@@ -695,7 +683,7 @@ export default function Reports() {
               Select your report type and date filters above, then click the
               "Generate Report" button to view your financial statements.
             </p>
-            <Button variant="primary" onClick={fetchReport} size="lg">
+            <Button variant="primary" onClick={fetchReport} >
               <BarChart3 size={18} className="mr-2" />
               Generate Report Now
             </Button>

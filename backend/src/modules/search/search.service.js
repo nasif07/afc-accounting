@@ -5,9 +5,12 @@ const Student = require('../students/student.model');
 const Vendor = require('../vendors/vendor.model');
 const Employee = require('../employees/employee.model');
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const safeRegex = (s) => ({ $regex: escapeRegex(String(s).slice(0, 100)), $options: 'i' });
+
 class SearchService {
   static async globalSearch(query, filters = {}) {
-    const searchRegex = { $regex: query, $options: 'i' };
+    const searchRegex = safeRegex(query);
     const dateFilter = this.buildDateFilter(filters);
 
     const results = {
@@ -85,7 +88,7 @@ class SearchService {
   }
 
   static async searchReceipts(query, filters = {}) {
-    const searchRegex = { $regex: query, $options: 'i' };
+    const searchRegex = safeRegex(query);
     const dateFilter = this.buildDateFilter(filters);
 
     return await Receipt.find({
@@ -101,7 +104,7 @@ class SearchService {
   }
 
   static async searchExpenses(query, filters = {}) {
-    const searchRegex = { $regex: query, $options: 'i' };
+    const searchRegex = safeRegex(query);
     const dateFilter = this.buildDateFilter(filters);
 
     return await Expense.find({
@@ -118,7 +121,7 @@ class SearchService {
   }
 
   static async searchJournalEntries(query, filters = {}) {
-    const searchRegex = { $regex: query, $options: 'i' };
+    const searchRegex = safeRegex(query);
     const dateFilter = this.buildDateFilter(filters);
 
     return await JournalEntry.find({
@@ -135,7 +138,7 @@ class SearchService {
   }
 
   static async searchStudents(query, filters = {}) {
-    const searchRegex = { $regex: query, $options: 'i' };
+    const searchRegex = safeRegex(query);
 
     return await Student.find({
       $or: [
@@ -150,7 +153,7 @@ class SearchService {
   }
 
   static async searchVendors(query, filters = {}) {
-    const searchRegex = { $regex: query, $options: 'i' };
+    const searchRegex = safeRegex(query);
 
     return await Vendor.find({
       $or: [
@@ -164,7 +167,7 @@ class SearchService {
   }
 
   static async searchEmployees(query, filters = {}) {
-    const searchRegex = { $regex: query, $options: 'i' };
+    const searchRegex = safeRegex(query);
 
     return await Employee.find({
       $or: [

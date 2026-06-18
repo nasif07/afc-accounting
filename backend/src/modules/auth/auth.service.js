@@ -22,8 +22,6 @@ class AuthService {
 
     await user.save();
 
-    const token = this.generateToken(user._id, user.email, user.role);
-
     return {
       user: {
         id: user._id,
@@ -32,7 +30,6 @@ class AuthService {
         role: user.role,
         status: user.status,
       },
-      token,
     };
   }
 

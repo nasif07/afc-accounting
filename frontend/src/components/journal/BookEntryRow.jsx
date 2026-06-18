@@ -28,23 +28,21 @@ const BookEntryRow = ({
 
   const handleDebitChange = (e) => {
     const value = e.target.value;
-    const numValue = value === "" ? 0 : Number(value);
-
+    const parsed = parseFloat(value);
     onUpdate(rowIndex, {
       ...entry,
-      debit: numValue,
-      credit: numValue > 0 ? 0 : entry.credit,
+      debit: value,
+      credit: !isNaN(parsed) && parsed > 0 ? "" : entry.credit,
     });
   };
 
   const handleCreditChange = (e) => {
     const value = e.target.value;
-    const numValue = value === "" ? 0 : Number(value);
-
+    const parsed = parseFloat(value);
     onUpdate(rowIndex, {
       ...entry,
-      credit: numValue,
-      debit: numValue > 0 ? 0 : entry.debit,
+      credit: value,
+      debit: !isNaN(parsed) && parsed > 0 ? "" : entry.debit,
     });
   };
 
@@ -88,24 +86,22 @@ const BookEntryRow = ({
         <div className="md:col-span-2">
           <Input
             label="Debit"
-            type="number"
-            value={entry.debit ?? ""}
+            type="text"
+            inputMode="decimal"
+            value={entry.debit || ""}
             onChange={handleDebitChange}
             placeholder="0.00"
-            step="0.01"
-            min="0"
           />
         </div>
 
         <div className="md:col-span-2">
           <Input
             label="Credit"
-            type="number"
-            value={entry.credit ?? ""}
+            type="text"
+            inputMode="decimal"
+            value={entry.credit || ""}
             onChange={handleCreditChange}
             placeholder="0.00"
-            step="0.01"
-            min="0"
           />
         </div>
 

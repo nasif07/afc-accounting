@@ -13,25 +13,20 @@ const getAuthCookieOptions = () => ({
 class AuthController {
   static async register(req, res, next) {
     try {
-      const { name, email, password, confirmPassword } = req.body;
+      const { name, email, password } = req.body;
 
-      if (!name || !email || !password || !confirmPassword) {
+      if (!name || !email || !password) {
         return ApiResponse.badRequest(res, "All fields are required");
-      }
-
-      if (password !== confirmPassword) {
-        return ApiResponse.badRequest(res, "Passwords do not match");
       }
 
       if (password.length < 8) {
         return ApiResponse.badRequest(res, "Password must be at least 8 characters");
       }
 
-      // confirmPassword is not forwarded to the service
       const result = await AuthService.register({ name, email, password });
 
-      res.cookie("token", result.token, getAuthCookieOptions());
-      return ApiResponse.created(res, result, "User registered successfully");
+      // No cookie — account is pending director approval and cannot authenticate yet.
+      return ApiResponse.created(res, result, "Registration successful. Your account is pending director approval.");
     } catch (error) {
       next(error);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import { selectOrgInfo } from "../store/slices/settingsSlice";
@@ -73,24 +73,25 @@ function PanelState({ loading, error, empty, children, emptyText }) {
 function SummaryCard({ title, value, icon: Icon, tone, href }) {
   return (
     <Card className="rounded-lg shadow-none">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+      <CardContent className="p-3 sm:p-5">
+        <div className="flex items-start justify-between gap-2 sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-xs">
               {title}
             </p>
-            <p className="mt-2 text-lg font-bold text-slate-900 sm:mt-3 sm:text-xl lg:text-2xl">
+            <p className="mt-1.5 truncate text-base font-bold text-slate-900 sm:mt-3 sm:text-xl lg:text-2xl">
               {value}
             </p>
           </div>
-          <div className={`rounded-lg p-2 ${tone}`}>
-            <Icon size={20} />
+          <div className={`shrink-0 rounded-lg p-1.5 sm:p-2 ${tone}`}>
+            <Icon size={16} className="sm:hidden" />
+            <Icon size={20} className="hidden sm:block" />
           </div>
         </div>
         {href && (
           <Link
             to={href}
-            className="mt-4 inline-flex text-xs font-bold uppercase tracking-wide text-slate-600 hover:text-[#DA002E]">
+            className="mt-3 inline-flex text-xs font-bold uppercase tracking-wide text-slate-600 hover:text-[#DA002E] sm:mt-4">
             View details
           </Link>
         )}
@@ -121,7 +122,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const formatMoney = (amount) => {
+  const formatMoney = useCallback((amount) => {
     const num = Number(amount || 0);
     try {
       return new Intl.NumberFormat("en-US", {
@@ -132,9 +133,9 @@ export default function Dashboard() {
     } catch {
       return `${currencySymbol}${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
     }
-  };
+  }, [currency, currencySymbol]);
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -149,11 +150,11 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [loadDashboard]);
 
   const summaryCards = useMemo(() => {
     const summary = dashboard?.summary || {};
@@ -195,7 +196,7 @@ export default function Dashboard() {
         href: "/director/approvals",
       },
     ];
-  }, [dashboard]);
+  }, [dashboard, formatMoney]);
 
   const incomeVsExpense = dashboard?.charts?.incomeVsExpense || [];
   const expenseByCategory = dashboard?.charts?.expenseByCategory || [];
@@ -241,9 +242,9 @@ export default function Dashboard() {
         {loading
           ? Array.from({ length: 5 }).map((_, index) => (
               <Card key={index} className="shadow-none">
-                <CardContent className="p-4 sm:p-5">
-                  <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
-                  <div className="mt-3 h-6 w-28 animate-pulse rounded bg-slate-100" />
+                <CardContent className="p-3 sm:p-5">
+                  <div className="h-3 w-16 animate-pulse rounded bg-slate-100 sm:w-20" />
+                  <div className="mt-2 h-5 w-20 animate-pulse rounded bg-slate-100 sm:mt-3 sm:h-6 sm:w-28" />
                 </CardContent>
               </Card>
             ))
@@ -270,8 +271,8 @@ export default function Dashboard() {
               error={error}
               empty={incomeVsExpense.length === 0}
               emptyText="No approved income or expense journals yet.">
-              <div className="h-55 sm:h-67.5 lg:h-75 xl:h-80">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-[220px] sm:h-[270px] lg:h-[300px] xl:h-80">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={incomeVsExpense}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} />
@@ -313,8 +314,8 @@ export default function Dashboard() {
               error={error}
               empty={expenseByCategory.length === 0}
               emptyText="No approved expense journals this month.">
-              <div className="h-72 sm:h-80 lg:h-75 xl:h-80">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-72 sm:h-80 lg:h-[300px] xl:h-80">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie
                       data={expenseByCategory}

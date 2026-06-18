@@ -53,6 +53,14 @@ const employeeSchema = new mongoose.Schema(
       default: true,
     },
     notes: String,
+
+    // ── Emergency contact ─────────────────────────────────────────────────────
+    emergencyContactName:         { type: String, trim: true },
+    emergencyContactRelationship: { type: String, trim: true },
+    emergencyContactPhone:        { type: String, trim: true },
+    emergencyContactAltPhone:     { type: String, trim: true },
+    emergencyContactAddress:      { type: String, trim: true },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

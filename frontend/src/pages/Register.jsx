@@ -235,7 +235,7 @@ export default function Register() {
               loading={loading}
               disabled={!!passwordMismatch}
               icon={ClipboardCheck}
-              className="bg-[#002395]! hover:bg-[#001a6e]! rounded-sm! font-bold! uppercase tracking-widest text-xs! py-3 shadow-md">
+              className="bg-brand-blue! hover:bg-[#001a6e]! rounded-sm! font-bold! uppercase tracking-widest text-xs! py-3! shadow-md">
               {loading ? "Processing..." : "Submit Access Request"}
             </Button>
           </form>

@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import DynamicJournalForm from "../components/journal/DynamicJournalForm";
 import SectionHeader from "../components/common/SectionHeader";
+import { TableSkeleton } from "../components/common/Loaders";
 
 export default function JournalEntries() {
   const dispatch = useDispatch();
@@ -281,6 +282,38 @@ export default function JournalEntries() {
           </div>
 
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {isLoading ? (
+              <>
+                <div className="hidden lg:block">
+                  <TableSkeleton rows={8} columns={7} />
+                </div>
+                <div className="divide-y divide-slate-100 lg:hidden">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-2 flex-1">
+                          <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
+                          <div className="h-4 w-48 animate-pulse rounded bg-slate-100" />
+                        </div>
+                        <div className="h-5 w-16 animate-pulse rounded bg-slate-200" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 border-y border-slate-50 py-2">
+                        <div className="h-8 animate-pulse rounded bg-slate-100" />
+                        <div className="h-8 animate-pulse rounded bg-slate-100" />
+                      </div>
+                      <div className="flex justify-between">
+                        <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                        <div className="flex gap-2">
+                          <div className="h-7 w-12 animate-pulse rounded bg-slate-100" />
+                          <div className="h-7 w-12 animate-pulse rounded bg-slate-100" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+            <>
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full border-collapse text-left">
                 <thead className="border-b border-slate-200 bg-slate-50/80">
@@ -518,10 +551,12 @@ export default function JournalEntries() {
               </div>
             )}
 
-            {entries.length === 0 && !isLoading && (
+            {entries.length === 0 && (
               <div className="py-20 text-center text-sm italic text-slate-400">
                 No ledger entries found.
               </div>
+            )}
+            </>
             )}
           </div>
         </>
