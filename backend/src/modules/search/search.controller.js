@@ -3,25 +3,6 @@ const SearchService = require('./search.service');
 const ApiResponse = require('../../utils/apiResponse');
 
 class SearchController {
-  static async globalSearch(req, res, next) {
-    try {
-      const { q, dateFrom, dateTo } = req.query;
-
-      if (!q) {
-        return ApiResponse.badRequest(res, 'Search query is required');
-      }
-
-      const filters = {};
-      if (dateFrom) filters.dateFrom = dateFrom;
-      if (dateTo) filters.dateTo = dateTo;
-
-      const results = await SearchService.globalSearch(q, filters);
-      return ApiResponse.success(res, results, 'Global search completed successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
-
   static async searchReceipts(req, res, next) {
     try {
       const { q, dateFrom, dateTo, approvalStatus } = req.query;

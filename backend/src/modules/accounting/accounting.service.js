@@ -2,6 +2,7 @@ const JournalEntry = require("./accounting.model");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const COAService = require("../chartOfAccounts/coa.service");
 const mongoose = require("mongoose");
+const { BadRequestError } = require("../../errors");
 
 class AccountingService {
   static getDebitNatureTypes() {
@@ -104,7 +105,7 @@ class AccountingService {
     const accounts = await ChartOfAccounts.find({
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     const balances = [];
     let totalDebits = 0;
@@ -144,13 +145,13 @@ class AccountingService {
       accountType: { $in: ["income", "revenue", "Income", "Revenue"] },
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     const expenses = await ChartOfAccounts.find({
       accountType: { $in: ["expense", "Expense"] },
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     const revenueList = [];
     let totalRevenue = 0;
@@ -206,19 +207,19 @@ class AccountingService {
       accountType: { $in: ["asset", "Asset"] },
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     const liabilities = await ChartOfAccounts.find({
       accountType: { $in: ["liability", "Liability"] },
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     const equity = await ChartOfAccounts.find({
       accountType: { $in: ["equity", "Equity"] },
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     const assetList = [];
     let totalAssets = 0;
@@ -281,7 +282,7 @@ class AccountingService {
       accountName: { $regex: /retained earnings/i },
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     let retainedEarnings = 0;
 
@@ -325,7 +326,7 @@ class AccountingService {
       accountName: { $regex: /cash|bank/i },
       deletedAt: null,
       status: "active",
-    });
+    }).lean({ getters: true });
 
     const cashAccountIds = cashAccounts.map((a) => a._id);
 
@@ -359,7 +360,9 @@ class AccountingService {
         $gte: new Date(startDate),
         $lte: new Date(endDate),
       },
-    }).populate("bookEntries.account");
+    })
+      .populate("bookEntries.account")
+      .lean({ getters: true });
 
     const inflows = [];
     const outflows = [];
@@ -367,7 +370,7 @@ class AccountingService {
     let totalOutflow = 0;
 
     for (const entry of entries) {
-      const jsonEntry = entry.toJSON();
+      const jsonEntry = entry;
 
       const cashLines = (jsonEntry.bookEntries || []).filter((bookEntry) =>
         cashAccountIds.some(
@@ -413,7 +416,7 @@ class AccountingService {
     endDate,
     options = {},
   ) {
-    const account = await ChartOfAccounts.findById(accountId);
+    const account = await ChartOfAccounts.findById(accountId).lean({ getters: true });
     if (!account) throw new Error("Account not found");
 
     const page = Math.max(1, parseInt(options.page, 10) || 1);
@@ -452,7 +455,8 @@ class AccountingService {
       .populate("bookEntries.account", "accountName accountCode accountType")
       .sort({ voucherDate: 1, createdAt: 1, _id: 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean({ getters: true });
 
     let runningSignedBalance = this.calculateSignedBalance(
       account.accountType,
@@ -464,7 +468,7 @@ class AccountingService {
     let totalCredit = 0;
 
     const transactions = entries.map((entry) => {
-      const jsonEntry = entry.toJSON();
+      const jsonEntry = entry;
 
       const relevantBookEntry = (jsonEntry.bookEntries || []).find(
         (bookEntry) =>
@@ -532,7 +536,7 @@ class AccountingService {
     const account = await ChartOfAccounts.findOne({
       _id: accountId,
       deletedAt: null,
-    });
+    }).lean({ getters: true });
 
     if (!account) {
       throw new Error("Account not found");
@@ -547,12 +551,12 @@ class AccountingService {
         $gte: new Date(startDate),
         $lte: new Date(endDate),
       },
-    });
+    }).lean({ getters: true });
 
     let signedAmount = 0;
 
     for (const entry of entries) {
-      const jsonEntry = entry.toJSON();
+      const jsonEntry = entry;
 
       for (const line of jsonEntry.bookEntries || []) {
         const lineAccountId =
@@ -578,7 +582,7 @@ class AccountingService {
     const account = await ChartOfAccounts.findOne({
       _id: accountId,
       deletedAt: null,
-    });
+    }).lean({ getters: true });
 
     if (!account) {
       throw new Error("Account not found");
@@ -605,10 +609,10 @@ class AccountingService {
       approvalStatus: "approved",
       deletedAt: null,
       voucherDate: { $lte: asOfDate },
-    });
+    }).lean({ getters: true });
 
     for (const entry of entries) {
-      const jsonEntry = entry.toJSON();
+      const jsonEntry = entry;
 
       for (const line of jsonEntry.bookEntries || []) {
         const lineAccountId =
@@ -647,7 +651,7 @@ class AccountingService {
 
   static validateDoubleEntry(bookEntries) {
     if (!Array.isArray(bookEntries) || bookEntries.length < 2) {
-      throw new Error("Journal entry must have at least 2 line items");
+      throw new BadRequestError("Journal entry must have at least 2 line items");
     }
 
     let totalDebits = 0;
@@ -658,15 +662,15 @@ class AccountingService {
       const credit = this.normalizeMoney(entry.credit || 0);
 
       if (debit < 0 || credit < 0) {
-        throw new Error("Debit and credit cannot be negative");
+        throw new BadRequestError("Debit and credit cannot be negative");
       }
 
       if (debit > 0 && credit > 0) {
-        throw new Error("A line cannot contain both debit and credit");
+        throw new BadRequestError("A line cannot contain both debit and credit");
       }
 
       if (debit === 0 && credit === 0) {
-        throw new Error("Each line must contain either debit or credit");
+        throw new BadRequestError("Each line must contain either debit or credit");
       }
 
       entry.debit = debit;
@@ -676,7 +680,7 @@ class AccountingService {
     }
 
     if (Math.round(Math.abs(totalDebits - totalCredits) * 100) > 0) {
-      throw new Error(
+      throw new BadRequestError(
         `Double-entry validation failed. Debits: ${totalDebits}, Credits: ${totalCredits}`,
       );
     }
@@ -763,7 +767,7 @@ class AccountingService {
 
 static async createJournalEntry(entryData, { session: externalSession } = {}) {
   if (!entryData?.bookEntries || !Array.isArray(entryData.bookEntries)) {
-    throw new Error("Book entries are required");
+    throw new BadRequestError("Book entries are required");
   }
 
   this.validateDoubleEntry(entryData.bookEntries);
@@ -771,7 +775,7 @@ static async createJournalEntry(entryData, { session: externalSession } = {}) {
   const accountErrors = await this.validateAccounts(entryData.bookEntries);
 
   if (accountErrors.length > 0) {
-    throw new Error(`Invalid accounts: ${accountErrors.join(", ")}`);
+    throw new BadRequestError(`Invalid accounts: ${accountErrors.join(", ")}`);
   }
 
   const requiresApproval = entryData.requiresApproval !== false;
@@ -883,7 +887,7 @@ static async createJournalEntry(entryData, { session: externalSession } = {}) {
       this.validateDoubleEntry(updateData.bookEntries);
       const errors = await this.validateAccounts(updateData.bookEntries);
       if (errors.length > 0) {
-        throw new Error(`Invalid accounts: ${errors.join(", ")}`);
+        throw new BadRequestError(`Invalid accounts: ${errors.join(", ")}`);
       }
     }
 
@@ -1064,21 +1068,6 @@ static async createJournalEntry(entryData, { session: externalSession } = {}) {
     return entries.map((entry) => entry.toJSON());
   }
 
-  static async getEntriesByAccount(accountId) {
-    const entries = await JournalEntry.find({
-      "bookEntries.account": accountId,
-      deletedAt: null,
-    })
-      .populate("createdBy", "name email")
-      .populate("bookEntries.account", "accountCode accountName accountType")
-      .sort({ voucherDate: -1, createdAt: -1 });
-
-    return entries.map((entry) => entry.toJSON());
-  }
-
-  static async getTrialBalance() {
-    return this.generateTrialBalance(new Date());
-  }
 }
 
 module.exports = AccountingService;

@@ -9,7 +9,10 @@ export const useExpenses = (params = {}, options = {}) =>
     queryKey: [...KEY, params],
     queryFn: async () => {
       const res = await api.get('/expenses', { params });
-      return res.data?.data || res.data || [];
+      // GET /expenses returns { data: [...], pagination: {...} } wrapped in
+      // the ApiResponse envelope, i.e. res.data.data is that paginated body.
+      const { data: items = [], pagination = null } = res.data?.data || {};
+      return { items, pagination };
     },
     staleTime: 5 * 60 * 1000,
     ...options,

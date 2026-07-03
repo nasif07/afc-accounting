@@ -260,7 +260,7 @@ const StudentFormModal = ({
               <SectionTitle title="Financial Records" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50/50 p-4 rounded-xl border border-amber-100">
                 <Input
-                  label="Total Payable Fee ($)"
+                  label="Total Payable Fee"
                   type="number"
                   value={formData.totalPayable}
                   onChange={(v) =>
@@ -268,7 +268,7 @@ const StudentFormModal = ({
                   }
                 />
                 <Input
-                  label="Amount Already Paid ($)"
+                  label="Amount Already Paid"
                   type="number"
                   value={formData.totalPaid}
                   onChange={(v) => setFormData({ ...formData, totalPaid: v })}

@@ -1,19 +1,22 @@
 const { StatusCodes } = require("http-status-codes");
+const mongoose = require("mongoose");
 const ApiResponse = require("../utils/apiResponse");
+const logger = require("../utils/logger");
 
 const errorMiddleware = (err, req, res, next) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.error("Error:", err);
-  } else {
-    console.error(`[${new Date().toISOString()}] ${err.name || 'Error'}: ${err.message}`);
-  }
+  // req.log is a pino child logger scoped to this request (via pino-http in
+  // app.js), so this error is automatically correlated with the request id
+  // and the rest of that request's log lines.
+  (req.log || logger).error({ err }, err.message || 'Unhandled error');
 
-  // Default error
+  // Default error — covers the app's own typed errors (errors/AppError.js
+  // and subclasses), which set statusCode directly.
   let statusCode = err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
   let message = err.message || "Internal Server Error";
 
-  // Mongoose validation error
-  if (err.name === "ValidationError") {
+  // Mongoose validation error. Checked via instanceof (not err.name, which
+  // the app's own ValidationError class also uses) so the two don't collide.
+  if (err instanceof mongoose.Error.ValidationError) {
     statusCode = StatusCodes.BAD_REQUEST;
     message = Object.values(err.errors)
       .map((e) => e.message)

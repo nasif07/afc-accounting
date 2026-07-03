@@ -12,7 +12,10 @@ export const useReceiptsAdvanced = (filters = {}, options = {}) => {
     queryKey: [...RECEIPTS_KEY, filters],
     queryFn: async () => {
       const response = await api.get('/receipts', { params: filters });
-      return response.data.data || response.data;
+      // GET /receipts returns { data: [...], pagination: {...} } wrapped in
+      // the ApiResponse envelope, i.e. response.data.data is that paginated body.
+      const { data: items = [], pagination = null } = response.data?.data || {};
+      return { items, pagination };
     },
     staleTime: 5 * 60 * 1000,
     ...options,

@@ -2,6 +2,8 @@ const Bank = require("./bank.model");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const COAService = require("../chartOfAccounts/coa.service");
 const JournalEntry = require("../accounting/accounting.model");
+const { NotFoundError, BadRequestError } = require("../../errors");
+const logger = require("../../utils/logger");
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -174,7 +176,7 @@ class BankService {
             Number(bank.lastReconciledBalance || 0) - bank.currentBalance;
         }
       } catch (error) {
-        console.error(`Error calculating balance for bank ${bank._id}:`, error.message);
+        logger.error({ err: error, bankId: bank._id }, "Error calculating balance for bank");
         bank.currentBalance = 0;
         bank.balanceError = error.message;
       }
@@ -195,7 +197,7 @@ class BankService {
       .lean();
 
     if (!bank) {
-      throw new Error("Bank account not found");
+      throw new NotFoundError("Bank account not found");
     }
 
     // Calculate current balance
@@ -206,7 +208,7 @@ class BankService {
           Number(bank.lastReconciledBalance || 0) - bank.currentBalance;
       }
     } catch (error) {
-      console.error(`Error calculating balance for bank ${bankId}:`, error.message);
+      logger.error({ err: error, bankId }, "Error calculating balance for bank");
       bank.currentBalance = 0;
       bank.balanceError = error.message;
     }
@@ -229,7 +231,7 @@ class BankService {
     ];
     for (const field of immutableFields) {
       if (field in updateData) {
-        throw new Error(`Cannot update immutable field: ${field}`);
+        throw new BadRequestError(`Cannot update immutable field: ${field}`);
       }
     }
 
@@ -276,7 +278,7 @@ class BankService {
       .populate("coaAccount", "accountName accountCode accountType");
 
     if (!bank) {
-      throw new Error("Bank account not found");
+      throw new NotFoundError("Bank account not found");
     }
 
     return bank;
@@ -290,7 +292,7 @@ class BankService {
     const bank = await Bank.findById(bankId);
 
     if (!bank) {
-      throw new Error("Bank account not found");
+      throw new NotFoundError("Bank account not found");
     }
 
     if (bank.deletedAt) {
@@ -306,7 +308,7 @@ class BankService {
     });
 
     if (linkedEntries > 0) {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot delete bank account. There are ${linkedEntries} posted journal entries using this account. Archive the account instead.`
       );
     }
@@ -356,7 +358,7 @@ class BankService {
     const bank = await Bank.findOne({ _id: bankId, deletedAt: null }).lean();
 
     if (!bank) {
-      throw new Error("Bank account not found");
+      throw new NotFoundError("Bank account not found");
     }
 
     await COAService.deduplicateOpeningBalanceJournals(bank.coaAccount);
@@ -507,7 +509,7 @@ class BankService {
     const bank = await Bank.findById(bankId);
 
     if (!bank) {
-      throw new Error("Bank account not found");
+      throw new NotFoundError("Bank account not found");
     }
 
     const reconciledBalance = Number(reconcileData.reconciledBalance || 0);
@@ -590,13 +592,14 @@ class BankService {
   }
 
   /**
-   * Get reconciliation status for a bank account
+   * Get reconciliation status for a bank account.
+   * Used internally by reconcileBankAccount to build its response payload.
    */
   static async getReconciliationStatus(bankId) {
     const bank = await Bank.findById(bankId);
 
     if (!bank) {
-      throw new Error("Bank account not found");
+      throw new NotFoundError("Bank account not found");
     }
 
     await COAService.deduplicateOpeningBalanceJournals(bank.coaAccount);
@@ -652,73 +655,6 @@ class BankService {
     };
   }
 
-  /**
-   * Archive a bank account (soft delete with ability to restore)
-   */
-  static async archiveBankAccount(bankId, userId) {
-    const bank = await Bank.findById(bankId);
-
-    if (!bank) {
-      throw new Error("Bank account not found");
-    }
-
-    bank.isActive = false;
-    bank.updatedBy = userId;
-
-    await bank.save();
-    return bank;
-  }
-
-  /**
-   * Restore an archived bank account
-   */
-  static async restoreBankAccount(bankId, userId) {
-    const bank = await Bank.findOne({ _id: bankId, deletedAt: null });
-
-    if (!bank) {
-      throw new Error("Bank account not found");
-    }
-
-    bank.isActive = true;
-    bank.updatedBy = userId;
-
-    await bank.save();
-    return bank;
-  }
-
-  /**
-   * Validate bank account can be deactivated
-   */
-  static async validateCanDeactivate(bankId) {
-    const bank = await Bank.findById(bankId);
-
-    if (!bank) {
-      throw new Error("Bank account not found");
-    }
-
-    // Check for pending reconciliation
-    if (bank.reconciliationDifference !== 0) {
-      throw new Error(
-        "Cannot deactivate bank account with pending reconciliation differences"
-      );
-    }
-
-    // Check for recent transactions
-    const recentEntries = await JournalEntry.countDocuments({
-      "bookEntries.account": bank.coaAccount,
-      status: "posted",
-      approvalStatus: "approved",
-      voucherDate: {
-        $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-      },
-      deletedAt: null,
-    });
-
-    return {
-      canDeactivate: true,
-      warnings: recentEntries > 0 ? [`${recentEntries} transactions in last 30 days`] : [],
-    };
-  }
 }
 
 module.exports = BankService;

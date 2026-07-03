@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const mongooseLeanGetters = require("mongoose-lean-getters");
 const { ACCOUNT_TYPES } = require("../../config/constants");
 
 const MONEY_SETTER = (v) => Math.round(Number(v || 0) * 100);
@@ -270,5 +271,10 @@ coaSchema.methods.canPostTransactions = async function () {
 coaSchema.index({ accountName: 1, accountType: 1 });
 coaSchema.index({ status: 1, accountType: 1 });
 coaSchema.index({ parentAccount: 1, status: 1 });
+
+// Lets report-generation queries use .lean({ getters: true }) and still get
+// the minor-to-major unit conversion (openingBalance, currentBalance) that
+// would otherwise only run on hydrated documents.
+coaSchema.plugin(mongooseLeanGetters);
 
 module.exports = mongoose.model("ChartOfAccounts", coaSchema);

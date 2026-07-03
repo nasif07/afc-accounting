@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcryptjs = require('bcryptjs');
 const { USER_ROLES } = require('../../config/constants');
+const { EMAIL_REGEX } = require('../../utils/validators');
 
 const userSchema = new mongoose.Schema(
   {
@@ -22,7 +23,7 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email'],
+      match: [EMAIL_REGEX, 'Please provide a valid email'],
     },
     password: {
       type: String,

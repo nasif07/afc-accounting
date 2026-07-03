@@ -1,6 +1,17 @@
 const Receipt = require("./receipt.model");
 const PDFGenerator = require("../../utils/pdfGenerator");
 
+// Approval/financial-outcome fields that must never be settable through the
+// generic update path — they're only ever set by approveReceipt/rejectReceipt.
+const RECEIPT_PROTECTED_FIELDS = [
+  "approvalStatus",
+  "approvedBy",
+  "approvalDate",
+  "rejectionReason",
+  "journalEntryId",
+  "accountingStatus",
+];
+
 class ReceiptService {
   static async createReceipt(receiptData) {
     const receipt = new Receipt(receiptData);
@@ -19,11 +30,30 @@ class ReceiptService {
       if (filters.dateTo) query.date.$lte = new Date(filters.dateTo);
     }
 
-    return await Receipt.find(query)
-      .populate("student", "name rollNumber class email")
-      .populate("createdBy", "name email")
-      .populate("approvedBy", "name email")
-      .sort({ date: -1 });
+    const page = Math.max(1, parseInt(filters.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      Receipt.find(query)
+        .populate("student", "name rollNumber class email")
+        .populate("createdBy", "name email")
+        .populate("approvedBy", "name email")
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit),
+      Receipt.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   static async getReceiptById(receiptId) {
@@ -34,6 +64,10 @@ class ReceiptService {
   }
 
   static async updateReceipt(receiptId, updateData) {
+    for (const field of RECEIPT_PROTECTED_FIELDS) {
+      delete updateData[field];
+    }
+
     return await Receipt.findByIdAndUpdate(receiptId, updateData, {
       new: true,
       runValidators: true,

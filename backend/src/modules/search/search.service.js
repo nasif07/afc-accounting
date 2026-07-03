@@ -2,91 +2,11 @@ const Receipt = require('../receipts/receipt.model');
 const Expense = require('../expenses/expense.model');
 const JournalEntry = require('../accounting/accounting.model');
 const Student = require('../students/student.model');
-const Vendor = require('../vendors/vendor.model');
-const Employee = require('../employees/employee.model');
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const safeRegex = (s) => ({ $regex: escapeRegex(String(s).slice(0, 100)), $options: 'i' });
 
 class SearchService {
-  static async globalSearch(query, filters = {}) {
-    const searchRegex = safeRegex(query);
-    const dateFilter = this.buildDateFilter(filters);
-
-    const results = {
-      receipts: [],
-      expenses: [],
-      journalEntries: [],
-      students: [],
-      vendors: [],
-      employees: []
-    };
-
-    // Search receipts
-    results.receipts = await Receipt.find({
-      $or: [
-        { receiptNumber: searchRegex },
-        { description: searchRegex }
-      ],
-      ...dateFilter
-    })
-      .populate('student', 'name rollNumber')
-      .limit(10);
-
-    // Search expenses
-    results.expenses = await Expense.find({
-      $or: [
-        { expenseNumber: searchRegex },
-        { description: searchRegex }
-      ],
-      ...dateFilter
-    })
-      .populate('vendor', 'vendorName')
-      .limit(10);
-
-    // Search journal entries
-    results.journalEntries = await JournalEntry.find({
-      $or: [
-        { referenceNumber: searchRegex },
-        { description: searchRegex }
-      ],
-      ...dateFilter
-    })
-      .limit(10);
-
-    // Search students
-    results.students = await Student.find({
-      $or: [
-        { name: searchRegex },
-        { rollNumber: searchRegex },
-        { email: searchRegex }
-      ]
-    })
-      .limit(10);
-
-    // Search vendors
-    results.vendors = await Vendor.find({
-      $or: [
-        { vendorName: searchRegex },
-        { vendorCode: searchRegex },
-        { email: searchRegex }
-      ]
-    })
-      .limit(10);
-
-    // Search employees
-    results.employees = await Employee.find({
-      $or: [
-        { name: searchRegex },
-        { employeeCode: searchRegex },
-        { email: searchRegex }
-      ]
-    })
-      .limit(10);
-
-    return results;
-  }
-
   static async searchReceipts(query, filters = {}) {
     const searchRegex = safeRegex(query);
     const dateFilter = this.buildDateFilter(filters);
@@ -150,34 +70,6 @@ class SearchService {
       ...(filters.status && { status: filters.status })
     })
       .sort({ rollNumber: 1 });
-  }
-
-  static async searchVendors(query, filters = {}) {
-    const searchRegex = safeRegex(query);
-
-    return await Vendor.find({
-      $or: [
-        { vendorName: searchRegex },
-        { vendorCode: searchRegex },
-        { email: searchRegex }
-      ],
-      ...(filters.vendorType && { vendorType: filters.vendorType }),
-      ...(filters.status && { status: filters.status })
-    });
-  }
-
-  static async searchEmployees(query, filters = {}) {
-    const searchRegex = safeRegex(query);
-
-    return await Employee.find({
-      $or: [
-        { name: searchRegex },
-        { employeeCode: searchRegex },
-        { email: searchRegex }
-      ],
-      ...(filters.department && { department: filters.department }),
-      ...(filters.status && { status: filters.status })
-    });
   }
 
   static buildDateFilter(filters) {

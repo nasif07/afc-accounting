@@ -676,44 +676,6 @@ class COAService {
     };
   }
 
-  static async getAccountTransactions(accountId, limit = 20, offset = 0) {
-    const parsedLimit = Number(limit);
-    const parsedOffset = Number(offset);
-
-    const safeLimit =
-      Number.isNaN(parsedLimit) || parsedLimit < 1 ? 20 : parsedLimit;
-    const safeOffset =
-      Number.isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
-
-    const transactions = await JournalEntry.find(
-      {
-        "bookEntries.account": accountId,
-        deletedAt: null,
-        status: "posted",
-        approvalStatus: "approved",
-      },
-      {
-        bookEntries: 1,
-        voucherNumber: 1,
-        voucherDate: 1,
-        description: 1,
-        status: 1,
-        createdAt: 1,
-      },
-    )
-      .sort({ voucherDate: -1, createdAt: -1 })
-      .skip(safeOffset)
-      .limit(safeLimit)
-      .lean();
-
-    return transactions.map((entry) => ({
-      ...entry,
-      bookEntries: (entry.bookEntries || []).filter(
-        (bookEntry) => bookEntry.account?.toString() === accountId.toString(),
-      ),
-    }));
-  }
-
   static async buildAccountTree(filters = {}) {
     const query = {};
 

@@ -1,6 +1,7 @@
 const { StatusCodes } = require('http-status-codes');
 const VendorService = require('./vendor.service');
 const ApiResponse = require('../../utils/apiResponse');
+const { isValidEmail } = require('../../utils/validators');
 
 class VendorController {
   /**
@@ -46,11 +47,8 @@ class VendorController {
       }
 
       // Validate email if provided
-      if (email) {
-        const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
-        if (!emailRegex.test(email)) {
-          return ApiResponse.badRequest(res, 'Please provide a valid email');
-        }
+      if (email && !isValidEmail(email)) {
+        return ApiResponse.badRequest(res, 'Please provide a valid email');
       }
 
       // Validate credit limit if provided
@@ -82,9 +80,6 @@ class VendorController {
       const vendor = await VendorService.createVendor(vendorData);
       return ApiResponse.created(res, vendor, 'Vendor created successfully');
     } catch (error) {
-      if (error.message.includes('already exists')) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
@@ -126,9 +121,6 @@ class VendorController {
       const vendor = await VendorService.getVendorById(id);
       return ApiResponse.success(res, vendor, 'Vendor retrieved successfully');
     } catch (error) {
-      if (error.message === 'Vendor not found') {
-        return ApiResponse.notFound(res, error.message);
-      }
       next(error);
     }
   }
@@ -157,22 +149,13 @@ class VendorController {
       }
 
       // Validate email if provided
-      if (updateData.email) {
-        const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
-        if (!emailRegex.test(updateData.email)) {
-          return ApiResponse.badRequest(res, 'Please provide a valid email');
-        }
+      if (updateData.email && !isValidEmail(updateData.email)) {
+        return ApiResponse.badRequest(res, 'Please provide a valid email');
       }
 
       const vendor = await VendorService.updateVendor(id, updateData, req.user.userId);
       return ApiResponse.success(res, vendor, 'Vendor updated successfully');
     } catch (error) {
-      if (error.message === 'Vendor not found') {
-        return ApiResponse.notFound(res, error.message);
-      }
-      if (error.message.includes('Cannot update immutable')) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
@@ -191,119 +174,10 @@ class VendorController {
       const vendor = await VendorService.deleteVendor(id, req.user.userId);
       return ApiResponse.success(res, vendor, 'Vendor deleted successfully');
     } catch (error) {
-      if (error.message === 'Vendor not found') {
-        return ApiResponse.notFound(res, error.message);
-      }
-      if (error.message.includes('outstanding payables')) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
 
-  /**
-   * Restore deleted vendor
-   */
-  static async restoreVendor(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, 'Vendor ID is required');
-      }
-
-      const vendor = await VendorService.restoreVendor(id, req.user.userId);
-      return ApiResponse.success(res, vendor, 'Vendor restored successfully');
-    } catch (error) {
-      if (error.message.includes('not found')) {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Get vendor payables
-   */
-  static async getVendorPayables(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, 'Vendor ID is required');
-      }
-
-      const payables = await VendorService.getVendorPayables(id);
-      return ApiResponse.success(
-        res,
-        payables,
-        'Vendor payables retrieved successfully'
-      );
-    } catch (error) {
-      if (error.message === 'Vendor not found') {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Get total payables across all vendors
-   */
-  static async getTotalPayables(req, res, next) {
-    try {
-      const totals = await VendorService.getTotalPayables();
-      return ApiResponse.success(
-        res,
-        totals,
-        'Total payables retrieved successfully'
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Deactivate vendor
-   */
-  static async deactivateVendor(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, 'Vendor ID is required');
-      }
-
-      const vendor = await VendorService.deactivateVendor(id, req.user.userId);
-      return ApiResponse.success(res, vendor, 'Vendor deactivated successfully');
-    } catch (error) {
-      if (error.message === 'Vendor not found') {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Activate vendor
-   */
-  static async activateVendor(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, 'Vendor ID is required');
-      }
-
-      const vendor = await VendorService.activateVendor(id, req.user.userId);
-      return ApiResponse.success(res, vendor, 'Vendor activated successfully');
-    } catch (error) {
-      if (error.message === 'Vendor not found') {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
 }
 
 module.exports = VendorController;

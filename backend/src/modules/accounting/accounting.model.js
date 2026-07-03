@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const mongooseLeanGetters = require("mongoose-lean-getters");
 const {
   TRANSACTION_TYPES,
   APPROVAL_STATUS,
@@ -452,5 +453,10 @@ journalEntrySchema.index({
   voucherDate: 1,
   createdAt: 1,
 });
+
+// Lets report-generation queries use .lean({ getters: true }) and still get
+// the minor-to-major unit conversion (bookEntries.debit/credit, totalDebit,
+// totalCredit) that would otherwise only run on hydrated documents.
+journalEntrySchema.plugin(mongooseLeanGetters);
 
 module.exports = mongoose.model("JournalEntry", journalEntrySchema);

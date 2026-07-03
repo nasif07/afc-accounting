@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 
 import User from "../modules/users/user.model.js"
 import Account from "../modules/chartOfAccounts/coa.model.js";
+import logger from "../utils/logger.js";
 
 dotenv.config();
 
@@ -201,7 +202,7 @@ async function seed() {
     // CONNECT DATABASE
     await mongoose.connect(process.env.MONGODB_URI);
 
-    console.log("✅ Database Connected");
+    logger.info("Database connected");
 
     // CREATE ADMIN
 
@@ -222,9 +223,9 @@ async function seed() {
         role: "director",
       });
 
-      console.log("✅ Admin Created");
+      logger.info("Admin created");
     } else {
-      console.log("✅ Admin Already Exists");
+      logger.info("Admin already exists");
     }
 
     // SEED ACCOUNTS
@@ -263,13 +264,13 @@ async function seed() {
       );
     }
 
-    console.log("✅ Chart Of Accounts Seeded");
+    logger.info("Chart of accounts seeded");
 
-    console.log("🎉 Seed Completed Successfully");
+    logger.info("Seed completed successfully");
 
     process.exit(0);
   } catch (error) {
-    console.error("❌ Seed Error:", error);
+    logger.error({ err: error }, "Seed error");
 
     process.exit(1);
   }

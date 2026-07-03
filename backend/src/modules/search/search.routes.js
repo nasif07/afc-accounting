@@ -8,6 +8,7 @@ router.use(auth);
 
 router.get('/receipts', SearchController.searchReceipts);
 router.get('/expenses', SearchController.searchExpenses);
+router.get('/journal-entries', SearchController.searchJournalEntries);
 router.get('/students', SearchController.searchStudents);
 router.get('/amount-range', SearchController.searchByAmountRange);
 

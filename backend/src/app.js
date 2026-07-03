@@ -5,6 +5,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const fileUpload = require('express-fileupload');
+const pinoHttp = require('pino-http');
+const logger = require('./utils/logger');
 const errorMiddleware = require('./middleware/errorMiddleware');
 
 if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
@@ -14,6 +16,17 @@ if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
 const app = express();
 
 app.use(helmet());
+
+// Assigns a correlation id per request (req.id) and logs each request/response
+// through the shared pino logger. Keep this separate from the AuditLog
+// collection in modules/audit — that's the business-level "who did what"
+// trail; this is technical access logging.
+app.use(pinoHttp({
+  logger,
+  autoLogging: {
+    ignore: (req) => req.url === '/health',
+  },
+}));
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',

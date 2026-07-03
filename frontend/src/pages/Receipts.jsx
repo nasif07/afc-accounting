@@ -31,12 +31,13 @@ export default function Receipts() {
   const [rejectReason, setRejectReason] = useState("");
   const [pendingApprove, setPendingApprove] = useState(null);
 
-  const { data: allReceipts, isLoading } = useReceiptsAdvanced();
+  const { data, isLoading } = useReceiptsAdvanced();
+  const allReceipts = data?.items || [];
 
   const receipts =
     statusFilter === "all"
       ? allReceipts
-      : allReceipts?.filter((r) => r.approvalStatus === statusFilter);
+      : allReceipts.filter((r) => r.approvalStatus === statusFilter);
 
   const approveMutation = useApproveReceiptAdvanced();
   const rejectMutation = useRejectReceiptAdvanced();

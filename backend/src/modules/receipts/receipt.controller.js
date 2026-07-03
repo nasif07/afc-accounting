@@ -42,7 +42,7 @@ class ReceiptController {
 
   static async getAllReceipts(req, res, next) {
     try {
-      const { student, feeType, approvalStatus, dateFrom, dateTo } = req.query;
+      const { student, feeType, approvalStatus, dateFrom, dateTo, page, limit } = req.query;
       const filters = {};
       if (student) filters.student = student;
       if (feeType) filters.feeType = feeType;
@@ -51,6 +51,8 @@ class ReceiptController {
         filters.dateFrom = dateFrom;
         filters.dateTo = dateTo;
       }
+      if (page) filters.page = page;
+      if (limit) filters.limit = limit;
 
       const receipts = await ReceiptService.getAllReceipts(filters);
       return ApiResponse.success(

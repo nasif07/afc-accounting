@@ -4,14 +4,31 @@ const auth = require("../../middleware/auth");
 const { roleCheck } = require("../../middleware/roleCheck");
 const { USER_ROLES } = require("../../config/constants");
 const fileUploader = require("../../utils/fileUploader");
+const validate = require("../../validation/validate");
+const {
+  createPettyCashBody,
+  updatePettyCashBody,
+  getAllPettyCashQuery,
+  getPettyCashTransactionsQuery,
+  getPettyCashReportQuery,
+  idParam,
+} = require("../../validation/pettycash.validation");
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(auth);
 
-router.get("/transactions", PettyCashController.getPettyCashTransactions);
-router.get("/report", PettyCashController.getPettyCashReport);
+router.get(
+  "/transactions",
+  validate({ query: getPettyCashTransactionsQuery }),
+  PettyCashController.getPettyCashTransactions,
+);
+router.get(
+  "/report",
+  validate({ query: getPettyCashReportQuery }),
+  PettyCashController.getPettyCashReport,
+);
 
 // CRUD
 
@@ -19,20 +36,30 @@ router.get("/report", PettyCashController.getPettyCashReport);
 router.post(
   "/",
   roleCheck([USER_ROLES.ACCOUNTANT, USER_ROLES.SUB_ACCOUNTANT, USER_ROLES.DIRECTOR]),
+  validate({ body: createPettyCashBody }),
   fileUploader,
   PettyCashController.createPettyCash,
 );
 
 // Get all petty cash
-router.get("/", PettyCashController.getAllPettyCash);
+router.get(
+  "/",
+  validate({ query: getAllPettyCashQuery }),
+  PettyCashController.getAllPettyCash,
+);
 
 // Get petty cash by ID
-router.get("/:id", PettyCashController.getPettyCashById);
+router.get(
+  "/:id",
+  validate({ params: idParam }),
+  PettyCashController.getPettyCashById,
+);
 
 // Update petty cash
 router.put(
   "/:id",
-  roleCheck([USER_ROLES.ACCOUNTANT, USER_ROLES.SUB_ACCOUNTANT]),
+  roleCheck([USER_ROLES.ACCOUNTANT, USER_ROLES.SUB_ACCOUNTANT, USER_ROLES.DIRECTOR]),
+  validate({ params: idParam, body: updatePettyCashBody }),
   fileUploader,
   PettyCashController.updatePettyCash,
 );
@@ -40,7 +67,8 @@ router.put(
 // Delete petty cash
 router.delete(
   "/:id",
-  roleCheck([USER_ROLES.ACCOUNTANT]),
+  roleCheck([USER_ROLES.ACCOUNTANT, USER_ROLES.SUB_ACCOUNTANT, USER_ROLES.DIRECTOR]),
+  validate({ params: idParam }),
   PettyCashController.deletePettyCash,
 );
 

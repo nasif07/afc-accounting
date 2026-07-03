@@ -97,9 +97,6 @@ class BankController {
 
       return ApiResponse.success(res, account, "Bank account retrieved successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
       next(error);
     }
   }
@@ -149,12 +146,6 @@ class BankController {
 
       return ApiResponse.success(res, account, "Bank account updated successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      if (error.message.includes("Cannot update immutable")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
@@ -174,12 +165,6 @@ class BankController {
 
       return ApiResponse.success(res, account, "Bank account deleted successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      if (error.message.includes("Cannot delete")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
@@ -247,9 +232,6 @@ class BankController {
 
       return ApiResponse.success(res, account, "Bank account reconciled successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
       next(error);
     }
   }
@@ -289,100 +271,10 @@ class BankController {
         "Bank transactions retrieved successfully",
       );
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
       next(error);
     }
   }
 
-  /**
-   * Get reconciliation status for a bank account
-   */
-  static async getReconciliationStatus(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      const status = await BankService.getReconciliationStatus(id);
-
-      return ApiResponse.success(res, status, "Reconciliation status retrieved successfully");
-    } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Archive a bank account
-   */
-  static async archiveBankAccount(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      const account = await BankService.archiveBankAccount(id, req.user.userId);
-
-      return ApiResponse.success(res, account, "Bank account archived successfully");
-    } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Restore an archived bank account
-   */
-  static async restoreBankAccount(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      const account = await BankService.restoreBankAccount(id, req.user.userId);
-
-      return ApiResponse.success(res, account, "Bank account restored successfully");
-    } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Validate if a bank account can be deactivated
-   */
-  static async validateCanDeactivate(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      const validation = await BankService.validateCanDeactivate(id);
-
-      return ApiResponse.success(res, validation, "Validation completed successfully");
-    } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
 }
 
 module.exports = BankController;

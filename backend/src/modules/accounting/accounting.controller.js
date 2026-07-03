@@ -112,26 +112,6 @@ class AccountingController {
     }
   }
 
-  static async getAccountBalance(req, res, next) {
-    try {
-      const { accountId } = req.params;
-      const { asOfDate } = req.query;
-
-      const balanceData = await AccountingService.calculateAccountBalance(
-        accountId,
-        asOfDate ? new Date(asOfDate) : new Date(),
-      );
-
-      return ApiResponse.success(
-        res,
-        balanceData,
-        "Account balance calculated successfully",
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
   static async createJournalEntry(req, res, next) {
     try {
       const {
@@ -160,28 +140,10 @@ class AccountingController {
         );
       }
 
-      const hasInvalidLine = bookEntries.some((entry) => {
-        const debit = Number(entry?.debit || 0);
-        const credit = Number(entry?.credit || 0);
-
-        return (
-          !entry?.account ||
-          Number.isNaN(debit) ||
-          Number.isNaN(credit) ||
-          debit < 0 ||
-          credit < 0 ||
-          (debit === 0 && credit === 0) ||
-          (debit > 0 && credit > 0)
-        );
-      });
-
-      if (hasInvalidLine) {
-        return ApiResponse.badRequest(
-          res,
-          "Each line must have a valid account and either debit or credit amount",
-        );
-      }
-
+      // Per-line and balance validation (valid account, no negative/dual
+      // debit-credit, debits == credits) is AccountingService's job — it
+      // already re-validates via validateDoubleEntry/validateAccounts
+      // inside createJournalEntry below, so it isn't duplicated here.
 
       const entryData = {
         voucherDate,
@@ -446,35 +408,6 @@ class AccountingController {
     }
   }
 
-  static async getEntriesByAccount(req, res, next) {
-    try {
-      const { accountId } = req.params;
-
-      const entries = await AccountingService.getEntriesByAccount(accountId);
-
-      return ApiResponse.success(
-        res,
-        entries,
-        "Journal entries by account retrieved successfully",
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  static async getTrialBalance(req, res, next) {
-    try {
-      const trialBalance = await AccountingService.getTrialBalance();
-
-      return ApiResponse.success(
-        res,
-        trialBalance,
-        "Trial balance retrieved successfully",
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
 }
 
 module.exports = AccountingController;

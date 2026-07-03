@@ -88,6 +88,7 @@ export const rejectReceipt = createAsyncThunk(
 const initialState = {
   items: [],
   item: null,
+  pagination: null,
   loading: false,
   error: null,
   success: false,
@@ -115,7 +116,11 @@ const receiptSlice = createSlice({
       })
       .addCase(fetchReceipts.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.data || action.payload;
+        // GET /receipts returns { data: [...], pagination: {...} } wrapped in
+        // the ApiResponse envelope, i.e. action.payload.data is that paginated body.
+        const body = action.payload.data || {};
+        state.items = body.data || [];
+        state.pagination = body.pagination || null;
       })
       .addCase(fetchReceipts.rejected, (state, action) => {
         state.loading = false;

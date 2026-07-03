@@ -172,21 +172,6 @@ class PayrollController {
     }
   }
 
-  static async getPayrollSummary(req, res, next) {
-    try {
-      const { month, year } = req.query;
-
-      if (!month || !year) {
-        return ApiResponse.badRequest(res, 'Month and year are required');
-      }
-
-      const summary = await PayrollService.getPayrollSummary(month, year);
-      return ApiResponse.success(res, summary, 'Payroll summary retrieved successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
-
   static async generatePayslip(req, res, next) {
     try {
       const { id } = req.params;

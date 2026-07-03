@@ -5,6 +5,14 @@ const {
   directorOnly,
   accountantOrDirector,
 } = require("../../middleware/roleCheck");
+const validate = require("../../validation/validate");
+const {
+  createReceiptBody,
+  updateReceiptBody,
+  rejectReceiptBody,
+  getAllReceiptsQuery,
+  idParam,
+} = require("../../validation/receipt.validation");
 
 const router = express.Router();
 
@@ -12,14 +20,47 @@ const router = express.Router();
 router.use(auth);
 
 // CRUD operations
-router.post("/", accountantOrDirector, ReceiptController.createReceipt);
-router.get("/", ReceiptController.getAllReceipts);
-router.get("/:id", ReceiptController.getReceiptById);
-router.put("/:id", accountantOrDirector, ReceiptController.updateReceipt);
-router.delete("/:id", accountantOrDirector, ReceiptController.deleteReceipt);
+router.post(
+  "/",
+  accountantOrDirector,
+  validate({ body: createReceiptBody }),
+  ReceiptController.createReceipt,
+);
+router.get(
+  "/",
+  validate({ query: getAllReceiptsQuery }),
+  ReceiptController.getAllReceipts,
+);
+router.get(
+  "/:id",
+  validate({ params: idParam }),
+  ReceiptController.getReceiptById,
+);
+router.put(
+  "/:id",
+  accountantOrDirector,
+  validate({ params: idParam, body: updateReceiptBody }),
+  ReceiptController.updateReceipt,
+);
+router.delete(
+  "/:id",
+  accountantOrDirector,
+  validate({ params: idParam }),
+  ReceiptController.deleteReceipt,
+);
 
 // Approval operations (Director only)
-router.put("/:id/approve", directorOnly, ReceiptController.approveReceipt);
-router.put("/:id/reject", directorOnly, ReceiptController.rejectReceipt);
+router.put(
+  "/:id/approve",
+  directorOnly,
+  validate({ params: idParam }),
+  ReceiptController.approveReceipt,
+);
+router.put(
+  "/:id/reject",
+  directorOnly,
+  validate({ params: idParam, body: rejectReceiptBody }),
+  ReceiptController.rejectReceipt,
+);
 
 module.exports = router;

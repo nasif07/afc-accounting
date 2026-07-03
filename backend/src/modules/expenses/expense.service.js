@@ -1,7 +1,54 @@
 const Expense = require('./expense.model');
+const ChartOfAccounts = require('../chartOfAccounts/coa.model');
 const AccountingService = require('../accounting/accounting.service');
+const SettingsService = require('../settings/settings.service');
+const { NotFoundError, BadRequestError } = require('../../errors');
+const { TRANSACTION_TYPES } = require('../../config/constants');
+
+// Fallback COA account codes credited on expense approval, keyed by
+// Expense.paymentMode. Used when Settings.expensePaymentAccountCodes has no
+// value for a given mode (e.g. settings document predates this field).
+const EXPENSE_PAYMENT_ACCOUNT_DEFAULTS = {
+  cash: '1001',
+  bank: '1002',
+  cheque: '1002',
+  card: '1002',
+  online: '1002',
+};
 
 class ExpenseService {
+  /**
+   * Resolve the COA account to credit on expense approval for a given
+   * payment mode, using the settings-configured mapping with a hardcoded
+   * fallback. Throws a clear BadRequestError if nothing resolves.
+   */
+  static async resolveCreditAccountForPaymentMode(paymentMode) {
+    const settings = await SettingsService.getSettings();
+    const accountCode =
+      settings.expensePaymentAccountCodes?.[paymentMode] ||
+      EXPENSE_PAYMENT_ACCOUNT_DEFAULTS[paymentMode];
+
+    if (!accountCode) {
+      throw new BadRequestError(
+        `No ledger account is configured for payment mode "${paymentMode}". Configure Settings.expensePaymentAccountCodes.${paymentMode}.`
+      );
+    }
+
+    const account = await ChartOfAccounts.findOne({
+      accountCode,
+      deletedAt: null,
+      status: 'active',
+    });
+
+    if (!account) {
+      throw new BadRequestError(
+        `Configured ledger account "${accountCode}" for payment mode "${paymentMode}" was not found or is not active.`
+      );
+    }
+
+    return account;
+  }
+
   /**
    * Create a new expense
    */
@@ -13,7 +60,7 @@ class ExpenseService {
     });
 
     if (existingExpense) {
-      throw new Error(
+      throw new BadRequestError(
         `Expense number ${expenseData.expenseNumber} already exists`
       );
     }
@@ -24,10 +71,12 @@ class ExpenseService {
     });
 
     await expense.save();
-    return expense
-      .populate('vendor', 'vendorName vendorCode')
-      .populate('createdBy', 'name email')
-      .populate('coaAccount', 'accountCode accountName');
+    await expense.populate([
+      { path: 'vendor', select: 'vendorName vendorCode' },
+      { path: 'createdBy', select: 'name email' },
+      { path: 'coaAccount', select: 'accountCode accountName' },
+    ]);
+    return expense;
   }
 
   /**
@@ -46,12 +95,31 @@ class ExpenseService {
       if (filters.dateTo) query.date.$lte = new Date(filters.dateTo);
     }
 
-    return await Expense.find(query)
-      .populate('vendor', 'vendorName vendorCode')
-      .populate('createdBy', 'name email')
-      .populate('approvedBy', 'name email')
-      .populate('coaAccount', 'accountCode accountName')
-      .sort({ date: -1 });
+    const page = Math.max(1, parseInt(filters.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      Expense.find(query)
+        .populate('vendor', 'vendorName vendorCode')
+        .populate('createdBy', 'name email')
+        .populate('approvedBy', 'name email')
+        .populate('coaAccount', 'accountCode accountName')
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit),
+      Expense.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   /**
@@ -69,7 +137,7 @@ class ExpenseService {
       .populate('journalEntryId');
 
     if (!expense) {
-      throw new Error('Expense not found');
+      throw new NotFoundError('Expense not found');
     }
 
     return expense;
@@ -85,12 +153,12 @@ class ExpenseService {
     });
 
     if (!expense) {
-      throw new Error('Expense not found');
+      throw new NotFoundError('Expense not found');
     }
 
     // Prevent updating approved or rejected expenses
     if (expense.approvalStatus !== 'pending') {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot update ${expense.approvalStatus} expense. Only pending expenses can be edited.`
       );
     }
@@ -108,7 +176,7 @@ class ExpenseService {
     );
 
     if (attemptedImmutableUpdate) {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot update immutable fields: ${immutableFields.join(', ')}`
       );
     }
@@ -137,12 +205,12 @@ class ExpenseService {
     });
 
     if (!expense) {
-      throw new Error('Expense not found');
+      throw new NotFoundError('Expense not found');
     }
 
     // Prevent deleting approved expenses
     if (expense.approvalStatus !== 'pending') {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot delete ${expense.approvalStatus} expense. Only pending expenses can be deleted.`
       );
     }
@@ -155,28 +223,12 @@ class ExpenseService {
   }
 
   /**
-   * Restore deleted expense
-   */
-  static async restoreExpense(expenseId, userId) {
-    const expense = await Expense.findOne({
-      _id: expenseId,
-      deletedAt: { $ne: null },
-    });
-
-    if (!expense) {
-      throw new Error('Deleted expense not found');
-    }
-
-    expense.deletedAt = null;
-    expense.deletedBy = null;
-    expense.updatedBy = userId;
-    await expense.save();
-
-    return expense;
-  }
-
-  /**
-   * Approve expense and create journal entry
+   * Approve expense and create journal entry.
+   *
+   * Approval and journal-entry creation are all-or-nothing: if the journal
+   * entry can't be created (unmapped payment mode, invalid/inactive
+   * accounts, etc.) the expense is left untouched and the error propagates
+   * to the caller instead of being swallowed.
    */
   static async approveExpense(expenseId, approvedBy) {
     const expense = await Expense.findOne({
@@ -185,199 +237,65 @@ class ExpenseService {
     });
 
     if (!expense) {
-      throw new Error('Expense not found');
+      throw new NotFoundError('Expense not found');
     }
 
     if (expense.approvalStatus !== 'pending') {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot approve ${expense.approvalStatus} expense. Only pending expenses can be approved.`
       );
     }
 
-    // Create journal entry if COA account is specified
-    let journalEntryId = null;
-    if (expense.coaAccount) {
-      try {
-        // Create debit to expense account, credit to bank/cash or payable account
-        const journalEntry = await AccountingService.createJournalEntry({
-          journalDate: expense.date,
-          description: `Expense: ${expense.description} (${expense.expenseNumber})`,
-          bookEntries: [
-            {
-              account: expense.coaAccount,
-              debit: expense.amount,
-              credit: 0,
-            },
-            // Credit to accounts payable or cash (depends on payment mode)
-            // This would be determined by the payment mode
-          ],
-          createdBy: approvedBy,
-          referenceNumber: expense.expenseNumber,
-        });
-
-        journalEntryId = journalEntry._id;
-        expense.accountingStatus = 'posted';
-      } catch (error) {
-        // If journal entry creation fails, still approve the expense
-        console.error('Failed to create journal entry for expense:', error);
-      }
-    }
-
-    expense.approvalStatus = 'approved';
-    expense.approvedBy = approvedBy;
-    expense.approvalDate = new Date();
-    if (journalEntryId) {
-      expense.journalEntryId = journalEntryId;
-    }
-
-    await expense.save();
-
-    return expense
-      .populate('vendor', 'vendorName vendorCode')
-      .populate('approvedBy', 'name email')
-      .populate('coaAccount', 'accountCode accountName')
-      .populate('journalEntryId');
-  }
-
-  /**
-   * Reject expense
-   */
-  static async rejectExpense(expenseId, approvedBy, rejectionReason) {
-    const expense = await Expense.findOne({
-      _id: expenseId,
-      deletedAt: null,
-    });
-
-    if (!expense) {
-      throw new Error('Expense not found');
-    }
-
-    if (expense.approvalStatus !== 'pending') {
-      throw new Error(
-        `Cannot reject ${expense.approvalStatus} expense. Only pending expenses can be rejected.`
+    if (!expense.coaAccount) {
+      throw new BadRequestError(
+        'Cannot approve expense: no ledger account (coaAccount) is assigned. Set a Chart of Accounts account before approving.'
       );
     }
 
-    if (!rejectionReason || rejectionReason.trim() === '') {
-      throw new Error('Rejection reason is required');
-    }
+    const creditAccount = await this.resolveCreditAccountForPaymentMode(expense.paymentMode);
 
-    expense.approvalStatus = 'rejected';
+    // requiresApproval: false makes AccountingService.createJournalEntry
+    // create AND post the entry (updating COA balances) inside its own
+    // single transaction before returning — same pattern already used by
+    // pettycash.service.js#createJournalEntryForPettyCash. This call is
+    // NOT given our own session: AccountingService.createJournalEntry's
+    // external-session path reads the entry back without attaching that
+    // session, so it can't see the write before commit. That's a latent
+    // bug in accounting.service.js, out of scope here (shared ledger code
+    // used by other modules) — see summary.
+    const journalEntry = await AccountingService.createJournalEntry({
+      voucherDate: expense.date,
+      transactionType: TRANSACTION_TYPES.PAYMENT,
+      sourceModule: 'expense',
+      description: `Expense: ${expense.description} (${expense.expenseNumber})`,
+      bookEntries: [
+        { account: expense.coaAccount, debit: expense.amount, credit: 0 },
+        { account: creditAccount._id, debit: 0, credit: expense.amount },
+      ],
+      createdBy: approvedBy,
+      referenceNumber: expense.expenseNumber,
+      requiresApproval: false,
+    });
+
+    // Journal entry is already created and posted at this point. Only now
+    // do we mark the expense approved, so a failure above never leaves the
+    // expense in an 'approved' state without a posted entry behind it.
+    expense.approvalStatus = 'approved';
     expense.approvedBy = approvedBy;
     expense.approvalDate = new Date();
-    expense.rejectionReason = rejectionReason.trim();
-
+    expense.journalEntryId = journalEntry._id;
+    expense.accountingStatus = 'posted';
     await expense.save();
 
-    return expense
-      .populate('vendor', 'vendorName vendorCode')
-      .populate('approvedBy', 'name email')
-      .populate('coaAccount', 'accountCode accountName');
-  }
-
-  /**
-   * Get expenses by category
-   */
-  static async getExpensesByCategory(category) {
-    return await Expense.find({
-      category,
-      approvalStatus: 'approved',
-      deletedAt: null,
-    })
-      .populate('vendor', 'vendorName vendorCode')
-      .sort({ date: -1 });
-  }
-
-  /**
-   * Get total expenses with filters
-   */
-  static async getTotalExpenses(filters = {}) {
-    const query = { approvalStatus: 'approved', deletedAt: null };
-
-    if (filters.category) query.category = filters.category;
-
-    if (filters.dateFrom || filters.dateTo) {
-      query.date = {};
-      if (filters.dateFrom) query.date.$gte = new Date(filters.dateFrom);
-      if (filters.dateTo) query.date.$lte = new Date(filters.dateTo);
-    }
-
-    const result = await Expense.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: '$category',
-          total: { $sum: '$amount' },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { total: -1 } },
+    await expense.populate([
+      { path: 'vendor', select: 'vendorName vendorCode' },
+      { path: 'approvedBy', select: 'name email' },
+      { path: 'coaAccount', select: 'accountCode accountName' },
+      { path: 'journalEntryId' },
     ]);
-
-    return result;
+    return expense;
   }
 
-  /**
-   * Get pending approvals
-   */
-  static async getPendingApprovals() {
-    return await Expense.find({
-      approvalStatus: 'pending',
-      deletedAt: null,
-    })
-      .populate('vendor', 'vendorName vendorCode')
-      .populate('createdBy', 'name email')
-      .populate('coaAccount', 'accountCode accountName')
-      .sort({ date: 1 });
-  }
-
-  /**
-   * Get total pending amount
-   */
-  static async getTotalPendingAmount() {
-    const result = await Expense.aggregate([
-      { $match: { approvalStatus: 'pending', deletedAt: null } },
-      {
-        $group: {
-          _id: null,
-          totalAmount: { $sum: '$amount' },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    return result.length > 0
-      ? result[0]
-      : { totalAmount: 0, count: 0 };
-  }
-
-  /**
-   * Get total approved amount
-   */
-  static async getTotalApprovedAmount(filters = {}) {
-    const query = { approvalStatus: 'approved', deletedAt: null };
-
-    if (filters.dateFrom || filters.dateTo) {
-      query.date = {};
-      if (filters.dateFrom) query.date.$gte = new Date(filters.dateFrom);
-      if (filters.dateTo) query.date.$lte = new Date(filters.dateTo);
-    }
-
-    const result = await Expense.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: null,
-          totalAmount: { $sum: '$amount' },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    return result.length > 0
-      ? result[0]
-      : { totalAmount: 0, count: 0 };
-  }
 }
 
 module.exports = ExpenseService;

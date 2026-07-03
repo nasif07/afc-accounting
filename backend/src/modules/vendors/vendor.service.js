@@ -1,4 +1,5 @@
 const Vendor = require('./vendor.model');
+const { NotFoundError, BadRequestError } = require('../../errors');
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -14,7 +15,7 @@ class VendorService {
     });
 
     if (existingVendor) {
-      throw new Error(`Vendor code ${vendorData.vendorCode} already exists`);
+      throw new BadRequestError(`Vendor code ${vendorData.vendorCode} already exists`);
     }
 
     const vendor = new Vendor({
@@ -65,7 +66,7 @@ class VendorService {
       .populate('deletedBy', 'name email');
 
     if (!vendor) {
-      throw new Error('Vendor not found');
+      throw new NotFoundError('Vendor not found');
     }
 
     return vendor;
@@ -78,7 +79,7 @@ class VendorService {
     const vendor = await Vendor.findOne({ _id: vendorId, deletedAt: null });
 
     if (!vendor) {
-      throw new Error('Vendor not found');
+      throw new NotFoundError('Vendor not found');
     }
 
     // Prevent updating immutable fields
@@ -88,7 +89,7 @@ class VendorService {
     );
 
     if (attemptedImmutableUpdate) {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot update immutable fields: ${immutableFields.join(', ')}`
       );
     }
@@ -113,12 +114,12 @@ class VendorService {
     const vendor = await Vendor.findOne({ _id: vendorId, deletedAt: null });
 
     if (!vendor) {
-      throw new Error('Vendor not found');
+      throw new NotFoundError('Vendor not found');
     }
 
     // Check if vendor has outstanding payables
     if (vendor.outstandingAmount > 0) {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot delete vendor with outstanding payables of ${vendor.outstandingAmount}`
       );
     }
@@ -130,155 +131,6 @@ class VendorService {
     return vendor;
   }
 
-  /**
-   * Restore deleted vendor
-   */
-  static async restoreVendor(vendorId, userId) {
-    const vendor = await Vendor.findOne({ _id: vendorId, deletedAt: { $ne: null } });
-
-    if (!vendor) {
-      throw new Error('Deleted vendor not found');
-    }
-
-    vendor.deletedAt = null;
-    vendor.deletedBy = null;
-    vendor.updatedBy = userId;
-    await vendor.save();
-
-    return vendor;
-  }
-
-  /**
-   * Get vendor payables
-   */
-  static async getVendorPayables(vendorId) {
-    const vendor = await Vendor.findOne({ _id: vendorId, deletedAt: null });
-
-    if (!vendor) {
-      throw new Error('Vendor not found');
-    }
-
-    return {
-      vendorId: vendor._id,
-      vendorName: vendor.vendorName,
-      vendorCode: vendor.vendorCode,
-      totalPayable: vendor.totalPayable,
-      totalPaid: vendor.totalPaid,
-      outstandingAmount: vendor.outstandingAmount,
-      creditLimit: vendor.creditLimit,
-      creditAvailable: Math.max(0, vendor.creditLimit - vendor.outstandingAmount),
-    };
-  }
-
-  /**
-   * Update vendor balance (called from expense/invoice modules)
-   */
-  static async updateVendorBalance(vendorId, amount, isPaid = false) {
-    const vendor = await Vendor.findOne({ _id: vendorId, deletedAt: null });
-
-    if (!vendor) {
-      throw new Error('Vendor not found');
-    }
-
-    if (isPaid) {
-      vendor.totalPaid += amount;
-    } else {
-      vendor.totalPayable += amount;
-    }
-
-    // Outstanding amount is calculated in pre-save hook
-    await vendor.save();
-    return vendor;
-  }
-
-  /**
-   * Get vendors by type
-   */
-  static async getVendorsByType(vendorType) {
-    return await Vendor.find({
-      vendorType,
-      isActive: true,
-      deletedAt: null,
-    }).sort({ vendorName: 1 });
-  }
-
-  /**
-   * Get total payables across all vendors
-   */
-  static async getTotalPayables() {
-    const result = await Vendor.aggregate([
-      { $match: { deletedAt: null } },
-      {
-        $group: {
-          _id: null,
-          totalPayable: { $sum: '$totalPayable' },
-          totalPaid: { $sum: '$totalPaid' },
-          outstandingAmount: { $sum: '$outstandingAmount' },
-          vendorCount: { $sum: 1 },
-        },
-      },
-    ]);
-
-    return result.length > 0
-      ? result[0]
-      : {
-          totalPayable: 0,
-          totalPaid: 0,
-          outstandingAmount: 0,
-          vendorCount: 0,
-        };
-  }
-
-  /**
-   * Deactivate vendor
-   */
-  static async deactivateVendor(vendorId, userId) {
-    const vendor = await Vendor.findOne({ _id: vendorId, deletedAt: null });
-
-    if (!vendor) {
-      throw new Error('Vendor not found');
-    }
-
-    vendor.isActive = false;
-    vendor.updatedBy = userId;
-    await vendor.save();
-
-    return vendor;
-  }
-
-  /**
-   * Activate vendor
-   */
-  static async activateVendor(vendorId, userId) {
-    const vendor = await Vendor.findOne({ _id: vendorId, deletedAt: null });
-
-    if (!vendor) {
-      throw new Error('Vendor not found');
-    }
-
-    vendor.isActive = true;
-    vendor.updatedBy = userId;
-    await vendor.save();
-
-    return vendor;
-  }
-
-  /**
-   * Validate vendor can be used in transactions
-   */
-  static async validateVendorActive(vendorId) {
-    const vendor = await Vendor.findOne({
-      _id: vendorId,
-      deletedAt: null,
-      isActive: true,
-    });
-
-    if (!vendor) {
-      throw new Error('Vendor is not active or has been deleted');
-    }
-
-    return vendor;
-  }
 }
 
 module.exports = VendorService;

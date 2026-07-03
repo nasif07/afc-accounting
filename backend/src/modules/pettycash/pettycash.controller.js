@@ -20,10 +20,6 @@ class PettyCashController {
         "Petty cash transactions retrieved successfully",
       );
     } catch (error) {
-      if (error.statusCode === 404) {
-        return ApiResponse.notFound(res, error.message);
-      }
-
       next(error);
     }
   }
@@ -43,14 +39,6 @@ class PettyCashController {
         "Petty cash report retrieved successfully",
       );
     } catch (error) {
-      if (error.statusCode === 404) {
-        return ApiResponse.notFound(res, error.message);
-      }
-
-      if (error.statusCode === 400) {
-        return ApiResponse.badRequest(res, error.message);
-      }
-
       next(error);
     }
   }
@@ -108,9 +96,6 @@ class PettyCashController {
         "Petty cash disbursement created successfully",
       );
     } catch (error) {
-      if (error.message.includes("already exists")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
@@ -165,9 +150,6 @@ class PettyCashController {
         "Petty cash record retrieved successfully",
       );
     } catch (error) {
-      if (error.message === "Petty cash record not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
       next(error);
     }
   }
@@ -200,14 +182,6 @@ class PettyCashController {
         "Petty cash record updated successfully",
       );
     } catch (error) {
-      if (error.message === "Petty cash record not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-
-      if (error.message.includes("Cannot update")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
-
       next(error);
     }
   }
@@ -232,132 +206,6 @@ class PettyCashController {
         res,
         pettyCash,
         "Petty cash record deleted successfully",
-      );
-    } catch (error) {
-      if (error.message === "Petty cash record not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-
-      if (error.message.includes("Cannot delete")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
-
-      next(error);
-    }
-  }
-
-  /**
-   * Approve petty cash record
-   */
-  static async approvePettyCash(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Petty cash ID is required");
-      }
-
-      const pettyCash = await PettyCashService.approvePettyCash(
-        id,
-        req.user.userId || req.user._id,
-      );
-
-      return ApiResponse.success(
-        res,
-        pettyCash,
-        "Petty cash record approved and journal entry created successfully",
-      );
-    } catch (error) {
-      if (error.message === "Petty cash record not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-
-      if (error.message.includes("Cannot approve")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
-
-      next(error);
-    }
-  }
-
-  /**
-   * Reject petty cash record
-   */
-  static async rejectPettyCash(req, res, next) {
-    try {
-      const { id } = req.params;
-      const { rejectionReason } = req.body;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Petty cash ID is required");
-      }
-
-      if (!rejectionReason) {
-        return ApiResponse.badRequest(res, "Rejection reason is required");
-      }
-
-      const pettyCash = await PettyCashService.rejectPettyCash(
-        id,
-        req.user.userId || req.user._id,
-        rejectionReason,
-      );
-
-      return ApiResponse.success(
-        res,
-        pettyCash,
-        "Petty cash record rejected successfully",
-      );
-    } catch (error) {
-      if (error.message === "Petty cash record not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-
-      if (
-        error.message.includes("Cannot reject") ||
-        error.message.includes("required")
-      ) {
-        return ApiResponse.badRequest(res, error.message);
-      }
-
-      next(error);
-    }
-  }
-
-  /**
-   * Get pending petty cash approvals
-   */
-  static async getPendingApprovals(req, res, next) {
-    try {
-      const pettyCashRecords = await PettyCashService.getPendingApprovals();
-
-      return ApiResponse.success(
-        res,
-        pettyCashRecords,
-        "Pending petty cash records retrieved successfully",
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Get petty cash by expense account
-   */
-  static async getPettyCashByExpenseAccount(req, res, next) {
-    try {
-      const { expenseAccountId } = req.params;
-
-      if (!expenseAccountId) {
-        return ApiResponse.badRequest(res, "Expense account ID is required");
-      }
-
-      const pettyCashRecords =
-        await PettyCashService.getPettyCashByExpenseAccount(expenseAccountId);
-
-      return ApiResponse.success(
-        res,
-        pettyCashRecords,
-        "Petty cash records by expense account retrieved successfully",
       );
     } catch (error) {
       next(error);

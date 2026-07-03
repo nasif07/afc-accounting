@@ -44,31 +44,6 @@ class SettingsService {
     };
   }
 
-  static async getFinancialYearSettings() {
-    const settings = await this.getSettings();
-    return {
-      financialYearType: settings.financialYearType,
-      startMonth: settings.financialYearType === 'julyjune' ? 'July' : 'January',
-      endMonth:   settings.financialYearType === 'julyjune' ? 'June' : 'December',
-    };
-  }
-
-  static async getApprovalLimits() {
-    const settings = await this.getSettings();
-    return {
-      directorLimit:     settings.approvalLimitDirector,
-      accountantLimit:   settings.approvalLimitAccountant,
-      subAccountantLimit: settings.approvalLimitSubAccountant,
-    };
-  }
-
-  static async updateApprovalLimits(directorLimit, accountantLimit, subAccountantLimit) {
-    return this.updateSettings({
-      approvalLimitDirector:     directorLimit,
-      approvalLimitAccountant:   accountantLimit,
-      approvalLimitSubAccountant: subAccountantLimit,
-    });
-  }
 }
 
 module.exports = SettingsService;

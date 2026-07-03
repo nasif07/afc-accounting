@@ -38,7 +38,8 @@ export default function Expenses() {
   const { user } = useSelector((s) => s.auth);
 
   // ── React Query data ────────────────────────────────────────────────────────
-  const { data: items = [], isLoading: loading } = useExpenses();
+  const { data, isLoading: loading } = useExpenses();
+  const items = data?.items || [];
   const { data: vendors = [] }                   = useVendors();
   const createMutation  = useCreateExpense();
   const updateMutation  = useUpdateExpense();

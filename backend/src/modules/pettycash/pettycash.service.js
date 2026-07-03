@@ -3,6 +3,7 @@ const AccountingService = require("../accounting/accounting.service");
 const ValidationService = require("../../services/validationService");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const JournalEntry = require("../accounting/accounting.model");
+const { NotFoundError, BadRequestError } = require("../../errors");
 
 const PETTY_CASH_ACCOUNT_CODE = "1001";
 
@@ -99,11 +100,9 @@ class PettyCashService {
     const pettyCashAccount = await this.getPettyCashAccount();
 
     if (!pettyCashAccount) {
-      const error = new Error(
+      throw new NotFoundError(
         `Petty cash account ${PETTY_CASH_ACCOUNT_CODE} is not configured`,
       );
-      error.statusCode = 404;
-      throw error;
     }
 
     const page = Math.max(1, parseInt(filters.page, 10) || 1);
@@ -218,26 +217,20 @@ class PettyCashService {
     const pettyCashAccount = await this.getPettyCashAccount();
 
     if (!pettyCashAccount) {
-      const error = new Error(
+      throw new NotFoundError(
         `Petty cash account ${PETTY_CASH_ACCOUNT_CODE} is not configured`,
       );
-      error.statusCode = 404;
-      throw error;
     }
 
     const startDate = filters.startDate ? new Date(filters.startDate) : null;
     const endDate = filters.endDate ? new Date(filters.endDate) : null;
 
     if (startDate && Number.isNaN(startDate.getTime())) {
-      const error = new Error("Invalid from date");
-      error.statusCode = 400;
-      throw error;
+      throw new BadRequestError("Invalid from date");
     }
 
     if (endDate && Number.isNaN(endDate.getTime())) {
-      const error = new Error("Invalid to date");
-      error.statusCode = 400;
-      throw error;
+      throw new BadRequestError("Invalid to date");
     }
 
     if (endDate) {
@@ -411,7 +404,7 @@ class PettyCashService {
       });
 
       if (existingPettyCash) {
-        throw new Error(
+        throw new BadRequestError(
           `Petty cash number ${pettyCashData.pettyCashNumber} already exists`,
         );
       }
@@ -493,7 +486,7 @@ class PettyCashService {
       .populate("journalEntryId");
 
     if (!pettyCash) {
-      throw new Error("Petty cash record not found");
+      throw new NotFoundError("Petty cash record not found");
     }
 
     return pettyCash;
@@ -513,11 +506,11 @@ class PettyCashService {
     });
 
     if (!pettyCash) {
-      throw new Error("Petty cash record not found");
+      throw new NotFoundError("Petty cash record not found");
     }
 
     if (pettyCash.accountingStatus === "posted") {
-      throw new Error(
+      throw new BadRequestError(
         "Cannot update posted petty cash entry. Reverse the journal entry first.",
       );
     }
@@ -535,7 +528,7 @@ class PettyCashService {
     );
 
     if (attemptedImmutableUpdate) {
-      throw new Error(
+      throw new BadRequestError(
         `Cannot update immutable fields: ${immutableFields.join(", ")}`,
       );
     }
@@ -573,11 +566,11 @@ class PettyCashService {
     });
 
     if (!pettyCash) {
-      throw new Error("Petty cash record not found");
+      throw new NotFoundError("Petty cash record not found");
     }
 
     if (pettyCash.accountingStatus === "posted") {
-      throw new Error(
+      throw new BadRequestError(
         "Cannot delete posted petty cash entry. Reverse the journal entry first.",
       );
     }
@@ -588,21 +581,6 @@ class PettyCashService {
     await pettyCash.save();
 
     return pettyCash;
-  }
-
-  /**
-   * Get petty cash by expense account
-   */
-  static async getPettyCashByExpenseAccount(expenseAccountId) {
-    return await PettyCash.find({
-      expenseAccount: expenseAccountId,
-      accountingStatus: "posted",
-      deletedAt: null,
-    })
-      .populate("expenseAccount", "accountCode accountName accountType")
-      .populate("createdBy", "name email")
-      .populate("journalEntryId")
-      .sort({ date: -1 });
   }
 
 }

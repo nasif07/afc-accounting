@@ -3,6 +3,19 @@ const PDFGenerator = require('../../utils/pdfGenerator');
 const generateVoucherNumber = require('../../utils/generateVoucherNumber');
 const SettingsService = require('../settings/settings.service');
 
+// Approval/financial-outcome fields that must never be settable through the
+// generic update path — they're only ever set by approvePayroll/rejectPayroll
+// or markPayrollAsPaid.
+const PAYROLL_PROTECTED_FIELDS = [
+  'approvalStatus',
+  'approvedBy',
+  'approvalDate',
+  'rejectionReason',
+  'paymentStatus',
+  'journalEntryId',
+  'accountingStatus',
+];
+
 class PayrollService {
   static async createPayroll(payrollData) {
     const totals = this.calculateTotals(payrollData);
@@ -76,6 +89,10 @@ class PayrollService {
   }
 
   static async updatePayroll(payrollId, updateData) {
+    for (const field of PAYROLL_PROTECTED_FIELDS) {
+      delete updateData[field];
+    }
+
     if (updateData.baseSalary || updateData.allowances || updateData.bonus || updateData.deductions || updateData.leaveDeduction) {
       const current = await Payroll.findById(payrollId).lean();
       const totals = this.calculateTotals({ ...current, ...updateData });
@@ -154,27 +171,6 @@ class PayrollService {
     ]);
     if (!payroll) throw new Error('Payroll not found');
     return PDFGenerator.generatePayslip(payroll, null, orgInfo);
-  }
-
-  static async getPayrollSummary(month, year) {
-    const result = await Payroll.aggregate([
-      { $match: { month: parseInt(month), year: parseInt(year) } },
-      {
-        $group: {
-          _id: null,
-          totalBaseSalary: { $sum: '$baseSalary' },
-          totalAllowances: { $sum: '$allowances' },
-          totalDeductions: { $sum: '$deductions' },
-          totalNetSalary: { $sum: '$netSalary' },
-          employeeCount: { $sum: 1 },
-          paidCount: {
-            $sum: { $cond: [{ $eq: ['$paymentStatus', 'paid'] }, 1, 0] }
-          }
-        }
-      }
-    ]);
-
-    return result.length > 0 ? result[0] : null;
   }
 
   static async getPendingApprovals() {
