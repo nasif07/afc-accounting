@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
+const fileUpload = require('express-fileupload');
 const errorMiddleware = require('./middleware/errorMiddleware');
 
 if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
@@ -38,6 +39,10 @@ const apiLimiter = rateLimit({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
+app.use(fileUpload({
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5242880 },
+  abortOnLimit: true,
+}));
 app.use(mongoSanitize());
 
 // Routes
