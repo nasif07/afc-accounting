@@ -107,7 +107,12 @@ class StudentController {
       });
 
       const student = await StudentService.updateStudent(id, updateData);
-      // ... rest of logic
+
+      if (!student) {
+        return ApiResponse.notFound(res, "Student not found");
+      }
+
+      return ApiResponse.success(res, student, "Student updated successfully");
     } catch (error) {
       next(error);
     }
