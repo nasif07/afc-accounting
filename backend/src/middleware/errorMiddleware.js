@@ -1,4 +1,5 @@
 const { StatusCodes } = require("http-status-codes");
+const ApiResponse = require("../utils/apiResponse");
 
 const errorMiddleware = (err, req, res, next) => {
   if (process.env.NODE_ENV !== 'production') {
@@ -38,8 +39,7 @@ const errorMiddleware = (err, req, res, next) => {
   }
 
   res.status(statusCode).json({
-    success: false,
-    message,
+    ...new ApiResponse(statusCode, null, message),
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 };

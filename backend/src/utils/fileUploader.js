@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const ApiResponse = require("./apiResponse");
 
 const uploadDir =
   process.env.UPLOAD_DIR ||
@@ -44,11 +45,10 @@ const fileUploader = async (req, res, next) => {
   try {
     ensureUploadDir();
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Upload storage is not available",
-      error: error.message,
-    });
+    return ApiResponse.serverError(
+      res,
+      `Upload storage is not available: ${error.message}`,
+    );
   }
 
   const maxFileSize = parseInt(process.env.MAX_FILE_SIZE) || 5242880; // 5 MB
@@ -57,25 +57,22 @@ const fileUploader = async (req, res, next) => {
     const file = req.files[key];
 
     if (file.size > maxFileSize) {
-      return res.status(400).json({
-        success: false,
-        message: `File size exceeds maximum limit of ${maxFileSize / 1024 / 1024}MB`,
-      });
+      return ApiResponse.badRequest(
+        res,
+        `File size exceeds maximum limit of ${maxFileSize / 1024 / 1024}MB`,
+      );
     }
 
     if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
-      return res.status(400).json({
-        success: false,
-        message: `File type '${file.mimetype}' is not allowed. Allowed types: JPEG, PNG, GIF, WEBP, PDF`,
-      });
+      return ApiResponse.badRequest(
+        res,
+        `File type '${file.mimetype}' is not allowed. Allowed types: JPEG, PNG, GIF, WEBP, PDF`,
+      );
     }
 
     const ext = path.extname(file.name).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
-      return res.status(400).json({
-        success: false,
-        message: `File extension '${ext}' is not allowed`,
-      });
+      return ApiResponse.badRequest(res, `File extension '${ext}' is not allowed`);
     }
 
     const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${ext}`;
@@ -84,11 +81,7 @@ const fileUploader = async (req, res, next) => {
     try {
       await mvAsync(file, filepath);
     } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: "Error uploading file",
-        error: err.message,
-      });
+      return ApiResponse.serverError(res, `Error uploading file: ${err.message}`);
     }
 
     req.uploadedFiles = req.uploadedFiles || {};
