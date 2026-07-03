@@ -10,10 +10,10 @@ export const studentAPI = {
   getAll: (params) => api.get("/students", { params }),
   getById: (id) => api.get(`/students/${id}`),
   create: (data) => api.post("/students", data),
-  update: (id, data) => api.put(`/students/${id}`, data),
+  update: (id, data) => api.patch(`/students/${id}`, data),
+  updateFee: (id, data) => api.patch(`/students/${id}`, data),
   delete: (id) => api.delete(`/students/${id}`),
   bulkImport: (data) => api.post("/students/bulk-import", data),
-  search: (query) => api.get("/students/search", { params: { query } }),
 };
 
 // ==================== RECEIPTS (FEE COLLECTION) ====================
@@ -23,10 +23,8 @@ export const receiptAPI = {
   create: (data) => api.post("/receipts", data),
   update: (id, data) => api.put(`/receipts/${id}`, data),
   delete: (id) => api.delete(`/receipts/${id}`),
-  approve: (id) => api.post(`/receipts/${id}/approve`),
-  reject: (id, data) => api.post(`/receipts/${id}/reject`, data),
-  generatePDF: (id) => api.get(`/receipts/${id}/pdf`, { responseType: "blob" }),
-  search: (query) => api.get("/receipts/search", { params: { query } }),
+  approve: (id) => api.put(`/receipts/${id}/approve`),
+  reject: (id, data) => api.put(`/receipts/${id}/reject`, data),
 };
 
 // ==================== PAYROLL ====================
@@ -41,7 +39,6 @@ export const payrollAPI = {
   markAsPaid: (id, data) => api.put(`/payroll/${id}/mark-paid`, data),
   generatePayslip: (id) =>
     api.get(`/payroll/${id}/payslip`, { responseType: "blob" }),
-  search: (query) => api.get("/payroll/search", { params: { query } }),
 };
 
 // ==================== ACCOUNTING (JOURNAL ENTRIES) ====================
@@ -54,27 +51,19 @@ export const accountingAPI = {
   approve: (id) => api.patch(`/accounting/journal-entries/${id}/approve`),
   reject: (id, data) =>
     api.patch(`/accounting/journal-entries/${id}/reject`, data),
-  getPendingApprovals: () =>
-    api.get("/accounting/journal-entries/pending-approvals"),
   getLedger: (accountId, params) =>
     api.get(`/accounting/journal-entries/ledger/${accountId}`, { params }),
-  getAccountBalance: (accountId) =>
-    api.get(`/accounting/journal-entries/balance/${accountId}`),
-  getEntriesByAccount: (accountId) =>
-    api.get(`/accounting/journal-entries/account/${accountId}`),
 };
 
 // ==================== CHART OF ACCOUNTS ====================
 export const coaAPI = {
   getAll: (params) => api.get("/accounts", { params }),
-  getTree: () => api.get("/accounts/tree"),
   getLeafNodes: () => api.get("/accounts/leaf-nodes"),
   getById: (id) => api.get(`/accounts/${id}`),
   getBalance: (id) => api.get(`/accounts/${id}/balance`),
-  getTransactions: (id, params) => api.get(`/accounts/${id}/transactions`, { params }),
   create: (data) => api.post("/accounts", data),
-  update: (id, data) => api.put(`/accounts/${id}`, data),
-  delete: (id) => api.delete(`/accounts/${id}`),
+  update: (id, data) => api.patch(`/accounts/${id}`, data),
+  archive: (id) => api.patch(`/accounts/${id}/archive`),
 };
 
 // ==================== BANK ====================
@@ -91,14 +80,9 @@ export const bankAPI = {
 
 // ==================== BANK BOOK / BANK STATEMENT ====================
 export const bankBookAPI = {
-  getAll: (params) => api.get("/bank-book", { params }),
-  getById: (id) => api.get(`/bank-book/${id}`),
   create: (data) => api.post("/bank-book", data),
-  update: (id, data) => api.put(`/bank-book/${id}`, data),
   cancel: (id, data) => api.patch(`/bank-book/${id}/cancel`, data),
   getStatement: (params) => api.get("/bank-book/statement", { params }),
-  exportCsv: (params) =>
-    api.get("/bank-book/export/csv", { params, responseType: "blob" }),
   exportExcel: (params) =>
     api.get("/bank-book/export/excel", { params, responseType: "blob" }),
   exportPdf: (params) =>
@@ -113,16 +97,6 @@ export const reportAPI = {
     api.get("/accounting/journal-entries/balance-sheet", { params }),
   trialBalance: (params) =>
     api.get("/accounting/journal-entries/trial-balance", { params }),
-  exportPDF: (reportType, params) =>
-    api.get(`/reports/${reportType}/export-pdf`, {
-      params,
-      responseType: "blob",
-    }),
-  exportExcel: (reportType, params) =>
-    api.get(`/reports/${reportType}/export-excel`, {
-      params,
-      responseType: "blob",
-    }),
 };
 
 // ==================== PETTY CASH ====================
@@ -143,10 +117,6 @@ export const pettyCashAPI = {
   delete: (id) =>
     api.delete(`/petty-cash/${id}`),
 
-  getByExpenseAccount: (expenseAccountId) =>
-    api.get(
-      `/petty-cash/expense-account/${expenseAccountId}`
-    ),
 };
 
 // ==================== SEARCH ====================
@@ -156,15 +126,11 @@ export const searchAPI = {
   expenses: (query) => api.get("/search/expenses", { params: { query } }),
   students: (query) => api.get("/search/students", { params: { query } }),
   byAmount: (min, max) =>
-    api.get("/search/by-amount", { params: { min, max } }),
-  byDateRange: (startDate, endDate) =>
-    api.get("/search/by-date", { params: { startDate, endDate } }),
+    api.get("/search/amount-range", { params: { min, max } }),
 };
 
 // ==================== SETTINGS ====================
 export const settingsAPI = {
   get: () => api.get("/settings"),
   update: (data) => api.put("/settings", data),
-  getApprovalLimits: () => api.get("/settings/approval-limits"),
-  updateApprovalLimits: (data) => api.put("/settings/approval-limits", data),
 };

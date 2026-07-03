@@ -9,10 +9,5 @@ router.use(auth);
 
 router.get('/', SettingsController.getSettings);
 router.put('/', directorOnly, SettingsController.updateSettings);
-router.get('/financial-year', SettingsController.getFinancialYearSettings);
-router.get('/approval-limits', SettingsController.getApprovalLimits);
-router.put('/approval-limits', directorOnly, SettingsController.updateApprovalLimits);
-router.get('/voucher-format', SettingsController.getVoucherNumberingFormat);
-router.put('/voucher-format', directorOnly, SettingsController.updateVoucherPrefixes);
 
 module.exports = router;

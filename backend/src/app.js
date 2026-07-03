@@ -19,13 +19,13 @@ app.use(cors({
   credentials: true,
 }));
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Too many attempts. Please try again in 15 minutes.' },
-});
+// const authLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 20,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   message: { success: false, message: 'Too many attempts. Please try again in 15 minutes.' },
+// });
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -42,7 +42,7 @@ app.use(mongoSanitize());
 
 // Routes
 const routes = require('./routes');
-app.use('/api/auth', authLimiter);
+// app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter, routes);
 
 // Health check

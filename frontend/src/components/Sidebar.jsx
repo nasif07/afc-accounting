@@ -1,9 +1,10 @@
 ﻿import { NavLink, useLocation, useNavigate } from "react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { LogOut, X, ChevronUp  } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { menuSections } from "../constants/menuSection";
 import { logoutAsync } from "../store/slices/authSlice";
+import api from "../services/api";
 import logo from "/afc-logo.jpg";
 
 export default function Sidebar({
@@ -17,6 +18,14 @@ export default function Sidebar({
   const navigate = useNavigate();
   const role = user?.role || "";
   const [showLogout, setShowLogout] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (role !== "director") return;
+    api.get("/auth/pending")
+      .then((res) => setPendingCount(res.data?.data?.length ?? 0))
+      .catch(() => {});
+  }, [role]);
 
   const authorizedSections = useMemo(() => {
     if (!role) return [];
@@ -129,8 +138,14 @@ export default function Sidebar({
 
                     {desktopOpen && (
                       <span
-                        className={`truncate ${isActive ? "font-semibold" : ""}`}>
+                        className={`truncate flex-1 ${isActive ? "font-semibold" : ""}`}>
                         {item.title}
+                      </span>
+                    )}
+
+                    {desktopOpen && item.path === "/director/approvals" && pendingCount > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#DA002E] px-1 text-[10px] font-bold text-white">
+                        {pendingCount}
                       </span>
                     )}
                   </NavLink>

@@ -72,7 +72,7 @@ export default function Register() {
 
       if (result.user?.status === "pending") {
         toast.success("Request submitted. Awaiting Directorate approval.");
-        setTimeout(() => navigate("/login"), 2500);
+        setTimeout(() => navigate("/login", { state: { pendingApproval: true } }), 2500);
         return;
       }
 

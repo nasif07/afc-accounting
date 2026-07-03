@@ -52,7 +52,7 @@ export const useApproveExpense = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id) => {
-      const res = await api.post(`/expenses/${id}/approve`);
+      const res = await api.patch(`/expenses/${id}/approve`);
       return res.data?.data || res.data;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success('Expense approved'); },

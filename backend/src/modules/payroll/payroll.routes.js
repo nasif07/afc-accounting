@@ -17,11 +17,8 @@ router.delete('/:id', accountantOrDirector, PayrollController.deletePayroll);
 router.put('/:id/approve', directorOnly, PayrollController.approvePayroll);
 router.put('/:id/reject', directorOnly, PayrollController.rejectPayroll);
 
-// Payment operations
+// Payment + payslip
 router.put('/:id/mark-paid', accountantOrDirector, PayrollController.markPayrollAsPaid);
-
-// Reports
-router.get('/report/summary', PayrollController.getPayrollSummary);
 router.get('/:id/payslip', PayrollController.generatePayslip);
 
 module.exports = router;

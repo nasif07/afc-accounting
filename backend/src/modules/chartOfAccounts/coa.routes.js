@@ -7,21 +7,17 @@ const router = express.Router();
 
 router.use(auth);
 
-// Tree / utility
-router.get("/tree", COAController.getAccountTree);
+// Static utility
 router.get("/leaf-nodes", COAController.getLeafNodes);
 
 // CRUD
 router.post("/", accountantOrDirector, COAController.createAccount);
 router.get("/", COAController.getAllAccounts);
 router.get("/:id/balance", COAController.getAccountBalance);
-router.get("/:id/transactions", COAController.getAccountTransactions);
 router.get("/:id", COAController.getAccountById);
 router.patch("/:id", accountantOrDirector, COAController.updateAccount);
 
-// Status / archive
-router.patch("/:id/status", accountantOrDirector, COAController.updateAccountStatus);
+// Archive
 router.patch("/:id/archive", accountantOrDirector, COAController.archiveAccount);
-router.patch("/:id/restore", accountantOrDirector, COAController.restoreAccount);
 
 module.exports = router;

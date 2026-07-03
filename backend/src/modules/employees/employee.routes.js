@@ -12,7 +12,5 @@ router.get('/', EmployeeController.getAllEmployees);
 router.get('/:id', EmployeeController.getEmployeeById);
 router.put('/:id', accountantOrDirector, EmployeeController.updateEmployee);
 router.delete('/:id', accountantOrDirector, EmployeeController.deleteEmployee);
-router.put('/:id/status', accountantOrDirector, EmployeeController.updateEmployeeStatus);
-router.get('/report/total-employees', EmployeeController.getTotalEmployees);
 
 module.exports = router;

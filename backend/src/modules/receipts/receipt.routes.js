@@ -22,7 +22,4 @@ router.delete("/:id", accountantOrDirector, ReceiptController.deleteReceipt);
 router.put("/:id/approve", directorOnly, ReceiptController.approveReceipt);
 router.put("/:id/reject", directorOnly, ReceiptController.rejectReceipt);
 
-// Reports
-router.get("/report/total-collected", ReceiptController.getTotalFeeCollected);
-
 module.exports = router;

@@ -53,17 +53,6 @@ router.get(
   accountantOrDirector,
   AccountingController.getGeneralLedger,
 );
-router.get(
-  "/journal-entries/balance/:accountId",
-  accountantOrDirector,
-  AccountingController.getAccountBalance,
-);
-router.get(
-  "/journal-entries/account/:accountId",
-  accountantOrDirector,
-  AccountingController.getEntriesByAccount,
-);
-
 // Single entry routes
 router.get(
   "/journal-entries/:id",

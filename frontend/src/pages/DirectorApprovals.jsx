@@ -46,8 +46,10 @@ export default function DirectorApprovals() {
   };
 
   const handleReject = async (userId) => {
+    const reason = window.prompt("Rejection reason (optional):");
+    if (reason === null) return; // cancelled
     try {
-      await api.patch(`/auth/reject/${userId}`);
+      await api.patch(`/auth/reject/${userId}`, { reason: reason.trim() });
       toast.success("User rejected");
       fetchPendingUsers();
     } catch {

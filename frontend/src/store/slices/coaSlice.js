@@ -60,7 +60,7 @@ export const deleteCoa = createAsyncThunk(
   "coa/deleteCoa",
   async (id, { rejectWithValue }) => {
     try {
-      await coaAPI.delete(id);
+      await coaAPI.archive(id);
       return id;
     } catch (error) {
       return rejectWithValue(getErrorMessage(error, "Failed to delete COA"));

@@ -13,17 +13,7 @@ router.use(auth);
 router.get("/transactions", PettyCashController.getPettyCashTransactions);
 router.get("/report", PettyCashController.getPettyCashReport);
 
-/**
- * Get petty cash by expense account
- */
-router.get(
-  "/expense-account/:expenseAccountId",
-  PettyCashController.getPettyCashByExpenseAccount,
-);
-
-/**
- * CRUD
- */
+// CRUD
 
 // Create petty cash
 router.post(
