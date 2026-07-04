@@ -11,6 +11,7 @@ import {
 import { Button, Badge, Modal, Textarea } from "../components/common";
 import SectionHeader from "../components/common/SectionHeader";
 import { SectionSkeleton } from "../components/common/Loaders";
+import KPICard from "../components/reports/KPICard";
 import { formatDisplayDate } from "../utils/date";
 import { formatCurrency } from "../utils/currency";
 
@@ -33,22 +34,6 @@ const fmtDate = (d) => (d ? formatDisplayDate(d, { locale: "en-US" }) : "—");
 
 const totalDebit  = (e) => e?.bookEntries?.reduce((s, b) => s + (b.debit  || 0), 0) || 0;
 const totalCredit = (e) => e?.bookEntries?.reduce((s, b) => s + (b.credit || 0), 0) || 0;
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, icon: Icon, iconBg, iconColor }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
-        <div className={`rounded-lg p-2 ${iconBg}`}>
-          <Icon size={15} className={iconColor} />
-        </div>
-      </div>
-      <p className="truncate text-xl font-bold text-slate-900">{value}</p>
-    </div>
-  );
-}
 
 function MetaPill({ icon: Icon, children }) {
   return (
@@ -168,26 +153,26 @@ export default function JournalEntryApprovals() {
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Awaiting Approval"
+        <KPICard
+          title="Awaiting Approval"
           value={loading ? "—" : `${pendingEntries.length} ${pendingEntries.length !== 1 ? "entries" : "entry"}`}
+          format="text"
           icon={Clock}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-600"
+          color="amber"
         />
-        <StatCard
-          label="Total Pending Debit"
-          value={loading ? "—" : formatCurrency(totalPendingDebit)}
+        <KPICard
+          title="Total Pending Debit"
+          value={loading ? "—" : totalPendingDebit}
+          format={loading ? "text" : "currency"}
           icon={TrendingUp}
-          iconBg="bg-emerald-50"
-          iconColor="text-emerald-600"
+          color="green"
         />
-        <StatCard
-          label="Total Pending Credit"
-          value={loading ? "—" : formatCurrency(totalPendingCredit)}
+        <KPICard
+          title="Total Pending Credit"
+          value={loading ? "—" : totalPendingCredit}
+          format={loading ? "text" : "currency"}
           icon={TrendingDown}
-          iconBg="bg-blue-50"
-          iconColor="text-blue-600"
+          color="blue"
         />
       </div>
 

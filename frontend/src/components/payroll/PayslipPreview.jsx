@@ -120,7 +120,7 @@ export default function PayslipPreview({
     benefitPeriodLabel:    orgInfo.benefitPeriodLabel     || "01-07-2023 to 30-06-2025",
     bankNameForPayment:    orgInfo.bankNameForPayment     || "Brac Bank PLC",
     bankAccountForPayment: orgInfo.bankAccountForPayment  || "XXXXXXXXXXXXXXX",
-    orgLogo:               orgInfo.orgLogo                || "/afc-logo.jpg",
+    orgLogo:               orgInfo.orgLogo                || "/afc-logo.png",
   };
 
   const emp          = payroll?.employee || {};

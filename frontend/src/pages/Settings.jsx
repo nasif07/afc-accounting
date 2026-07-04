@@ -272,7 +272,7 @@ export default function Settings() {
 
                   <FormField label="Logo URL / Path">
                     <Input
-                      placeholder="/afc-logo.jpg or https://..."
+                      placeholder="/afc-logo.png or https://..."
                       disabled={!isDirector}
                       {...register("orgLogo")}
                     />

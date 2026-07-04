@@ -7,7 +7,7 @@ import { register as registerUser } from "../store/slices/authSlice";
 import { toast } from "sonner";
 import { User, Mail, Lock, ClipboardCheck } from "lucide-react";
 import { Input, Button } from "../components/common";
-import logo from "/afc-logo.jpg";
+import logo from "/afc-logo.png";
 
 const MIN_PASSWORD_LENGTH = 8;
 

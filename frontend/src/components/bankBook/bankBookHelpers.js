@@ -42,6 +42,3 @@ export const accountLabel = (account) => {
 
 export const normalizeMethod = (value) =>
   String(value || "").replace(/_/g, " ");
-
-export const getErrorMessage = (error, fallback = "Something went wrong") =>
-  error?.response?.data?.message || error?.message || fallback;

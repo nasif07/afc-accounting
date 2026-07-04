@@ -9,7 +9,7 @@ import { fetchSettings } from "../store/slices/settingsSlice";
 import { toast } from "sonner";
 import { Mail, Lock, ShieldCheck, Landmark } from "lucide-react";
 import { Input, Button } from "../components/common";
-import logo from "/afc-logo.jpg";
+import logo from "/afc-logo.png";
 
 const authInputClass =
   "pl-10 rounded-sm! focus:ring-1! focus:ring-[#002395]! focus:border-[#002395]! py-2.5 sm:py-2.5";

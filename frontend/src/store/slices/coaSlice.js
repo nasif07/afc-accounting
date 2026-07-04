@@ -1,10 +1,8 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { coaAPI } from "../../services/apiMethods";
+import { getErrorMessage } from "../../utils/errors";
 
 const getPayloadData = (payload) => payload?.data || payload;
-
-const getErrorMessage = (error, fallbackMessage) =>
-  error.response?.data?.message || error.message || fallbackMessage;
 
 // ==================== ASYNC THUNKS ====================
 

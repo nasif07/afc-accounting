@@ -19,9 +19,10 @@ import {
 import { selectOrgInfo } from "../store/slices/settingsSlice";
 import { useEmployees } from "../hooks/useEmployees";
 import SectionHeader from "../components/common/SectionHeader";
-import { Modal, Select } from "../components/common";
+import { Modal, Select, Badge } from "../components/common";
 import { payrollAPI } from "../services/apiMethods";
 import PayslipPreview from "../components/payroll/PayslipPreview";
+import KPICard from "../components/reports/KPICard";
 import { formatCurrency } from "../utils/currency";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -94,11 +95,11 @@ const INITIAL_FORM_DATA = {
 
 const netSalary = (b, a, d) => (Number(b) || 0) + (Number(a) || 0) - (Number(d) || 0);
 
-const statusBadge = {
-  approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  rejected: "bg-rose-50  text-rose-700  border-rose-200",
-  paid:     "bg-blue-50  text-blue-700  border-blue-200",
-  pending:  "bg-amber-50 text-amber-700 border-amber-200",
+const STATUS_BADGE_VARIANT = {
+  approved: "success",
+  rejected: "rose",
+  paid: "primary",
+  pending: "warning",
 };
 
 function avatarBg(name = "") {
@@ -107,22 +108,6 @@ function avatarBg(name = "") {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, icon: Icon, iconBg, iconColor, accent }) {
-  return (
-    <div className={`bg-white rounded-xl border p-5 ${accent ?? "border-slate-200"}`}>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</p>
-        {Icon && (
-          <div className={`p-2 rounded-lg ${iconBg}`}>
-            <Icon size={16} className={iconColor} />
-          </div>
-        )}
-      </div>
-      <p className="text-2xl font-bold text-slate-900 truncate">{value}</p>
-    </div>
-  );
-}
 
 function FieldLabel({ children }) {
   return (
@@ -398,33 +383,30 @@ export default function Payroll() {
 
       {/* ── Stats row ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <StatCard
-          label="Net Disbursement"
-          value={formatCurrency(totalNet)}
+        <KPICard
+          title="Net Disbursement"
+          value={totalNet}
           icon={Wallet}
-          iconBg="bg-slate-100"
-          iconColor="text-slate-600"
+          color="slate"
         />
-        <StatCard
-          label="Total Allowances"
-          value={formatCurrency(totalAllow)}
+        <KPICard
+          title="Total Allowances"
+          value={totalAllow}
           icon={TrendingUp}
-          iconBg="bg-emerald-50"
-          iconColor="text-emerald-600"
+          color="green"
         />
-        <StatCard
-          label="Total Deductions"
-          value={formatCurrency(totalDed)}
+        <KPICard
+          title="Total Deductions"
+          value={totalDed}
           icon={TrendingDown}
-          iconBg="bg-rose-50"
-          iconColor="text-rose-600"
+          color="rose"
         />
-        <StatCard
-          label="Pending Approval"
+        <KPICard
+          title="Pending Approval"
           value={`${pendingCount} record${pendingCount !== 1 ? "s" : ""}`}
+          format="text"
           icon={CalendarDays}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-600"
+          color="amber"
         />
       </div>
 
@@ -531,7 +513,7 @@ export default function Payroll() {
               ) : (
                 items.map((p) => {
                   const net = netSalary(p.baseSalary, p.allowances, p.deductions);
-                  const badge = statusBadge[p.approvalStatus] ?? statusBadge.pending;
+                  const badgeVariant = STATUS_BADGE_VARIANT[p.approvalStatus] ?? STATUS_BADGE_VARIANT.pending;
                   return (
                     <tr key={p._id} className="group transition-colors hover:bg-slate-50/70">
                       {/* Employee */}
@@ -586,9 +568,9 @@ export default function Payroll() {
 
                       {/* Status */}
                       <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-wide ${badge}`}>
+                        <Badge variant={badgeVariant} size="sm">
                           {(p.approvalStatus || "pending").toUpperCase()}
-                        </span>
+                        </Badge>
                       </td>
 
                       {/* Actions */}

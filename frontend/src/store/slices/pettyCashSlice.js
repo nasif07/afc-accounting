@@ -1,12 +1,10 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { pettyCashAPI } from "../../services/apiMethods";
+import { getErrorMessage } from "../../utils/errors";
 
 // ==================== HELPERS ====================
 
 const getPayloadData = (payload) => payload?.data || payload;
-
-const getErrorMessage = (error, fallbackMessage) =>
-  error.response?.data?.message || error.message || fallbackMessage;
 
 // ==================== ASYNC THUNKS ====================
 

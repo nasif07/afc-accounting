@@ -84,7 +84,7 @@ export const selectOrgInfo = createSelector(selectSettingsData, (data) => ({
   orgPhone:              data?.orgPhone   || '',
   orgAddress:            data?.orgAddress || '',
   orgWebsite:            data?.orgWebsite || '',
-  orgLogo:               data?.orgLogo    || '/afc-logo.jpg',
+  orgLogo:               data?.orgLogo    || '/afc-logo.png',
   directorName:          data?.directorName  || 'Bruno LACRAMPE',
   directorTitle:         data?.directorTitle || 'Director',
   leaveYearLabel:        data?.leaveYearLabel     || "July'2025 - June'2026",

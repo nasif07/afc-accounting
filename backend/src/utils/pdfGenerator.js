@@ -119,7 +119,7 @@ class PDFGenerator {
     const logoPath =
       org.orgLogo && fs.existsSync(org.orgLogo)
         ? org.orgLogo
-        : path.resolve(__dirname, "../../../frontend/public/afc-logo.jpg");
+        : path.resolve(__dirname, "../../../frontend/public/afc-logo.png");
     if (fs.existsSync(logoPath)) {
       doc.image(logoPath, 52, 36, { width: 76 });
     }

@@ -11,9 +11,9 @@ import BankBookStatement from "../components/bankBook/BankBookStatement";
 import BankBookSummaryCards from "../components/bankBook/BankBookSummaryCards";
 import {
   accountLabel,
-  getErrorMessage,
   initialFormData,
 } from "../components/bankBook/bankBookHelpers";
+import { getErrorMessage } from "../utils/errors";
 import { formatDisplayDate, todayISO, toISODate } from "../utils/date";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -298,7 +298,7 @@ export default function BankBook() {
       .sign{margin-top:42px;margin-left:auto;width:260px;text-align:center;font-weight:700}
       .foot{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:space-between;font-size:10px}
     </style></head><body>
-      <div class="brand"><img src="/afc-logo.jpg"/><div class="center">
+      <div class="brand"><img src="/afc-logo.png"/><div class="center">
         <h1>Alliance Francaise de Chittagong</h1><h2>Statement of Account</h2>
         <p class="meta">Period: ${filters.dateFrom || "Beginning"} to ${filters.dateTo || "Current"}</p>
       </div><span></span></div>

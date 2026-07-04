@@ -15,6 +15,7 @@ import Select from "../components/common/Select";
 import Button from "../components/common/Button";
 import DatePicker from "../components/common/DatePicker";
 import { TableSkeleton } from "../components/common/Loaders";
+import KPICard from "../components/reports/KPICard";
 
 const Ledger = () => {
   const [accounts, setAccounts] = useState([]);
@@ -128,38 +129,10 @@ const Ledger = () => {
         <div className="space-y-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="p-4 bg-blue-50 border-blue-100">
-              <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">
-                Opening Balance
-              </p>
-              <p className="text-xl font-bold text-blue-900 mt-1">
-                {formatCurrency(ledgerData.openingBalance)}
-              </p>
-            </Card>
-            <Card className="p-4 bg-emerald-50 border-emerald-100">
-              <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">
-                Total Debit
-              </p>
-              <p className="text-xl font-bold text-emerald-900 mt-1">
-                {formatCurrency(ledgerData.totalDebit)}
-              </p>
-            </Card>
-            <Card className="p-4 bg-red-50 border-red-100">
-              <p className="text-xs font-medium text-red-600 uppercase tracking-wider">
-                Total Credit
-              </p>
-              <p className="text-xl font-bold text-red-900 mt-1">
-                {formatCurrency(ledgerData.totalCredit)}
-              </p>
-            </Card>
-            <Card className="p-4 bg-purple-50 border-purple-100">
-              <p className="text-xs font-medium text-purple-600 uppercase tracking-wider">
-                Closing Balance
-              </p>
-              <p className="text-xl font-bold text-purple-900 mt-1">
-                {formatCurrency(ledgerData.closingBalance)}
-              </p>
-            </Card>
+            <KPICard title="Opening Balance" value={ledgerData.openingBalance} icon={null} />
+            <KPICard title="Total Debit" value={ledgerData.totalDebit} icon={null} />
+            <KPICard title="Total Credit" value={ledgerData.totalCredit} icon={null} />
+            <KPICard title="Closing Balance" value={ledgerData.closingBalance} icon={null} />
           </div>
 
           {/* Transaction Table */}

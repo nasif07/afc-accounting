@@ -14,6 +14,8 @@ import {
   Wallet,
 } from "lucide-react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -33,16 +35,20 @@ import {
   ErrorState,
   SectionSkeleton,
 } from "../components/common/Loaders";
+import KPICard from "../components/reports/KPICard";
 
+// Navy (new shell primary) + the existing consolidated emerald/red/amber/
+// slate semantic colors, replacing the old ad-hoc teal/purple/cyan/pink set
+// that had no relationship to the app's actual design tokens.
 const chartColors = [
-  "#0f766e",
-  "#dc2626",
-  "#2563eb",
-  "#ca8a04",
-  "#7c3aed",
-  "#0891b2",
-  "#be185d",
-  "#4b5563",
+  "#203C8F",
+  "#DC2626",
+  "#059669",
+  "#D97706",
+  "#64748B",
+  "#102050",
+  "#B91C1C",
+  "#94A3B8",
 ];
 
 const formatDate = (date) => {
@@ -70,31 +76,84 @@ function PanelState({ loading, error, empty, children, emptyText }) {
   return children;
 }
 
-function SummaryCard({ title, value, icon: Icon, tone, href }) {
+function SummaryCard({ title, value, icon, color, href }) {
   return (
-    <Card className="rounded-lg shadow-none">
-      <CardContent className="p-3 sm:p-5">
-        <div className="flex items-start justify-between gap-2 sm:gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-xs">
-              {title}
-            </p>
-            <p className="mt-1.5 truncate text-base font-bold text-slate-900 sm:mt-3 sm:text-xl lg:text-2xl">
-              {value}
-            </p>
-          </div>
-          <div className={`shrink-0 rounded-lg p-1.5 sm:p-2 ${tone}`}>
-            <Icon size={16} className="sm:hidden" />
-            <Icon size={20} className="hidden sm:block" />
-          </div>
-        </div>
-        {href && (
+    <KPICard
+      title={title}
+      value={value}
+      format="text"
+      icon={icon}
+      color={color}
+      footer={
+        href && (
           <Link
             to={href}
-            className="mt-3 inline-flex text-xs font-bold uppercase tracking-wide text-slate-600 hover:text-[#DA002E] sm:mt-4">
+            className="mt-3 inline-flex text-xs font-bold uppercase tracking-wide text-slate-600 hover:text-brand-navy">
             View details
           </Link>
-        )}
+        )
+      }
+    />
+  );
+}
+
+// Hero stat: bank + petty cash balances combined, the closest real "how much
+// liquid cash does the org have right now" figure the backend already
+// computes (dashboard.service.js returns both separately; no new endpoint
+// needed). The sparkline is real data too, not fabricated — it's the same
+// 6-month incomeVsExpense series already fetched for the bar chart below,
+// reduced to a monthly net (income − expense). That's a net CASH FLOW trend,
+// not a literal balance history (the backend has no daily/monthly balance
+// snapshots to chart), so it's captioned accordingly rather than implied to
+// be "Net Position over time."
+function NetPositionHero({ value, trendData, loading }) {
+  return (
+    <Card className="overflow-hidden border-0 bg-gradient-to-br from-brand-navy to-brand-navy-dark text-white shadow-none">
+      <CardContent className="p-5 sm:p-6 lg:p-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+          <div className="flex items-start gap-4">
+            <div className="rounded-xl bg-white/15 p-3">
+              <Wallet size={24} />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-white/60">
+                Net Position
+              </p>
+              {loading ? (
+                <div className="mt-2 h-8 w-40 animate-pulse rounded bg-white/15 sm:h-9 sm:w-52" />
+              ) : (
+                <p className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">{value}</p>
+              )}
+              <p className="mt-1 text-xs text-white/50">Bank + petty cash, current balance</p>
+            </div>
+          </div>
+
+          <div className="lg:w-64">
+            <div className="h-16 sm:h-20">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="netFlowFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="net"
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                    fill="url(#netFlowFill)"
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-1 text-right text-[10px] uppercase tracking-wide text-white/40">
+              6-month net cash flow
+            </p>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -164,45 +223,53 @@ export default function Dashboard() {
         title: "Petty Cash",
         value: formatMoney(summary.pettyCash),
         icon: Wallet,
-        tone: "bg-emerald-50 text-emerald-700",
+        color: "green",
         href: "/dashboard/petty-cash",
       },
       {
         title: "Bank Balance",
         value: formatMoney(summary.bankBalance),
         icon: Landmark,
-        tone: "bg-blue-50 text-blue-700",
+        color: "blue",
         href: "/dashboard/bank-cash",
       },
       {
         title: "Monthly Income",
         value: formatMoney(summary.monthlyIncome),
         icon: ArrowUpRight,
-        tone: "bg-teal-50 text-teal-700",
+        color: "teal",
         href: "/dashboard/reports",
       },
       {
         title: "Monthly Expense",
         value: formatMoney(summary.monthlyExpense),
         icon: ArrowDownRight,
-        tone: "bg-red-50 text-red-700",
+        color: "red",
         href: "/dashboard/reports",
       },
       {
         title: "Pending Approval",
         value: String(summary.pendingApproval || 0),
         icon: AlertTriangle,
-        tone: "bg-amber-50 text-amber-700",
+        color: "amber",
         href: "/director/approvals",
       },
     ];
   }, [dashboard, formatMoney]);
 
-  const incomeVsExpense = dashboard?.charts?.incomeVsExpense || [];
+  const incomeVsExpense = useMemo(() => dashboard?.charts?.incomeVsExpense || [], [dashboard]);
   const expenseByCategory = dashboard?.charts?.expenseByCategory || [];
   const recentJournals = dashboard?.recentJournals || [];
   const recentPettyCash = dashboard?.recentPettyCash || [];
   const bankAlerts = dashboard?.bankReconciliationAlerts || [];
+
+  const netPosition = formatMoney(
+    (dashboard?.summary?.bankBalance || 0) + (dashboard?.summary?.pettyCash || 0),
+  );
+  const netFlowTrend = useMemo(
+    () => incomeVsExpense.map((m) => ({ month: m.month, net: (m.income || 0) - (m.expense || 0) })),
+    [incomeVsExpense],
+  );
 
   return (
     <div className="space-y-6">
@@ -238,19 +305,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
-        {loading
-          ? Array.from({ length: 5 }).map((_, index) => (
-              <Card key={index} className="shadow-none">
-                <CardContent className="p-3 sm:p-5">
-                  <div className="h-3 w-16 animate-pulse rounded bg-slate-100 sm:w-20" />
-                  <div className="mt-2 h-5 w-20 animate-pulse rounded bg-slate-100 sm:mt-3 sm:h-6 sm:w-28" />
-                </CardContent>
-              </Card>
-            ))
-          : summaryCards.map((card) => (
-              <SummaryCard key={card.title} {...card} />
-            ))}
+      <section className="space-y-3 sm:space-y-4">
+        <NetPositionHero value={netPosition} trendData={netFlowTrend} loading={loading} />
+
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
+          {loading
+            ? Array.from({ length: 5 }).map((_, index) => (
+                <Card key={index} className="shadow-none">
+                  <CardContent className="p-3 sm:p-5">
+                    <div className="h-3 w-16 animate-pulse rounded bg-slate-100 sm:w-20" />
+                    <div className="mt-2 h-5 w-20 animate-pulse rounded bg-slate-100 sm:mt-3 sm:h-6 sm:w-28" />
+                  </CardContent>
+                </Card>
+              ))
+            : summaryCards.map((card) => (
+                <SummaryCard key={card.title} {...card} />
+              ))}
+        </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-5">
@@ -261,7 +332,7 @@ export default function Dashboard() {
             </CardTitle>
             <Link
               to="/dashboard/reports"
-              className="text-xs font-bold text-[#DA002E]">
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
               Reports
             </Link>
           </CardHeader>
@@ -286,13 +357,13 @@ export default function Dashboard() {
                     <Bar
                       dataKey="income"
                       name="Income"
-                      fill="#0f766e"
+                      fill="#203C8F"
                       radius={[4, 4, 0, 0]}
                     />
                     <Bar
                       dataKey="expense"
                       name="Expense"
-                      fill="#dc2626"
+                      fill="#DC2626"
                       radius={[4, 4, 0, 0]}
                     />
                   </BarChart>
@@ -358,7 +429,7 @@ export default function Dashboard() {
             </CardTitle>
             <Link
               to="/dashboard/journal-entries"
-              className="text-xs font-bold text-[#DA002E]">
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
               View all
             </Link>
           </CardHeader>
@@ -406,7 +477,7 @@ export default function Dashboard() {
             </CardTitle>
             <Link
               to="/dashboard/petty-cash"
-              className="text-xs font-bold text-[#DA002E]">
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
               View all
             </Link>
           </CardHeader>
@@ -459,7 +530,7 @@ export default function Dashboard() {
             </CardTitle>
             <Link
               to="/dashboard/bank-cash"
-              className="text-xs font-bold text-[#DA002E]">
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
               Reconcile
             </Link>
           </CardHeader>

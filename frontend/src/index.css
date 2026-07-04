@@ -46,9 +46,37 @@
   --color-brand-white: #FFFFFF;
 }
 
+/* ── App-shell primary (navy) ────────────────────────────────────────────── */
+/* New addition for the dashboard/shell redesign — NOT a replacement for the
+   semantic palette above (emerald=success, red=danger, amber=warning stay
+   exactly as-is). Navy is the new UI-chrome primary: sidebar background,
+   header accents, and primary nav/link affordances.
+   -light/-dark are the same hue/saturation as the base, just relit (plain
+   HSL math, computed once and hardcoded — no oklch(), consistent with this
+   app's existing avoidance of oklch anywhere in hand-written CSS):
+     base  #203C8F → hsl(224.9, 63.4%, 34.3%)
+     light #E3E7F2 → same hue, desaturated + raised to L92% (subtle tints/hover)
+     dark  #102050 → same hue/sat, dropped to L~19% (sidebar surface)         */
+@theme {
+  --color-brand-navy:       #203C8F;
+  --color-brand-navy-light: #E3E7F2;
+  --color-brand-navy-dark:  #102050;
+}
+
 /* Global Styles */
 * {
   font-family: "Quicksand", sans-serif;
+}
+
+/* Respect prefers-reduced-motion app-wide (sidebar/drawer slide, hover
+   transitions, etc.) rather than special-casing just the new shell. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 /* Custom Scrollbar for Sidebar */
 /* Target the sidebar navigation specifically */

@@ -26,14 +26,16 @@ import {
   emptyPettyCashPagination,
 } from "../hooks/usePettyCashHistory";
 import SectionHeader from "../components/common/SectionHeader";
-import { Modal } from "../components/common";
+import { Modal, Badge } from "../components/common";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
 import Button from "../components/common/Button";
 import DatePicker from "../components/common/DatePicker";
 import { TableSkeleton } from "../components/common/Loaders";
+import KPICard from "../components/reports/KPICard";
 import { formatCurrency } from "../utils/currency";
 import { todayISO } from "../utils/date";
+import { getErrorMessage } from "../utils/errors";
 
 const PETTY_CASH_ACCOUNT_CODE = "1001";
 const DEFAULT_PAGE_SIZE = 20;
@@ -116,9 +118,7 @@ export default function PettyCash() {
   const pettyCashAccount = historyQuery.data?.account || null;
   const historyLoading = historyQuery.isLoading && !historyQuery.data;
   const historyError = historyQuery.isError
-    ? historyQuery.error?.response?.data?.message ||
-      historyQuery.error?.message ||
-      "Failed to load petty cash history"
+    ? getErrorMessage(historyQuery.error, "Failed to load petty cash history")
     : "";
 
   const canCreatePettyCash =
@@ -166,18 +166,6 @@ export default function PettyCash() {
   const handleCloseModal = () => {
     setShowModal(false);
     resetForm();
-  };
-
-  const getErrorMessage = (err) => {
-    if (typeof err === "string") return err;
-
-    return (
-      err?.message ||
-      err?.error ||
-      err?.data?.message ||
-      err?.response?.data?.message ||
-      "Something went wrong. Please try again."
-    );
   };
 
   const onSubmit = async (data) => {
@@ -236,62 +224,10 @@ export default function PettyCash() {
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            title: "Current Balance",
-            value: formatCurrency(summary.balance),
-            icon: Coins,
-            iconBg: "bg-slate-50",
-            iconColor: "text-slate-700",
-          },
-          {
-            title: "Money In",
-            value: formatCurrency(summary.totalDebit),
-            icon: TrendingUp,
-            iconBg: "bg-emerald-50",
-            iconColor: "text-emerald-600",
-          },
-          {
-            title: "Money Out",
-            value: formatCurrency(summary.totalCredit),
-            icon: TrendingDown,
-            iconBg: "bg-rose-50",
-            iconColor: "text-rose-600",
-          },
-          {
-            title: "Transactions",
-            value: summary.count,
-            icon: ReceiptText,
-            iconBg: "bg-blue-50",
-            iconColor: "text-blue-600",
-          },
-        ].map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <div
-              key={item.title}
-              className="rounded-xl border border-slate-200 bg-white p-3 md:p-4 transition-all hover:shadow-sm">
-              <div className="flex flex-row items-center gap-3 sm:gap-4">
-                {/* Icon Container: Slightly smaller on mobile */}
-                <div
-                  className={`flex h-8 md:h-10 w-8 md:w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-lg ${item.iconBg}`}>
-                  <Icon className={`h-5 w-5 ${item.iconColor}`} />
-                </div>
-
-                {/* Text Content: Using min-w-0 to allow truncation to work */}
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wide text-slate-500">
-                    {item.title}
-                  </p>
-                  <p className="mt-0.5 sm:mt-1 truncate text-base md:text-lg sm:text-xl font-bold text-slate-900">
-                    {item.value}
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <KPICard title="Current Balance" value={summary.balance} icon={Coins} color="slate" />
+        <KPICard title="Money In" value={summary.totalDebit} icon={TrendingUp} color="green" />
+        <KPICard title="Money Out" value={summary.totalCredit} icon={TrendingDown} color="rose" />
+        <KPICard title="Transactions" value={summary.count} format="text" icon={ReceiptText} color="blue" />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -395,14 +331,9 @@ export default function PettyCash() {
                       {item.voucherNumber}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${
-                          item.debit > 0
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-rose-200 bg-rose-50 text-rose-700"
-                        }`}>
+                      <Badge variant={item.debit > 0 ? "success" : "rose"} size="sm">
                         {item.type === "deposit" ? "Deposit" : "Expense"}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="max-w-xs px-4 py-4 text-sm text-slate-700">
                       <div className="truncate">

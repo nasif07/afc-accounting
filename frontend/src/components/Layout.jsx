@@ -1,11 +1,13 @@
 ﻿import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import Sidebar from "../components/Sidebar";
 import { logoutAsync } from "../store/slices/authSlice";
+import { selectOrgInfo } from "../store/slices/settingsSlice";
 import { menuSections } from "../constants/menuSection";
 import Button from "./common/Button";
+import { Separator } from "./ui/separator";
 
 function usePageTitle() {
   const { pathname } = useLocation();
@@ -19,6 +21,7 @@ function usePageTitle() {
 
 export default function DashboardLayout() {
   const { user } = useSelector((state) => state.auth);
+  const { orgName } = useSelector(selectOrgInfo);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const pageTitle = usePageTitle();
@@ -56,7 +59,7 @@ export default function DashboardLayout() {
           desktopOpen ? "lg:ml-64" : "lg:ml-20"
         }`}>
 
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-3 sm:h-16 sm:px-4 lg:px-6">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 sm:h-16 sm:px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-2">
             {/* Mobile menu toggle */}
             <Button
@@ -83,10 +86,29 @@ export default function DashboardLayout() {
             </span>
           </div>
 
+          {/* Search — UI placeholder only; not wired to a search backend yet */}
+          <div className="relative hidden max-w-xs flex-1 md:block">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              placeholder="Search…"
+              aria-label="Search"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 transition focus:border-brand-navy focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-navy-light"
+            />
+          </div>
+
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <div className="hidden text-sm text-slate-600 sm:block">
-              Welcome, <span className="font-semibold">{user?.name || "User"}</span>
+            <div className="hidden text-right sm:block">
+              <p className="text-sm text-slate-600">
+                Welcome, <span className="font-semibold">{user?.name || "User"}</span>
+              </p>
+              <p className="truncate text-xs text-slate-400">{orgName}</p>
             </div>
+
+            <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
             <Button
               variant="outline"

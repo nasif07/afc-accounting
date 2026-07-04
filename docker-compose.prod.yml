@@ -1,5 +1,17 @@
 name: alliance-accounting
 
+# VPS-side compose file: pulls pre-built images from Docker Hub instead of
+# building from source, so the VPS only needs this file, backend/.env.production,
+# and (optionally) deploy/nginx/ — not the full git repo.
+#
+# Build + push from your dev machine with the root docker-compose.yml:
+#   docker compose build
+#   docker compose push
+#
+# Then on the VPS, with just this file present:
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+
 services:
   mongo:
     image: mongo:7
@@ -19,11 +31,9 @@ services:
 
   backend:
     image: nasi07/alliance-accounting-backend:latest
-    build:
-      context: ./backend
     restart: unless-stopped
     env_file:
-      - ./backend/.env.production
+      - ./.env.production
     environment:
       NODE_ENV: production
       PORT: 5000
@@ -40,10 +50,6 @@ services:
 
   frontend:
     image: nasi07/alliance-accounting-frontend:latest
-    build:
-      context: ./frontend
-      args:
-        VITE_API_URL: /api
     restart: unless-stopped
     depends_on:
       backend:

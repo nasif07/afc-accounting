@@ -893,7 +893,7 @@ class BankBookService {
     const movementMoney = (value) => (Number(value || 0) ? money(value) : "");
 
     const drawHeader = () => {
-      const defaultLogoPath = path.resolve(__dirname, "../../../../frontend/public/afc-logo.jpg");
+      const defaultLogoPath = path.resolve(__dirname, "../../../../frontend/public/afc-logo.png");
       const logoPath = (orgInfo.orgLogo && fs.existsSync(orgInfo.orgLogo))
         ? orgInfo.orgLogo
         : defaultLogoPath;
