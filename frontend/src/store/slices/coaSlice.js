@@ -32,30 +32,6 @@ export const fetchCoaById = createAsyncThunk(
   },
 );
 
-export const createCoa = createAsyncThunk(
-  "coa/createCoa",
-  async (data, { rejectWithValue }) => {
-    try {
-      const response = await coaAPI.create(data);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(getErrorMessage(error, "Failed to create COA"));
-    }
-  },
-);
-
-export const updateCoa = createAsyncThunk(
-  "coa/updateCoa",
-  async ({ id, data }, { rejectWithValue }) => {
-    try {
-      const response = await coaAPI.update(id, data);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(getErrorMessage(error, "Failed to update COA"));
-    }
-  },
-);
-
 export const deleteCoa = createAsyncThunk(
   "coa/deleteCoa",
   async (id, { rejectWithValue }) => {
@@ -149,48 +125,6 @@ const coaSlice = createSlice({
         state.item = getPayloadData(action.payload);
       })
       .addCase(fetchCoaById.rejected, handleRejected)
-
-      // Create COA
-      .addCase(createCoa.pending, handlePending)
-      .addCase(createCoa.fulfilled, (state, action) => {
-        state.loading = false;
-        state.success = true;
-
-        const newItem = getPayloadData(action.payload);
-
-        if (newItem?._id) {
-          const exists = state.items.some((item) => item._id === newItem._id);
-
-          if (!exists) {
-            state.items.unshift(newItem);
-          }
-        }
-      })
-      .addCase(createCoa.rejected, handleRejected)
-
-      // Update COA
-      .addCase(updateCoa.pending, handlePending)
-      .addCase(updateCoa.fulfilled, (state, action) => {
-        state.loading = false;
-        state.success = true;
-
-        const updatedItem = getPayloadData(action.payload);
-
-        if (updatedItem?._id) {
-          const index = state.items.findIndex(
-            (item) => item._id === updatedItem._id,
-          );
-
-          if (index !== -1) {
-            state.items[index] = updatedItem;
-          }
-
-          if (state.item?._id === updatedItem._id) {
-            state.item = updatedItem;
-          }
-        }
-      })
-      .addCase(updateCoa.rejected, handleRejected)
 
       // Delete COA
       .addCase(deleteCoa.pending, handlePending)

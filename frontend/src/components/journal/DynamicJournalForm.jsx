@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Plus, X, ShieldCheck } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
+import { useForm, useFieldArray, FormProvider, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { fetchLeafAccounts } from "../../store/slices/accountSlice";
 import BookEntryRow from "./BookEntryRow";
 import BalanceSummary from "./BalanceSummary";
@@ -14,6 +17,100 @@ import Modal from "../common/Modal";
 import { SectionSkeleton } from "../common/Loaders";
 import { todayISO, toISODate, formatDisplayDate } from "../../utils/date";
 import { formatCurrency } from "../../utils/currency";
+
+// ── Rounding helper ──────────────────────────────────────────────────────────
+// Flagged in docs/frontendreport.md: debit/credit inputs were raw, unrounded
+// strings, and the overall balance check used a blunt <0.01 tolerance — so a
+// genuine 1-cent mismatch (e.g. totals of 100.00 vs 100.005, which is really
+// 100.01 once rounded) could be silently accepted as "balanced". Fixed by
+// rounding every line to exactly 2 decimals before any comparison or
+// submission, and tightening the balance tolerance to <0.001 — once every
+// line is pre-rounded, only floating-point representation noise should
+// remain, never real currency amounts. The `+ Number.EPSILON` guards against
+// a separate, well-known Math.round quirk (Math.round(1.005 * 100) naively
+// yields 100 instead of 101 due to binary float representation).
+const roundToCents = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const toAmount = (v) => (v === "" || v == null ? 0 : roundToCents(v));
+const BALANCE_EPSILON = 0.001;
+
+const bookEntrySchema = z
+  .object({
+    account: z.string().min(1, "Account is required"),
+    description: z.string().trim().optional(),
+    debit: z.preprocess(toAmount, z.number().min(0, "Debit cannot be negative")),
+    credit: z.preprocess(toAmount, z.number().min(0, "Credit cannot be negative")),
+  })
+  .refine((entry) => !(entry.debit > 0 && entry.credit > 0), {
+    message: "Cannot have both debit and credit",
+    path: ["credit"],
+  })
+  .refine((entry) => entry.debit > 0 || entry.credit > 0, {
+    message: "Must have either debit or credit",
+    path: ["debit"],
+  });
+
+const journalSchema = z
+  .object({
+    voucherDate: z.string().min(1, "Voucher date is required"),
+    transactionType: z.enum(["journal-entry", "receipt", "payment", "transfer"]),
+    description: z.string().trim().optional(),
+    requiresApproval: z.boolean().optional(),
+    bookEntries: z
+      .array(bookEntrySchema)
+      .min(2, "Journal entry must have at least 2 line items"),
+  })
+  .superRefine((data, ctx) => {
+    const totalDebit = roundToCents(
+      data.bookEntries.reduce((sum, e) => sum + e.debit, 0),
+    );
+    const totalCredit = roundToCents(
+      data.bookEntries.reduce((sum, e) => sum + e.credit, 0),
+    );
+    const balanced =
+      Math.abs(totalDebit - totalCredit) < BALANCE_EPSILON &&
+      totalDebit > 0 &&
+      totalCredit > 0;
+
+    if (!balanced) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bookEntries"],
+        message:
+          totalDebit === 0
+            ? "Journal entry cannot be empty"
+            : "Journal entry must be balanced",
+      });
+    }
+  });
+
+const blankRow = { account: "", debit: "", credit: "", description: "" };
+
+// initialData's bookEntries.account is a populated object ({_id, accountCode,
+// accountName, accountType} — see accounting.service.js's .populate() calls),
+// not a plain id string. The old code spread it through unchanged, so
+// editing an existing entry silently left every Account <select> unmatched
+// (comparing a string option value against an object), and re-submitting
+// without touching those dropdowns would have sent the raw populated object
+// back as `account`, which the backend's objectId schema rejects outright.
+// Normalizing to a plain id string here — matching the same populated-ref
+// pattern already handled in Accounts.jsx's parentAccount — fixes this.
+const buildDefaultValues = (initialData) => ({
+  voucherDate: toISODate(initialData?.voucherDate) || todayISO(),
+  transactionType: initialData?.transactionType || "journal-entry",
+  description: initialData?.description || "",
+  requiresApproval: initialData ? initialData.approvalStatus === "pending" : false,
+  bookEntries: initialData?.bookEntries?.length
+    ? initialData.bookEntries.map((e) => ({
+        account:
+          typeof e.account === "object" && e.account !== null
+            ? e.account?._id || ""
+            : e.account || "",
+        description: e.description || "",
+        debit: e.debit || "",
+        credit: e.credit || "",
+      }))
+    : [blankRow, blankRow],
+});
 
 const DynamicJournalForm = ({
   onSubmit,
@@ -33,174 +130,112 @@ const DynamicJournalForm = ({
   }, [dispatch]);
 
   // ==============================
-  // FORM STATES
+  // FORM STATE (react-hook-form)
   // ==============================
 
-  const [voucherDate, setVoucherDate] = useState(
-    toISODate(initialData?.voucherDate) || todayISO(),
-  );
-
-  const [transactionType, setTransactionType] = useState(
-    initialData?.transactionType || "journal-entry",
-  );
-
-  const [description, setDescription] = useState(
-    initialData?.description || "",
-  );
-
-  const [requiresApproval, setRequiresApproval] = useState(
-    initialData ? initialData.approvalStatus === "pending" : false,
-  );
-
-  const [bookEntries, setBookEntries] = useState(() => {
-    const normalize = (e) => ({
-      ...e,
-      debit: e.debit || "",
-      credit: e.credit || "",
-    });
-    return initialData?.bookEntries
-      ? initialData.bookEntries.map(normalize)
-      : [
-          { account: "", debit: "", credit: "", description: "" },
-          { account: "", debit: "", credit: "", description: "" },
-        ];
+  const methods = useForm({
+    resolver: zodResolver(journalSchema),
+    defaultValues: buildDefaultValues(initialData),
   });
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    control,
+    watch,
+    setError,
+    formState: { errors },
+  } = methods;
 
-  const [errors, setErrors] = useState({});
+  const { fields, append, remove } = useFieldArray({ control, name: "bookEntries" });
+
   const [confirmPayload, setConfirmPayload] = useState(null);
 
   // ==============================
-  // BALANCE CALCULATION
+  // BALANCE CALCULATION (live, mirrors the schema's superRefine exactly so
+  // the UI hint never disagrees with what submission will actually enforce)
   // ==============================
 
-  const totalDebit = bookEntries.reduce(
-    (sum, entry) => sum + (parseFloat(entry.debit) || 0),
-    0,
-  );
+  const watchedBookEntries = watch("bookEntries");
 
-  const totalCredit = bookEntries.reduce(
-    (sum, entry) => sum + (parseFloat(entry.credit) || 0),
-    0,
+  const totalDebit = roundToCents(
+    (watchedBookEntries || []).reduce((sum, e) => sum + (parseFloat(e.debit) || 0), 0),
+  );
+  const totalCredit = roundToCents(
+    (watchedBookEntries || []).reduce((sum, e) => sum + (parseFloat(e.credit) || 0), 0),
   );
 
   const isBalanced =
-    Math.abs(totalDebit - totalCredit) < 0.01 &&
+    Math.abs(totalDebit - totalCredit) < BALANCE_EPSILON &&
     totalDebit > 0 &&
     totalCredit > 0;
-
-  // ==============================
-  // VALIDATION
-  // ==============================
-
-  const validateForm = () => {
-    const newErrors = {};
-    let isValid = true;
-
-    if (!voucherDate) {
-      toast.error("Voucher date is required");
-      isValid = false;
-    }
-
-    if (bookEntries.length < 2) {
-      toast.error("Journal entry must have at least 2 line items");
-      return false;
-    }
-
-    bookEntries.forEach((entry, idx) => {
-      const entryErrors = [];
-
-      if (!entry.account) {
-        entryErrors.push("Account is required");
-        isValid = false;
-      }
-
-      const debit = parseFloat(entry.debit) || 0;
-      const credit = parseFloat(entry.credit) || 0;
-
-      if (debit > 0 && credit > 0) {
-        entryErrors.push("Cannot have both debit and credit");
-        isValid = false;
-      }
-
-      if (debit === 0 && credit === 0) {
-        entryErrors.push("Must have either debit or credit");
-        isValid = false;
-      }
-
-      if (entryErrors.length > 0) {
-        newErrors[idx] = entryErrors;
-      }
-    });
-
-    if (!isBalanced) {
-      if (totalDebit === 0) {
-        toast.error("Journal entry cannot be empty");
-      } else {
-        toast.error("Journal entry must be balanced");
-      }
-
-      return false;
-    }
-
-    setErrors(newErrors);
-
-    return isValid;
-  };
 
   // ==============================
   // ROW HANDLERS
   // ==============================
 
-  const handleRowUpdate = (rowIndex, updatedEntry) => {
-    const newEntries = [...bookEntries];
-    newEntries[rowIndex] = updatedEntry;
-    setBookEntries(newEntries);
-  };
-
   const handleRowRemove = (rowIndex) => {
-    if (bookEntries.length <= 2) {
+    if (fields.length <= 2) {
       toast.error("Journal entry must have at least 2 line items");
       return;
     }
 
-    setBookEntries(bookEntries.filter((_, idx) => idx !== rowIndex));
+    remove(rowIndex);
   };
 
   const handleAddRow = () => {
-    setBookEntries([
-      ...bookEntries,
-      { account: "", debit: "", credit: "", description: "" },
-    ]);
+    append(blankRow);
   };
 
   // ==============================
   // SUBMIT
   // ==============================
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const applyServerErrors = (err) => {
+    const fieldErrors = err?.errors;
+    if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+      fieldErrors.forEach(({ field, message }) => {
+        if (field) setError(field, { type: "server", message });
+      });
+    } else {
+      toast.error(err?.message || "Failed to save journal entry");
+    }
+  };
 
-    if (!validateForm()) return;
+  const onInvalid = (formErrors) => {
+    // The array-level balance/empty/min-length message lives either at
+    // bookEntries.message (no per-line errors) or bookEntries.root.message
+    // (per-line errors also present) — confirmed empirically against
+    // zodResolver's actual output shape. Per-line errors are already shown
+    // inline via BookEntryRow, matching the pre-conversion UX exactly.
+    const arrayError = formErrors.bookEntries;
+    const message =
+      arrayError?.root?.message ||
+      (typeof arrayError?.message === "string" ? arrayError.message : undefined);
+    if (message) toast.error(message);
+    if (formErrors.voucherDate) toast.error(formErrors.voucherDate.message);
+  };
 
-    const payload = {
-      voucherDate,
-      transactionType,
-      description,
-      requiresApproval,
-      bookEntries,
-    };
-
+  const onValid = async (data) => {
     if (!initialData) {
-      setConfirmPayload(payload);
+      setConfirmPayload(data);
       return;
     }
 
-    await onSubmit(payload);
+    try {
+      await onSubmit(data);
+    } catch (err) {
+      applyServerErrors(err);
+    }
   };
 
   const handleConfirm = async () => {
-    await onSubmit(confirmPayload);
-    setConfirmPayload(null);
+    try {
+      await onSubmit(confirmPayload);
+      setConfirmPayload(null);
+    } catch (err) {
+      setConfirmPayload(null);
+      applyServerErrors(err);
+    }
   };
 
   const getAccountName = (accountId) => {
@@ -222,8 +257,8 @@ const DynamicJournalForm = ({
   // ==============================
 
   return (
-    <>
-    <form onSubmit={handleSubmit} className="relative space-y-4">
+    <FormProvider {...methods}>
+    <form onSubmit={handleFormSubmit(onValid, onInvalid)} noValidate className="relative space-y-4">
       {/* Close Button */}
       {onCancel && (
         <Button
@@ -241,18 +276,23 @@ const DynamicJournalForm = ({
         <h2 className="mb-3 text-sm font-bold">Voucher Details</h2>
 
         <div className="grid gap-3 md:grid-cols-3">
-          <DatePicker
-            label="Voucher Date"
-            value={voucherDate}
-            onChange={setVoucherDate}
-            required
-            disabled={isSubmitting}
+          <Controller
+            name="voucherDate"
+            control={control}
+            render={({ field }) => (
+              <DatePicker
+                label="Voucher Date"
+                value={field.value}
+                onChange={field.onChange}
+                required
+                disabled={isSubmitting}
+                error={errors.voucherDate?.message}
+              />
+            )}
           />
 
           <Select
             label="Transaction Type"
-            value={transactionType}
-            onChange={(e) => setTransactionType(e.target.value)}
             options={[
               {
                 value: "journal-entry",
@@ -271,13 +311,10 @@ const DynamicJournalForm = ({
                 label: "Transfer",
               },
             ]}
+            {...register("transactionType")}
           />
 
-          <Input
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+          <Input label="Description" {...register("description")} />
         </div>
       </div>
 
@@ -285,15 +322,12 @@ const DynamicJournalForm = ({
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-bold">Book Entries</h2>
 
-        {bookEntries.map((entry, idx) => (
+        {fields.map((field, idx) => (
           <BookEntryRow
-            key={idx}
-            rowIndex={idx}
-            entry={entry}
+            key={field.id}
+            index={idx}
             leafAccounts={leafAccounts}
-            onUpdate={handleRowUpdate}
-            onRemove={handleRowRemove}
-            errors={errors}
+            onRemove={() => handleRowRemove(idx)}
           />
         ))}
 
@@ -318,9 +352,8 @@ const DynamicJournalForm = ({
         <label className="flex cursor-pointer items-start gap-3">
           <input
             type="checkbox"
-            checked={requiresApproval}
-            onChange={(e) => setRequiresApproval(e.target.checked)}
             className="mt-1 h-4 w-4"
+            {...register("requiresApproval")}
           />
 
           <div>
@@ -466,7 +499,7 @@ const DynamicJournalForm = ({
         </div>
       )}
     </Modal>
-    </>
+    </FormProvider>
   );
 };
 

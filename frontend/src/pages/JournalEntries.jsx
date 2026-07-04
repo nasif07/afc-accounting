@@ -77,71 +77,67 @@ export default function JournalEntries() {
     }
   }, [error, dispatch]);
 
+  // Deliberately not wrapped in try/catch here — DynamicJournalForm awaits
+  // this call and needs the rejection (the full backend error payload) to
+  // reach its own catch block so it can map field-level errors via setError,
+  // same pattern as Students.jsx's onSubmit prop.
   const handleFormSubmit = async (payload) => {
-    let result;
-
-    try {
-      // ==============================
-      // UPDATE ENTRY
-      // ==============================
-      if (editingEntry) {
-        result = await dispatch(
-          updateJournalEntry({
-            id: editingEntry._id,
-            data: payload,
-          }),
-        );
-
-        if (result?.error) {
-          toast.error(result.payload || "Failed to update journal entry");
-          return;
-        }
-
-        // Auto approval success message
-        if (payload.requiresApproval === false) {
-          toast.success("Journal entry updated and auto approved successfully");
-        } else {
-          toast.success("Journal entry updated successfully");
-        }
-      }
-
-      // ==============================
-      // CREATE ENTRY
-      // ==============================
-      else {
-        result = await dispatch(createJournalEntry(payload));
-
-        if (result?.error) {
-          toast.error(result.payload || "Failed to create journal entry");
-          return;
-        }
-
-        // Auto approval success message
-        if (payload.requiresApproval === false) {
-          toast.success("Journal entry created and auto approved successfully");
-        } else {
-          toast.success("Journal entry created and sent for approval");
-        }
-      }
-
-      // ==============================
-      // CLOSE FORM
-      // ==============================
-      handleCloseForm();
-
-      // ==============================
-      // REFRESH LIST
-      // ==============================
-      dispatch(
-        fetchJournalEntries({
-          page: currentPage,
-          limit,
-          search: searchTerm,
+    // ==============================
+    // UPDATE ENTRY
+    // ==============================
+    if (editingEntry) {
+      const result = await dispatch(
+        updateJournalEntry({
+          id: editingEntry._id,
+          data: payload,
         }),
       );
-    } catch (error) {
-      toast.error(error?.message || "Something went wrong");
+
+      if (result?.error) {
+        throw result.payload;
+      }
+
+      // Auto approval success message
+      if (payload.requiresApproval === false) {
+        toast.success("Journal entry updated and auto approved successfully");
+      } else {
+        toast.success("Journal entry updated successfully");
+      }
     }
+
+    // ==============================
+    // CREATE ENTRY
+    // ==============================
+    else {
+      const result = await dispatch(createJournalEntry(payload));
+
+      if (result?.error) {
+        throw result.payload;
+      }
+
+      // Auto approval success message
+      if (payload.requiresApproval === false) {
+        toast.success("Journal entry created and auto approved successfully");
+      } else {
+        toast.success("Journal entry created and sent for approval");
+      }
+    }
+
+    // ==============================
+    // CLOSE FORM
+    // ==============================
+    handleCloseForm();
+
+    // ==============================
+    // REFRESH LIST
+    // ==============================
+    dispatch(
+      fetchJournalEntries({
+        page: currentPage,
+        limit,
+        search: searchTerm,
+      }),
+    );
   };
 
   const handleEdit = (entry) => {

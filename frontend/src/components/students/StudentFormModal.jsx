@@ -214,13 +214,16 @@ const StudentFormModal = ({
     try {
       await onSubmit(payload);
     } catch (err) {
-      // Backend validation failures (errorMiddleware.js) come back as
-      // errors: [{ field, message }] — map each to its form field. Field
-      // names here are flat (e.g. "email"), matching the backend's top-level
-      // fields; a nested "parent.email" failure would need path-based mapping
-      // if the backend ever starts emitting one (it currently strips
-      // unrecognized nested issues the same as any other unknown field).
-      const fieldErrors = err?.response?.data?.errors;
+      // useStudents.js's mutationFn normalizes thrown errors to
+      // { message, errors? } — same shape as every Redux slice's
+      // rejectWithValue. Backend validation failures (errorMiddleware.js)
+      // come back as errors: [{ field, message }] — map each to its form
+      // field. Field names here are flat (e.g. "email"), matching the
+      // backend's top-level fields; a nested "parent.email" failure would
+      // need path-based mapping if the backend ever starts emitting one (it
+      // currently strips unrecognized nested issues the same as any other
+      // unknown field).
+      const fieldErrors = err?.errors;
       if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
         fieldErrors.forEach(({ field, message }) => {
           if (field) setError(field, { type: "server", message });

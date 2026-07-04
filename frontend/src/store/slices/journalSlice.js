@@ -104,8 +104,11 @@ export const createJournalEntry = createAsyncThunk(
       const response = await api.post("/accounting/journal-entries", entryData);
       return response.data.data || response.data.entry || response.data;
     } catch (error) {
+      // Preserve the full backend error payload (not just the message
+      // string) so the form can inspect `.errors` for field-level
+      // validation issues, same pattern as accountSlice.js/payrollSlice.js.
       return rejectWithValue(
-        error.response?.data?.message || "Failed to create entry",
+        error.response?.data || { message: "Failed to create entry" },
       );
     }
   },
@@ -122,7 +125,7 @@ export const updateJournalEntry = createAsyncThunk(
       return response.data.data || response.data.entry || response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to update entry",
+        error.response?.data || { message: "Failed to update entry" },
       );
     }
   },
@@ -209,7 +212,10 @@ const journalSlice = createSlice({
       })
       .addCase(createJournalEntry.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        // Field-level errors are shown inline via setError instead — skip
+        // the generic toast in that case (same pattern as accountSlice.js).
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || "Failed to create entry";
       })
 
       .addCase(updateJournalEntry.pending, (state) => {
@@ -221,7 +227,8 @@ const journalSlice = createSlice({
       })
       .addCase(updateJournalEntry.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || "Failed to update entry";
       })
 
       .addCase(deleteJournalEntry.pending, (state) => {

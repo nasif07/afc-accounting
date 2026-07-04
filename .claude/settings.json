@@ -122,7 +122,8 @@
       "Bash(node verify_pettycash.temp.js)",
       "Bash(rm -f verify_pettycash.temp.js)",
       "Bash(taskkill //F //PID 27396)",
-      "Bash(xargs grep -l \"journal\" -i)"
+      "Bash(xargs grep -l \"journal\" -i)",
+      "Bash(grep -n \"^    </>$\\\\|</>\" src/components/journal/DynamicJournalForm.jsx)"
     ],
     "additionalDirectories": [
       "\\tmp"

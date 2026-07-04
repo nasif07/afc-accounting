@@ -151,7 +151,10 @@ export default function Employees() {
       setShowModal(false);
       setEditingId(null);
     } catch (err) {
-      const fieldErrors = err?.response?.data?.errors;
+      // useEmployees.js's mutationFn normalizes thrown errors to
+      // { message, errors? } — same shape as every Redux slice's
+      // rejectWithValue — so this reads err.errors directly now.
+      const fieldErrors = err?.errors;
       if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
         fieldErrors.forEach(({ field, message }) => {
           if (field) setError(field, { type: "server", message });

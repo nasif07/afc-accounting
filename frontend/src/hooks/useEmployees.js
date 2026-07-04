@@ -4,11 +4,16 @@ import { toast } from 'sonner';
 
 const KEY = ['employees'];
 
+// Normalizes a thrown axios error into the same { message, errors? } shape
+// used by every Redux slice's rejectWithValue (accountSlice.js, etc.) so
+// mutation consumers don't need to reach into err.response.data themselves.
+const normalizeError = (e, fallback) => e.response?.data || { message: fallback };
+
 // True when the backend responded with structured per-field validation
 // issues (errorMiddleware.js's `errors: [{ field, message }]`) — in that
 // case the form maps them to individual fields via setError, so the generic
 // toast would just be redundant noise on top of the field-level messages.
-const hasFieldErrors = (e) => Array.isArray(e.response?.data?.errors) && e.response.data.errors.length > 0;
+const hasFieldErrors = (e) => Array.isArray(e.errors) && e.errors.length > 0;
 
 export const useEmployees = (params = {}, options = {}) =>
   useQuery({
@@ -25,11 +30,15 @@ export const useCreateEmployee = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data) => {
-      const res = await api.post('/employees', data);
-      return res.data?.data || res.data;
+      try {
+        const res = await api.post('/employees', data);
+        return res.data?.data || res.data;
+      } catch (e) {
+        throw normalizeError(e, 'Failed to create employee');
+      }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success('Employee created'); },
-    onError:   (e) => { if (!hasFieldErrors(e)) toast.error(e.response?.data?.message || 'Failed to create employee'); },
+    onError:   (e) => { if (!hasFieldErrors(e)) toast.error(e.message || 'Failed to create employee'); },
   });
 };
 
@@ -37,11 +46,15 @@ export const useUpdateEmployee = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, data }) => {
-      const res = await api.put(`/employees/${id}`, data);
-      return res.data?.data || res.data;
+      try {
+        const res = await api.put(`/employees/${id}`, data);
+        return res.data?.data || res.data;
+      } catch (e) {
+        throw normalizeError(e, 'Failed to update employee');
+      }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success('Employee updated'); },
-    onError:   (e) => { if (!hasFieldErrors(e)) toast.error(e.response?.data?.message || 'Failed to update employee'); },
+    onError:   (e) => { if (!hasFieldErrors(e)) toast.error(e.message || 'Failed to update employee'); },
   });
 };
 

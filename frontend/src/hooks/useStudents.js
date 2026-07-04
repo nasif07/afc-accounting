@@ -4,11 +4,16 @@ import { toast } from 'sonner';
 
 const STUDENTS_KEY = ['students'];
 
+// Normalizes a thrown axios error into the same { message, errors? } shape
+// used by every Redux slice's rejectWithValue (accountSlice.js, etc.) so
+// mutation consumers don't need to reach into err.response.data themselves.
+const normalizeError = (e, fallback) => e.response?.data || { message: fallback };
+
 // True when the backend responded with structured per-field validation
 // issues (errorMiddleware.js's `errors: [{ field, message }]`) — in that
 // case the form maps them to individual fields via setError, so the generic
 // toast would just be redundant noise on top of the field-level messages.
-const hasFieldErrors = (e) => Array.isArray(e.response?.data?.errors) && e.response.data.errors.length > 0;
+const hasFieldErrors = (e) => Array.isArray(e.errors) && e.errors.length > 0;
 
 /**
  * Fetch all students with pagination and search
@@ -37,8 +42,12 @@ export const useCreateStudent = () => {
 
   return useMutation({
     mutationFn: async (data) => {
-      const response = await api.post('/students', data);
-      return response.data.data || response.data;
+      try {
+        const response = await api.post('/students', data);
+        return response.data.data || response.data;
+      } catch (error) {
+        throw normalizeError(error, 'Failed to create student');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: STUDENTS_KEY });
@@ -46,7 +55,7 @@ export const useCreateStudent = () => {
     },
     onError: (error) => {
       if (!hasFieldErrors(error)) {
-        toast.error(error.response?.data?.message || 'Failed to create student');
+        toast.error(error.message || 'Failed to create student');
       }
     },
   });
@@ -60,8 +69,12 @@ export const useUpdateStudent = () => {
 
   return useMutation({
     mutationFn: async ({ id, data }) => {
-      const response = await api.patch(`/students/${id}`, data);
-      return response.data.data || response.data;
+      try {
+        const response = await api.patch(`/students/${id}`, data);
+        return response.data.data || response.data;
+      } catch (error) {
+        throw normalizeError(error, 'Failed to update student');
+      }
     },
     onSuccess: (data) => {
       // Invalidates the list and the specific detail view
@@ -71,7 +84,7 @@ export const useUpdateStudent = () => {
     },
     onError: (error) => {
       if (!hasFieldErrors(error)) {
-        toast.error(error.response?.data?.message || 'Failed to update student');
+        toast.error(error.message || 'Failed to update student');
       }
     },
   });

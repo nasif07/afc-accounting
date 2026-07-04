@@ -1,12 +1,11 @@
 // src/seed/seed.js
 
-import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
-import dotenv from "dotenv";
+const mongoose = require("mongoose");
+const dotenv = require("dotenv");
 
-import User from "../modules/users/user.model.js"
-import Account from "../modules/chartOfAccounts/coa.model.js";
-import logger from "../utils/logger.js";
+const User = require("../modules/users/user.model");
+const Account = require("../modules/chartOfAccounts/coa.model");
+const logger = require("../utils/logger");
 
 dotenv.config();
 
@@ -205,22 +204,24 @@ async function seed() {
     logger.info("Database connected");
 
     // CREATE ADMIN
+    if (!process.env.SEED_ADMIN_EMAIL || !process.env.SEED_ADMIN_PASSWORD) {
+      throw new Error(
+        "SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are required for seeding.",
+      );
+    }
 
     let admin = await User.findOne({
       email: process.env.SEED_ADMIN_EMAIL,
     });
 
     if (!admin) {
-      const hashedPassword = await bcrypt.hash(
-        process.env.SEED_ADMIN_PASSWORD,
-        10,
-      );
-
       admin = await User.create({
         name: "Director",
         email: process.env.SEED_ADMIN_EMAIL,
-        password: hashedPassword,
+        password: process.env.SEED_ADMIN_PASSWORD,
         role: "director",
+        status: "approved",
+        isActive: true,
       });
 
       logger.info("Admin created");

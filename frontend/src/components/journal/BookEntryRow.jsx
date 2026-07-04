@@ -1,53 +1,24 @@
 import React from "react";
+import { useFormContext } from "react-hook-form";
 import { Trash2, AlertCircle } from "lucide-react";
 import Input from "../common/Input";
 import Select from "../common/Select";
 import Button from "../common/Button";
 
-const BookEntryRow = ({
-  rowIndex,
-  entry,
-  leafAccounts,
-  onUpdate,
-  onRemove,
-  errors = {},
-}) => {
-  const handleAccountChange = (e) => {
-    onUpdate(rowIndex, {
-      ...entry,
-      account: e.target.value,
-    });
-  };
+const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
+  const {
+    register,
+    setValue,
+    formState: { errors },
+  } = useFormContext();
 
-  const handleDescriptionChange = (e) => {
-    onUpdate(rowIndex, {
-      ...entry,
-      description: e.target.value,
-    });
-  };
-
-  const handleDebitChange = (e) => {
-    const value = e.target.value;
-    const parsed = parseFloat(value);
-    onUpdate(rowIndex, {
-      ...entry,
-      debit: value,
-      credit: !isNaN(parsed) && parsed > 0 ? "" : entry.credit,
-    });
-  };
-
-  const handleCreditChange = (e) => {
-    const value = e.target.value;
-    const parsed = parseFloat(value);
-    onUpdate(rowIndex, {
-      ...entry,
-      credit: value,
-      debit: !isNaN(parsed) && parsed > 0 ? "" : entry.debit,
-    });
-  };
-
-  const rowError = errors[rowIndex];
-  const hasError = rowError && rowError.length > 0;
+  const rowErrors = errors.bookEntries?.[index] || {};
+  const rowErrorMessages = [
+    rowErrors.account?.message,
+    rowErrors.debit?.message,
+    rowErrors.credit?.message,
+  ].filter(Boolean);
+  const hasError = rowErrorMessages.length > 0;
 
   const accountOptions = (leafAccounts || []).map((account) => ({
     value: account._id,
@@ -64,12 +35,11 @@ const BookEntryRow = ({
         <div className="md:col-span-3">
           <Select
             label="Account"
-            value={entry.account ?? ""}
-            onChange={handleAccountChange}
             options={accountOptions}
             placeholder="Select Account"
             required
-            className={hasError && !entry.account ? "border-red-300" : ""}
+            className={rowErrors.account ? "border-red-300" : ""}
+            {...register(`bookEntries.${index}.account`)}
           />
         </div>
 
@@ -77,9 +47,8 @@ const BookEntryRow = ({
           <Input
             label="Description"
             type="text"
-            value={entry.description ?? ""}
-            onChange={handleDescriptionChange}
             placeholder="Row description"
+            {...register(`bookEntries.${index}.description`)}
           />
         </div>
 
@@ -88,9 +57,17 @@ const BookEntryRow = ({
             label="Debit"
             type="text"
             inputMode="decimal"
-            value={entry.debit || ""}
-            onChange={handleDebitChange}
             placeholder="0.00"
+            error={rowErrors.debit?.message}
+            touched={!!rowErrors.debit}
+            {...register(`bookEntries.${index}.debit`, {
+              onChange: (e) => {
+                const parsed = parseFloat(e.target.value);
+                if (!isNaN(parsed) && parsed > 0) {
+                  setValue(`bookEntries.${index}.credit`, "");
+                }
+              },
+            })}
           />
         </div>
 
@@ -99,9 +76,17 @@ const BookEntryRow = ({
             label="Credit"
             type="text"
             inputMode="decimal"
-            value={entry.credit || ""}
-            onChange={handleCreditChange}
             placeholder="0.00"
+            error={rowErrors.credit?.message}
+            touched={!!rowErrors.credit}
+            {...register(`bookEntries.${index}.credit`, {
+              onChange: (e) => {
+                const parsed = parseFloat(e.target.value);
+                if (!isNaN(parsed) && parsed > 0) {
+                  setValue(`bookEntries.${index}.debit`, "");
+                }
+              },
+            })}
           />
         </div>
 
@@ -109,7 +94,7 @@ const BookEntryRow = ({
           <Button
             type="button"
             variant="outline"
-            onClick={() => onRemove(rowIndex)}
+            onClick={onRemove}
             className="w-full border-red-200 text-red-600 hover:bg-red-50"
             icon={Trash2}
           >
@@ -122,7 +107,7 @@ const BookEntryRow = ({
         <div className="mt-3 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <div className="space-y-0.5">
-            {rowError.map((error, idx) => (
+            {rowErrorMessages.map((error, idx) => (
               <p key={idx}>{error}</p>
             ))}
           </div>

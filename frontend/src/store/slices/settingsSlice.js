@@ -20,7 +20,15 @@ export const updateSettings = createAsyncThunk(
       const response = await settingsAPI.update(data);
       return response.data?.data ?? response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update settings');
+      // Preserve the full backend error payload (not just the message
+      // string), same pattern as accountSlice.js/payrollSlice.js. Currently
+      // a no-op in practice — there's no Zod validation middleware on the
+      // /settings route, so `errors[]` is never populated for this endpoint
+      // today — but this keeps the slice consistent and correct if that
+      // ever changes.
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update settings' },
+      );
     }
   },
 );
@@ -58,7 +66,8 @@ const settingsSlice = createSlice({
       })
       .addCase(updateSettings.rejected, (state, action) => {
         state.loading = false;
-        state.error   = action.payload;
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || 'Failed to update settings';
       });
   },
 });
