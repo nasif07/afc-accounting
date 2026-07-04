@@ -13,7 +13,7 @@ const variantClasses = {
   danger:
     "bg-red-600 text-white hover:bg-red-700 focus:ring-red-100 disabled:bg-red-400",
   success:
-    "bg-green-600 text-white hover:bg-green-700 focus:ring-green-100 disabled:bg-green-400",
+    "bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-100 disabled:bg-emerald-400",
   warning:
     "bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-100 disabled:bg-amber-400",
   info: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-100 disabled:bg-blue-400",

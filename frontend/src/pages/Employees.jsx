@@ -11,7 +11,7 @@ import {
   Eye,
   ShieldAlert,
 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -29,6 +29,7 @@ import {
   Modal,
   Badge,
   Table,
+  DatePicker,
 } from "../components/common";
 import EmployeeDetailsModal from "../components/employees/EmployeeDetailsModal";
 
@@ -120,6 +121,7 @@ export default function Employees() {
     handleSubmit,
     reset,
     setError,
+    control,
     formState: { errors },
   } = useForm({ resolver: zodResolver(employeeSchema), defaultValues: EMPTY_FORM });
 
@@ -181,8 +183,8 @@ export default function Employees() {
               {value?.charAt(0)}
             </div>
             <div>
-              <p className="font-semibold text-gray-900">{value}</p>
-              <p className="font-mono text-xs text-gray-500">
+              <p className="font-semibold text-slate-900">{value}</p>
+              <p className="font-mono text-xs text-slate-500">
                 #{row.employeeCode}
               </p>
             </div>
@@ -193,7 +195,7 @@ export default function Employees() {
         key: "designation",
         label: "Designation",
         render: (value) => (
-          <span className="text-sm capitalize text-gray-600">
+          <span className="text-sm capitalize text-slate-600">
             {value?.replace("_", " ")}
           </span>
         ),
@@ -209,7 +211,7 @@ export default function Employees() {
         key: "department",
         label: "Department",
         render: (value) => (
-          <span className="text-sm text-gray-600">{value || "N/A"}</span>
+          <span className="text-sm text-slate-600">{value || "N/A"}</span>
         ),
       },
       {
@@ -319,13 +321,18 @@ export default function Employees() {
                 {...register("designation")}
               />
               <Input label="Department" {...register("department")} />
-              <Input
-                label="Joining Date"
-                type="date"
-                required
-                error={errors.dateOfJoining?.message}
-                touched={!!errors.dateOfJoining}
-                {...register("dateOfJoining")}
+              <Controller
+                name="dateOfJoining"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Joining Date"
+                    required
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.dateOfJoining?.message}
+                  />
+                )}
               />
             </div>
           </div>
@@ -344,12 +351,17 @@ export default function Employees() {
                 {...register("email")}
               />
               <Input label="Phone" type="tel" {...register("phone")} />
-              <Input
-                label="Date of Birth"
-                type="date"
-                error={errors.dateOfBirth?.message}
-                touched={!!errors.dateOfBirth}
-                {...register("dateOfBirth")}
+              <Controller
+                name="dateOfBirth"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Date of Birth"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.dateOfBirth?.message}
+                  />
+                )}
               />
             </div>
           </div>
@@ -400,7 +412,7 @@ export default function Employees() {
             </div>
           </div>
 
-          <div className="flex gap-3 border-t border-gray-100 pt-6">
+          <div className="flex gap-3 border-t border-slate-100 pt-6">
             <Button type="submit" size="sm" loading={isSaving}>
               <Edit2 size={12} className="text-white" />
               {editingId ? "Update Employee Record" : "Register Employee"}
@@ -410,7 +422,7 @@ export default function Employees() {
               variant="secondary"
               size="sm"
               onClick={() => setShowModal(false)}>
-              <Trash2 size={12} className="text-gray-600" />
+              <Trash2 size={12} className="text-slate-600" />
               Cancel
             </Button>
           </div>

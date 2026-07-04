@@ -67,15 +67,15 @@ const ReportFilters = ({
   ];
 
   return (
-    <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-6">
+    <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
       <div className="mb-4 flex items-center gap-2">
-        <Filter size={18} className="text-gray-600" />
-        <h3 className="font-semibold text-gray-900">Report Filters</h3>
+        <Filter size={18} className="text-slate-600" />
+        <h3 className="font-semibold text-slate-900">Report Filters</h3>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
+          <label className="mb-2 block text-sm font-medium text-slate-700">
             Report Type
           </label>
           <Select
@@ -88,7 +88,7 @@ const ReportFilters = ({
 
         {reportType === "general-ledger" && (
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               Account
             </label>
             <Select
@@ -103,7 +103,7 @@ const ReportFilters = ({
         {requiresDateRange && (
           <>
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
+              <label className="mb-2 block text-sm font-medium text-slate-700">
                 Start Date
               </label>
               <DatePicker
@@ -114,7 +114,7 @@ const ReportFilters = ({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
+              <label className="mb-2 block text-sm font-medium text-slate-700">
                 End Date
               </label>
               <DatePicker
@@ -128,7 +128,7 @@ const ReportFilters = ({
 
         {requiresSingleDate && (
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               As of Date
             </label>
             <DatePicker
@@ -141,7 +141,7 @@ const ReportFilters = ({
 
         {["general-ledger", "income-statement"].includes(reportType) && (
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               View
             </label>
             <Select
@@ -157,7 +157,7 @@ const ReportFilters = ({
         )}
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-gray-200 pt-4">
+      <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
         <Button
           variant="outline"
           size="sm"

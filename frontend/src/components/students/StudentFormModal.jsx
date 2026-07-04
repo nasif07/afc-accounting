@@ -248,7 +248,7 @@ const StudentFormModal = ({
     >
       {/* Tabs */}
       {!student && (
-        <div className="flex px-6 border-b border-neutral-100 bg-neutral-50/50 mb-3">
+        <div className="flex px-6 border-b border-slate-100 bg-slate-50/50 mb-3">
           <TabBtn
             active={activeTab === "single"}
             onClick={() => setActiveTab("single")}
@@ -379,7 +379,7 @@ const StudentFormModal = ({
                         className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${
                           required
                             ? "border-blue-300 bg-blue-100 font-bold text-blue-800"
-                            : "border-neutral-200 bg-white text-neutral-500"
+                            : "border-slate-200 bg-white text-slate-500"
                         }`}>
                         {col}
                         {required && <span className="ml-0.5 text-blue-500">*</span>}
@@ -404,7 +404,7 @@ const StudentFormModal = ({
                 className={`flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed p-10 transition ${
                   selectedFile
                     ? "border-emerald-400 bg-emerald-50"
-                    : "border-neutral-200 bg-neutral-50 hover:border-neutral-400 hover:bg-white"
+                    : "border-slate-200 bg-slate-50 hover:border-slate-400 hover:bg-white"
                 }`}>
                 <input
                   type="file"
@@ -417,14 +417,14 @@ const StudentFormModal = ({
                   className={`mb-3 rounded-full p-3 ${
                     selectedFile
                       ? "bg-emerald-500 text-white"
-                      : "bg-white text-neutral-400 shadow-sm"
+                      : "bg-white text-slate-400 shadow-sm"
                   }`}>
                   {selectedFile ? <CheckCircle2 size={28} /> : <Upload size={28} />}
                 </div>
-                <p className="font-bold text-neutral-900">
+                <p className="font-bold text-slate-900">
                   {selectedFile ? selectedFile.name : "Click to select a CSV file"}
                 </p>
-                <p className="mt-1 text-xs text-neutral-400">
+                <p className="mt-1 text-xs text-slate-400">
                   {selectedFile
                     ? "File ready — click Import CSV below to upload"
                     : "Only .csv files are accepted"}
@@ -442,7 +442,7 @@ const StudentFormModal = ({
           )}
 
           {/* Footer Actions */}
-          <div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-neutral-100 pt-6">
+          <div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-6">
             <Button
               type="button"
               onClick={onClose}
@@ -489,7 +489,7 @@ const StudentFormModal = ({
 
 // --- Sub-components ---
 const SectionTitle = ({ title }) => (
-  <h4 className="text-[10px] uppercase tracking-[2px] font-black text-neutral-400 mb-2">
+  <h4 className="text-[10px] uppercase tracking-[2px] font-black text-slate-400 mb-2">
     {title}
   </h4>
 );
@@ -498,7 +498,7 @@ const TabBtn = ({ active, onClick, label }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`px-6 py-4 text-sm font-bold transition-all border-b-2 ${active ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-400 hover:text-neutral-600"}`}>
+    className={`px-6 py-4 text-sm font-bold transition-all border-b-2 ${active ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
     {label}
   </button>
 );

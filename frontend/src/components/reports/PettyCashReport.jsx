@@ -162,33 +162,37 @@ const PettyCashReport = React.forwardRef(({ data = {} }, ref) => {
         </table>
       </div>
 
-      <div className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-3">
-        <div>
-          <p className="text-slate-500">Total Cash Received</p>
-          <p className="mt-1 font-bold text-emerald-700">
-            BDT {formatAmount(summary.totalCashReceived)}
-          </p>
-        </div>
-        <div>
-          <p className="text-slate-500">Total Cash Payment</p>
-          <p className="mt-1 font-bold text-red-700">
-            BDT {formatAmount(summary.totalCashPayment)}
-          </p>
-        </div>
-        <div>
-          <p className="text-slate-500">Closing Balance</p>
-          <p className="mt-1 font-bold text-slate-950">
-            BDT {formatAmount(summary.closingBalance)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-16 grid grid-cols-1 gap-10 text-center text-sm sm:grid-cols-3">
-        {["Prepared By", "Checked By", "Signature Director"].map((label) => (
-          <div key={label}>
-            <div className="border-t border-slate-900 pt-2">{label}</div>
+      {/* Kept together as one unit on print so a page break can't land
+          between the totals and the signature lines. */}
+      <div className="print:break-inside-avoid">
+        <div className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-3">
+          <div>
+            <p className="text-slate-500">Total Cash Received</p>
+            <p className="mt-1 font-bold text-emerald-700">
+              BDT {formatAmount(summary.totalCashReceived)}
+            </p>
           </div>
-        ))}
+          <div>
+            <p className="text-slate-500">Total Cash Payment</p>
+            <p className="mt-1 font-bold text-red-700">
+              BDT {formatAmount(summary.totalCashPayment)}
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-500">Closing Balance</p>
+            <p className="mt-1 font-bold text-slate-950">
+              BDT {formatAmount(summary.closingBalance)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-16 grid grid-cols-1 gap-10 text-center text-sm sm:grid-cols-3">
+          {["Prepared By", "Checked By", "Signature Director"].map((label) => (
+            <div key={label}>
+              <div className="border-t border-slate-900 pt-2">{label}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

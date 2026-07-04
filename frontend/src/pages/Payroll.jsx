@@ -613,7 +613,7 @@ export default function Payroll() {
                               <ActionBtn
                                 title="Delete"
                                 onClick={() => handleDelete(p._id)}
-                                hoverCls="hover:text-rose-600 hover:bg-rose-50">
+                                hoverCls="hover:text-red-600 hover:bg-red-50">
                                 <Trash2 size={15} />
                               </ActionBtn>
                             </>
@@ -740,7 +740,7 @@ export default function Payroll() {
                   ))}
                 </FormSelect>
                 {formErrors.employee && (
-                  <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.employee.message}</p>
+                  <p className="mt-1 text-xs font-medium text-red-600">{formErrors.employee.message}</p>
                 )}
               </div>
 
@@ -758,7 +758,7 @@ export default function Payroll() {
                     />
                   </div>
                   {(formErrors.month || formErrors.year) && (
-                    <p className="mt-1 text-xs font-medium text-rose-600">
+                    <p className="mt-1 text-xs font-medium text-red-600">
                       {formErrors.month?.message || formErrors.year?.message}
                     </p>
                   )}
@@ -783,11 +783,11 @@ export default function Payroll() {
                     <FieldLabel>Base Salary</FieldLabel>
                     <FormInput
                       type="number" min="0.01" step="0.01" placeholder="0"
-                      className={formErrors.baseSalary ? "border-rose-400 focus:border-rose-500" : ""}
+                      className={formErrors.baseSalary ? "border-red-400 focus:border-red-500" : ""}
                       {...register("baseSalary")}
                     />
                     {formErrors.baseSalary && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.baseSalary.message}</p>
+                      <p className="mt-1 text-xs font-medium text-red-600">{formErrors.baseSalary.message}</p>
                     )}
                   </div>
                   <div>
@@ -800,7 +800,7 @@ export default function Payroll() {
                       {...register("allowances")}
                     />
                     {formErrors.allowances && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.allowances.message}</p>
+                      <p className="mt-1 text-xs font-medium text-red-600">{formErrors.allowances.message}</p>
                     )}
                   </div>
                   <div>
@@ -813,7 +813,7 @@ export default function Payroll() {
                       {...register("deductions")}
                     />
                     {formErrors.deductions && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.deductions.message}</p>
+                      <p className="mt-1 text-xs font-medium text-red-600">{formErrors.deductions.message}</p>
                     )}
                   </div>
                 </div>

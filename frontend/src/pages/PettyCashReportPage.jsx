@@ -1,6 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import {
-  Download,
   FileSpreadsheet,
   FileText,
   Printer,
@@ -21,6 +20,7 @@ import {
 import PettyCashReport from "../components/reports/PettyCashReport";
 import { pettyCashAPI } from "../services/apiMethods";
 import { formatDisplayDate, toISODate, todayISO } from "../utils/date";
+import { openPrintWindow } from "../utils/printWindow";
 
 const firstDayOfCurrentMonth = () => {
   const now = new Date();
@@ -408,307 +408,14 @@ export default function PettyCashReportPage() {
   const handlePrint = () => {
     if (!reportRef.current) return;
 
-    const printWindow = window.open("", "", "height=720,width=1080");
+    const printWindow = openPrintWindow(reportRef.current, {
+      title: "Petty Cash Report",
+      windowFeatures: "height=720,width=1080",
+      pageOrientation: "landscape",
+    });
+
     if (!printWindow) {
       toast.error("Unable to open print window");
-      return;
-    }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Petty Cash Report</title>
-          <style>
-            body { padding: 24px; font-family: Arial, sans-serif; color: #020617; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 8px; border: 1px solid #020617; text-align: left; }
-            table thead tr, table thead th {
-              background: #e2f0d9 !important;
-              background-color: #e2f0d9 !important;
-              color: #000000 !important;
-              font-weight: 700;
-            }
-            .bg-yellow-200 { background: #fef08a !important; }
-            .bg-slate-100 { background: #f1f5f9 !important; }
-            .bg-slate-50 { background: #f8fafc !important; }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .font-bold { font-weight: 700; }
-            .font-semibold { font-weight: 600; }
-            .uppercase { text-transform: uppercase; }
-            @media print { body { margin: 0; padding: 12mm; } }
-          </style>
-        </head>
-        <body></body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.document.body.appendChild(reportRef.current.cloneNode(true));
-    printWindow.focus();
-    printWindow.print();
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!report) {
-      toast.error("No report content found to export");
-      return;
-    }
-
-    try {
-      toast.loading("Preparing PDF...", { id: "petty-cash-report-pdf" });
-
-      const jsPDFModule = await import("jspdf");
-      const { jsPDF } = jsPDFModule;
-
-      const pdf = new jsPDF({
-        unit: "mm",
-        format: "a4",
-        orientation: "landscape",
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const bottomMargin = 14;
-      const availableWidth = pageWidth - margin * 2;
-      const tableColumns = [
-        { label: "Date", width: 24, align: "left" },
-        { label: "Expenditures", width: 50, align: "left" },
-        { label: "Cash Received & Paid From", width: 62, align: "left" },
-        { label: "Cash Received (BDT)", width: 31, align: "right" },
-        { label: "Cash Payment (BDT)", width: 31, align: "right" },
-        { label: "Balance (BDT)", width: 31, align: "right" },
-        { label: "Remarks", width: 48, align: "left" },
-      ];
-      const period =
-        report.dateRange?.from && report.dateRange?.to
-          ? `${formatDisplayDate(report.dateRange.from)} to ${formatDisplayDate(
-              report.dateRange.to,
-            )}`
-          : "All approved transactions";
-
-      let cursorY = margin;
-      let hasDrawnTableHeader = false;
-
-      const money = (amount) =>
-        Number(amount || 0).toLocaleString("en-BD", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
-
-      const pageLimit = () => pageHeight - bottomMargin;
-
-      const drawPageHeader = (continued = false) => {
-        pdf.setTextColor(15, 23, 42);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(14);
-        pdf.text("Alliance Francaise de Chittagong", pageWidth / 2, cursorY, {
-          align: "center",
-        });
-        cursorY += 7;
-        pdf.setFontSize(12);
-        pdf.text(
-          continued ? "Petty Cash Account (continued)" : "Petty Cash Account",
-          pageWidth / 2,
-          cursorY,
-          { align: "center" },
-        );
-        cursorY += 6;
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(9);
-        pdf.text(period, pageWidth / 2, cursorY, { align: "center" });
-        cursorY += 5;
-        pdf.text(
-          `Account: ${report.account?.accountCode || "1001"} - ${
-            report.account?.accountName || "Petty Cash"
-          }`,
-          pageWidth / 2,
-          cursorY,
-          { align: "center" },
-        );
-        cursorY += continued ? 7 : 9;
-      };
-
-      const addPage = () => {
-        pdf.addPage();
-        cursorY = margin;
-        hasDrawnTableHeader = false;
-        drawPageHeader(true);
-        drawTableHeader();
-      };
-
-      const ensureSpace = (height) => {
-        if (cursorY + height > pageLimit()) {
-          addPage();
-        }
-      };
-
-      const drawCellText = (text, x, y, width, height, align = "left") => {
-        const value = String(text ?? "");
-        const lines = pdf.splitTextToSize(value, width - 3);
-        const textX =
-          align === "right" ? x + width - 2 : align === "center" ? x + width / 2 : x + 2;
-
-        pdf.text(lines, textX, y + 4.5, {
-          align,
-          baseline: "top",
-          maxWidth: width - 3,
-        });
-      };
-
-      const drawTableHeader = () => {
-        if (hasDrawnTableHeader) return;
-
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7.5);
-        pdf.setTextColor(0, 0, 0);
-        pdf.setFillColor(226, 240, 217);
-        pdf.setDrawColor(17, 24, 39);
-        pdf.setLineWidth(0.15);
-
-        let x = margin;
-        tableColumns.forEach((column) => {
-          pdf.setFillColor(226, 240, 217);
-          pdf.setTextColor(0, 0, 0);
-          pdf.rect(x, cursorY, column.width, 8, "FD");
-          pdf.setTextColor(0, 0, 0);
-          drawCellText(column.label, x, cursorY, column.width, 8, column.align);
-          x += column.width;
-        });
-
-        cursorY += 8;
-        hasDrawnTableHeader = true;
-      };
-
-      const getRowHeight = (cells) => {
-        pdf.setFontSize(7.5);
-        const lineCounts = cells.map((cell, index) => {
-          const text = String(cell.value ?? "");
-          return pdf.splitTextToSize(text, tableColumns[index].width - 3).length;
-        });
-
-        return Math.max(8, Math.max(...lineCounts) * 4 + 4);
-      };
-
-      const drawRow = (cells, options = {}) => {
-        const height = getRowHeight(cells);
-        ensureSpace(height);
-
-        pdf.setFont("helvetica", options.bold ? "bold" : "normal");
-        pdf.setFontSize(7.5);
-        pdf.setTextColor(0, 0, 0);
-        pdf.setDrawColor(17, 24, 39);
-        pdf.setLineWidth(0.15);
-
-        let x = margin;
-        cells.forEach((cell, index) => {
-          const fill = cell.fill || options.fill;
-          if (fill) {
-            pdf.setFillColor(...fill);
-            pdf.rect(x, cursorY, tableColumns[index].width, height, "FD");
-          } else {
-            pdf.rect(x, cursorY, tableColumns[index].width, height);
-          }
-
-          drawCellText(
-            cell.value,
-            x,
-            cursorY,
-            tableColumns[index].width,
-            height,
-            cell.align || tableColumns[index].align,
-          );
-          x += tableColumns[index].width;
-        });
-
-        cursorY += height;
-      };
-
-      drawPageHeader(false);
-      drawTableHeader();
-
-      drawRow(
-        [
-          { value: report.dateRange?.from ? formatDisplayDate(report.dateRange.from) : "-" },
-          { value: "Cash in Hand" },
-          { value: "Accounts" },
-          { value: "-", align: "right" },
-          { value: "-", align: "right" },
-          { value: money(report.openingBalance), fill: [254, 240, 138], align: "right" },
-          { value: "Balance B/D" },
-        ],
-        { bold: true },
-      );
-
-      (report.transactions || []).forEach((row) => {
-        drawRow([
-          { value: formatDisplayDate(row.date) },
-          { value: row.credit > 0 ? row.accountHead || row.counterparty || "" : "" },
-          {
-            value:
-              row.debit > 0
-                ? row.accountHead || row.counterparty || ""
-                : row.description || "",
-          },
-          { value: row.debit > 0 ? money(row.debit) : "-", align: "right" },
-          { value: row.credit > 0 ? money(row.credit) : "-", align: "right" },
-          { value: money(row.runningBalance), align: "right" },
-          { value: row.referenceNumber || row.voucherNumber || "-" },
-        ]);
-      });
-
-      drawRow(
-        [
-          { value: "Total" },
-          { value: "" },
-          { value: "" },
-          { value: money(report.summary?.totalCashReceived), align: "right" },
-          { value: money(report.summary?.totalCashPayment), align: "right" },
-          { value: money(report.summary?.closingBalance), align: "right" },
-          { value: "Closing Balance" },
-        ],
-        { bold: true, fill: [241, 245, 249] },
-      );
-
-      ensureSpace(44);
-      cursorY += 6;
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(8);
-      const summaryWidth = availableWidth / 3;
-      [
-        ["Total Cash Received", money(report.summary?.totalCashReceived)],
-        ["Total Cash Payment", money(report.summary?.totalCashPayment)],
-        ["Closing Balance", money(report.summary?.closingBalance)],
-      ].forEach(([label, value], index) => {
-        const x = margin + index * summaryWidth;
-        pdf.rect(x, cursorY, summaryWidth, 13);
-        pdf.text(label, x + 2, cursorY + 4.5);
-        pdf.text(`BDT ${value}`, x + 2, cursorY + 9.5);
-      });
-      cursorY += 34;
-
-      ensureSpace(20);
-      const signatureWidth = availableWidth / 3;
-      ["Prepared By", "Checked By", "Signature Director"].forEach(
-        (label, index) => {
-          const x = margin + index * signatureWidth + 10;
-          pdf.line(x, cursorY, x + signatureWidth - 20, cursorY);
-          pdf.text(label, x + (signatureWidth - 20) / 2, cursorY + 5, {
-            align: "center",
-          });
-        },
-      );
-
-      pdf.save(`petty-cash-report-${fromDate}-to-${toDate}.pdf`);
-      toast.success("Petty cash report downloaded", {
-        id: "petty-cash-report-pdf",
-      });
-    } catch (err) {
-      console.error("Petty cash PDF export error:", err);
-      toast.error(err?.message || "Failed to download PDF", {
-        id: "petty-cash-report-pdf",
-      });
     }
   };
 
@@ -783,15 +490,7 @@ export default function PettyCashReportPage() {
             onClick={handlePrint}
             disabled={!hasReport || loading}>
             <Printer size={16} />
-            Print
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleDownloadPDF}
-            disabled={!hasReport || loading}>
-            <Download size={16} />
-            PDF
+            Print / Save as PDF
           </Button>
           <Button
             type="button"

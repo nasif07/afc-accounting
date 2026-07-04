@@ -6,8 +6,8 @@ const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
   const difference = Math.abs(totalDebit - totalCredit);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+    <div className="bg-white border border-slate-200 rounded-lg p-6">
+      <h2 className="text-lg font-semibold text-slate-900 mb-4">
         Balance Summary
       </h2>
 
@@ -34,25 +34,25 @@ const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
         <div
           className={`rounded-lg p-4 border ${
             isBalanced
-              ? "bg-green-50 border-green-100"
+              ? "bg-emerald-50 border-emerald-100"
               : "bg-red-50 border-red-100"
           }`}>
           <div className="flex items-center gap-2 mb-1">
             {isBalanced ? (
-              <CheckCircle size={18} className="text-green-600" />
+              <CheckCircle size={18} className="text-emerald-600" />
             ) : (
               <AlertCircle size={18} className="text-red-600" />
             )}
             <p
               className={`text-sm font-medium ${
-                isBalanced ? "text-green-700" : "text-red-700"
+                isBalanced ? "text-emerald-700" : "text-red-700"
               }`}>
               {isBalanced ? "Balanced" : "Unbalanced"}
             </p>
           </div>
           <p
             className={`text-2xl font-bold ${
-              isBalanced ? "text-green-900" : "text-red-900"
+              isBalanced ? "text-emerald-900" : "text-red-900"
             }`}>
             {isBalanced ? formatCurrency(0) : formatCurrency(difference)}
           </p>

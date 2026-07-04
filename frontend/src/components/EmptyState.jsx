@@ -25,13 +25,13 @@ const EmptyState = React.forwardRef(
         {...props}
       >
         {Icon && (
-          <div className="mb-4 w-16 h-16 rounded-full bg-neutral-100 flex items-center justify-center">
-            <Icon size={32} className="text-neutral-400" />
+          <div className="mb-4 w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+            <Icon size={32} className="text-slate-400" />
           </div>
         )}
-        <h3 className="text-lg font-semibold text-neutral-900 mb-2">{title}</h3>
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
         {description && (
-          <p className="text-sm text-neutral-600 mb-6 max-w-sm">{description}</p>
+          <p className="text-sm text-slate-600 mb-6 max-w-sm">{description}</p>
         )}
         {action && (
           <Button variant="primary" onClick={action}>

@@ -121,7 +121,7 @@ export default function Students() {
       key: "rollNumber",
       label: "Roll #",
       render: (val) => (
-        <span className="font-mono font-medium text-neutral-600">
+        <span className="font-mono font-medium text-slate-600">
           {val || "—"}
         </span>
       ),
@@ -131,8 +131,8 @@ export default function Students() {
       label: "Student Info",
       render: (_, row) => (
         <div>
-          <p className="font-semibold text-neutral-900">{row?.name || "—"}</p>
-          <p className="text-xs text-neutral-500">{row?.email || "No email"}</p>
+          <p className="font-semibold text-slate-900">{row?.name || "—"}</p>
+          <p className="text-xs text-slate-500">{row?.email || "No email"}</p>
         </div>
       ),
     },
@@ -175,7 +175,7 @@ export default function Students() {
             variant="ghost"
             aria-label={`View ${row.name}'s details`}
             onClick={() => handleViewStudent(row)}>
-            <Eye size={15} className="text-neutral-500" />
+            <Eye size={15} className="text-slate-500" />
           </Button>
           <Button
             size="icon-sm"
@@ -232,38 +232,38 @@ export default function Students() {
               const rangeStart = total === 0 ? 0 : (page - 1) * limit + 1;
               const rangeEnd = Math.min(page * limit, total);
               return (
-                <div className="flex flex-col gap-3 border-t border-neutral-100 bg-neutral-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                   {/* Left — record counts */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-neutral-500">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
                     <span>
-                      <span className="font-semibold text-neutral-800">
+                      <span className="font-semibold text-slate-800">
                         {total}
                       </span>{" "}
                       {total === 1 ? "record" : "records"}
                     </span>
-                    <span className="hidden text-neutral-300 sm:inline">|</span>
+                    <span className="hidden text-slate-300 sm:inline">|</span>
                     <span>
                       Showing{" "}
-                      <span className="font-semibold text-neutral-800">
+                      <span className="font-semibold text-slate-800">
                         {rangeStart}
                       </span>
                       {rangeEnd > rangeStart && (
                         <>
                           –
-                          <span className="font-semibold text-neutral-800">
+                          <span className="font-semibold text-slate-800">
                             {rangeEnd}
                           </span>
                         </>
                       )}
                     </span>
-                    <span className="hidden text-neutral-300 sm:inline">|</span>
+                    <span className="hidden text-slate-300 sm:inline">|</span>
                     <span>
                       Page{" "}
-                      <span className="font-semibold text-neutral-800">
+                      <span className="font-semibold text-slate-800">
                         {page}
                       </span>{" "}
                       of{" "}
-                      <span className="font-semibold text-neutral-800">
+                      <span className="font-semibold text-slate-800">
                         {totalPages}
                       </span>
                     </span>
@@ -275,7 +275,7 @@ export default function Students() {
                     <div className="flex items-center gap-2">
                       <label
                         htmlFor="rows-per-page"
-                        className="hidden text-xs text-neutral-500 sm:inline">
+                        className="hidden text-xs text-slate-500 sm:inline">
                         Rows per page
                       </label>
                       <select
@@ -284,7 +284,7 @@ export default function Students() {
                         onChange={(e) =>
                           handleLimitChange(Number(e.target.value))
                         }
-                        className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100">
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100">
                         {[10, 25, 50, 100].map((n) => (
                           <option key={n} value={n}>
                             {n}
@@ -295,7 +295,7 @@ export default function Students() {
 
                     {/* Divider */}
                     <span
-                      className="hidden h-5 w-px bg-neutral-200 sm:block"
+                      className="hidden h-5 w-px bg-slate-200 sm:block"
                       aria-hidden="true"
                     />
 

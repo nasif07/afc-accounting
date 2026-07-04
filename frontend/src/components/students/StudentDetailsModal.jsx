@@ -36,16 +36,16 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
           <div className="min-w-0 space-y-2 px-0">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-500">Alliance Française Student Record</div>
-                <h2 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl break-words">{student.name || "Unnamed Student"}</h2>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-600 mt-1">
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Alliance Française Student Record</div>
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl break-words">{student.name || "Unnamed Student"}</h2>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600 mt-1">
                   <StatusBadge status={student.status} />
                   <span className="inline-flex items-center gap-2"><Hash size={14} className="text-[#DA002E]" /> Roll: {student.rollNumber || "N/A"}</span>
                 </div>
               </div>
 
               <div className="shrink-0">
-                <button onClick={onClose} className="shrink-0 rounded-full border border-neutral-200 p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900" aria-label="Close modal"><X size={18} /></button>
+                <button onClick={onClose} className="shrink-0 rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" aria-label="Close modal"><X size={18} /></button>
               </div>
             </div>
           </div>
@@ -104,25 +104,25 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
             </div>
 
             {/* Address */}
-            <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <div className="mb-5 flex items-center gap-2">
                 <MapPin size={16} className="text-[#DA002E]" />
-                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-700">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">
                   Residential Address
                 </h3>
               </div>
 
-              <p className="text-sm leading-7 text-neutral-700">
+              <p className="text-sm leading-7 text-slate-700">
                 {student.address?.replace(/"/g, "") || "No address provided"}
               </p>
             </section>
 
             {/* Financial Summary */}
-            <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-              <div className="border-b border-neutral-200 bg-neutral-50 px-5 py-4">
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
                 <div className="flex items-center gap-2">
                   <Wallet size={16} className="text-[#DA002E]" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-700">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">
                     Financial Summary
                   </h3>
                 </div>
@@ -151,19 +151,19 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
               <section className="rounded-2xl border border-[#ead7dc] bg-[#fff8fa] p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <Notebook size={16} className="text-[#DA002E]" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-700">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">
                     Administrative Notes
                   </h3>
                 </div>
 
-                <p className="text-sm leading-7 text-neutral-700">
+                <p className="text-sm leading-7 text-slate-700">
                   {student.notes}
                 </p>
               </section>
             )}
 
             {/* Footer */}
-            <div className="mt-4 flex justify-end border-t border-neutral-200 pt-6">
+            <div className="mt-4 flex justify-end border-t border-slate-200 pt-6">
               <button
                 onClick={onClose}
                 className="inline-flex items-center justify-center rounded-xl bg-[#1A171B] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90">
@@ -178,10 +178,10 @@ const StudentDetailsModal = ({ isOpen, onClose, student }) => {
 
 const InfoSection = ({ title, icon, children }) => {
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-5">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="mb-5 flex items-center gap-2">
         {icon}
-        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-700">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">
           {title}
         </h3>
       </div>
@@ -192,14 +192,14 @@ const InfoSection = ({ title, icon, children }) => {
 
 const DetailRow = ({ label, value, icon }) => {
   return (
-    <div className="flex items-start gap-3 border-b border-neutral-100 pb-3 last:border-b-0 last:pb-0">
-      <div className="mt-0.5 shrink-0 text-neutral-500">{icon}</div>
+    <div className="flex items-start gap-3 border-b border-slate-100 pb-3 last:border-b-0 last:pb-0">
+      <div className="mt-0.5 shrink-0 text-slate-500">{icon}</div>
 
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
           {label}
         </p>
-        <p className="wrap-break-word text-sm text-neutral-900">
+        <p className="wrap-break-word text-sm text-slate-900">
           {value || "N/A"}
         </p>
       </div>
@@ -211,12 +211,12 @@ const FinancialCell = ({ label, value, bordered = false }) => {
   return (
     <div
       className={`bg-white p-5 ${
-        bordered ? "border-t border-neutral-200 md:border-l md:border-t-0" : ""
+        bordered ? "border-t border-slate-200 md:border-l md:border-t-0" : ""
       }`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-xl font-semibold text-neutral-900">{value}</p>
+      <p className="mt-2 text-xl font-semibold text-slate-900">{value}</p>
     </div>
   );
 };

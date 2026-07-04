@@ -399,7 +399,7 @@ export default function JournalEntries() {
                               className={`rounded-lg border p-2 transition-all ${
                                 isApproved
                                   ? "cursor-not-allowed border-slate-100 text-slate-300 opacity-50"
-                                  : "border-slate-100 text-slate-400 hover:border-rose-100 hover:text-rose-600"
+                                  : "border-slate-100 text-slate-400 hover:border-red-100 hover:text-red-600"
                               }`}>
                               <Trash2 size={14} />
                             </button>
@@ -486,7 +486,7 @@ export default function JournalEntries() {
                           className={`rounded-lg border px-3 py-1.5 text-xs font-bold uppercase ${
                             isApproved
                               ? "cursor-not-allowed border-slate-200 text-slate-300 opacity-50"
-                              : "border-rose-100 text-rose-600"
+                              : "border-red-100 text-red-600"
                           }`}>
                           Delete
                         </button>

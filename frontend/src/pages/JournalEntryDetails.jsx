@@ -162,13 +162,13 @@ export default function JournalEntryDetails() {
           </p>
         </div>
       ) : error ? (
-        <div className="flex items-center gap-4 rounded-2xl border border-rose-100 bg-rose-50/50 p-6 backdrop-blur-sm">
-          <div className="rounded-full bg-rose-100 p-3 text-rose-600">
+        <div className="flex items-center gap-4 rounded-2xl border border-red-100 bg-red-50/50 p-6 backdrop-blur-sm">
+          <div className="rounded-full bg-red-100 p-3 text-red-600">
             <AlertCircle size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-rose-900">System Error</h3>
-            <p className="text-sm text-rose-700">{error}</p>
+            <h3 className="font-bold text-red-900">System Error</h3>
+            <p className="text-sm text-red-700">{error}</p>
           </div>
         </div>
       ) : !entry ? (

@@ -54,8 +54,8 @@ const Table = React.forwardRef(
 
     if (filteredData.length === 0) {
       return (
-        <div className="rounded-lg border border-neutral-200 bg-white p-12 text-center">
-          <p className="text-neutral-600">{emptyMessage}</p>
+        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">
+          <p className="text-slate-600">{emptyMessage}</p>
         </div>
       );
     }
@@ -64,7 +64,7 @@ const Table = React.forwardRef(
       <div ref={ref} className={cn("space-y-4", className)} {...props}>
         {searchable && (
           <div className="relative">
-            <Search className="absolute left-3 top-3 text-neutral-400" size={18} />
+            <Search className="absolute left-3 top-3 text-slate-400" size={18} />
             <input
               type="text"
               placeholder="Search..."
@@ -75,14 +75,14 @@ const Table = React.forwardRef(
           </div>
         )}
 
-        <div className="w-full overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+        <div className="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="w-full min-w-max md:min-w-full">
             <thead>
-              <tr className="border-b border-neutral-200 bg-neutral-50">
+              <tr className="border-b border-slate-200 bg-slate-50">
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    className="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold text-neutral-900 md:px-6 md:py-4 md:text-sm">
+                    className="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold text-slate-900 md:px-6 md:py-4 md:text-sm">
                     {col.label}
                   </th>
                 ))}
@@ -93,14 +93,14 @@ const Table = React.forwardRef(
                 <tr
                   key={idx}
                   className={cn(
-                    "border-b border-neutral-200 transition-colors",
-                    onRowClick && "cursor-pointer hover:bg-neutral-50",
+                    "border-b border-slate-200 transition-colors",
+                    onRowClick && "cursor-pointer hover:bg-slate-50",
                   )}
                   onClick={() => onRowClick?.(row)}>
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className="whitespace-nowrap px-3 py-3 text-xs text-neutral-700 md:px-6 md:py-4 md:text-sm">
+                      className="whitespace-nowrap px-3 py-3 text-xs text-slate-700 md:px-6 md:py-4 md:text-sm">
                       {col.render ? col.render(row[col.key], row) : row[col.key]}
                     </td>
                   ))}
@@ -112,7 +112,7 @@ const Table = React.forwardRef(
 
         {paginated && totalPages > 1 && (
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-            <p className="text-center text-xs text-neutral-600 md:text-left md:text-sm">
+            <p className="text-center text-xs text-slate-600 md:text-left md:text-sm">
               Showing {(currentPage - 1) * pageSize + 1}–
               {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length}
             </p>
@@ -124,7 +124,7 @@ const Table = React.forwardRef(
                 disabled={currentPage === 1}>
                 <ChevronLeft size={14} />
               </Button>
-              <span className="whitespace-nowrap text-xs text-neutral-600 md:text-sm">
+              <span className="whitespace-nowrap text-xs text-slate-600 md:text-sm">
                 Page {currentPage} of {totalPages}
               </span>
               <Button

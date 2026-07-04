@@ -1,6 +1,36 @@
+import { useState } from "react";
+import { CalendarIcon } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../ui/popover";
+import { Calendar } from "../ui/calendar";
+import { toISODate, formatDisplayDate } from "../../utils/date";
+import { cn } from "../../utils/cn";
 
-
-import { formatDisplayDate, toISODate } from "../../utils/date";
+// shadcn Calendar + Popover, replacing the old native input[type=date] —
+// same prop surface (label, name, value, onChange, required, disabled,
+// error, helperText, className, ...props) as before, so every existing
+// call site (direct or RHF Controller-wrapped) keeps working unchanged.
+//
+// Date handling deliberately reuses utils/date.js exclusively — no new
+// timezone logic here. `value` is normalized for display via toISODate(),
+// the same function every other date-touching part of the app already
+// relies on (including its UTC-getter fix for backend-sourced timestamps).
+// The Calendar's `selected` Date is built from the ISO string's Y/M/D
+// components at local midnight (matching formatDisplayDate()'s own
+// approach) rather than `new Date(isoString)`, which would misinterpret
+// UTC midnight in a positive-offset timezone like Bangladesh's UTC+6.
+// react-day-picker's onSelect callback likewise hands back a Date object
+// representing the clicked LOCAL calendar day — toISODate()'s "Date
+// object" branch (local getters) is exactly the correct, already-tested
+// path for turning that back into the right ISO string.
+const isoToLocalDate = (iso) => {
+  if (!iso) return undefined;
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
 
 export default function DatePicker({
   label,
@@ -14,10 +44,13 @@ export default function DatePicker({
   className = "",
   ...props
 }) {
+  const [open, setOpen] = useState(false);
   const isoValue = toISODate(value);
+  const selectedDate = isoToLocalDate(isoValue);
 
-  const handleChange = (event) => {
-    onChange?.(toISODate(event.target.value), event);
+  const handleSelect = (date) => {
+    setOpen(false);
+    onChange?.(toISODate(date));
   };
 
   return (
@@ -31,39 +64,37 @@ export default function DatePicker({
         </label>
       )}
 
-      <div className="w-full">
-        <input
-          id={name}
-          name={name}
-          type="date"
-          value={isoValue}
-          onChange={handleChange}
-          required={required}
-          disabled={disabled}
-          className={`
-            w-full rounded-xl border bg-white
-            min-h-11 py-2.5
-            px-3
-            text-sm text-slate-900 transition
-            focus:outline-none focus:ring-4
-            disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500
-            [&::-webkit-calendar-picker-indicator]:h-5
-            [&::-webkit-calendar-picker-indicator]:w-5
-            [&::-webkit-calendar-picker-indicator]:opacity-40
-            [&::-webkit-calendar-picker-indicator]:cursor-pointer
-            [&::-webkit-clear-button]:hidden
-            [&::-webkit-inner-spin-button]:hidden
-            ${error
-              ? "border-red-500 focus:border-red-500 focus:ring-red-100"
-              : "border-slate-300 focus:border-slate-800 focus:ring-slate-100"}
-          `}
-          {...props}
-        />
-      </div>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            id={name}
+            disabled={disabled}
+            className={cn(
+              "flex w-full min-h-11 items-center gap-2 rounded-xl border bg-white px-3 py-2.5 text-left text-sm transition focus:outline-none focus:ring-4",
+              "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+              isoValue ? "text-slate-900" : "text-slate-400",
+              error
+                ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+                : "border-slate-300 focus:border-slate-800 focus:ring-slate-100",
+            )}
+            {...props}>
+            <CalendarIcon size={16} className="shrink-0 text-slate-400" />
+            <span className="truncate">
+              {isoValue ? formatDisplayDate(isoValue) : "Pick a date"}
+            </span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={handleSelect}
+            autoFocus
+          />
+        </PopoverContent>
+      </Popover>
 
-      {isoValue && (
-        <p className="mt-1 text-xs text-slate-500">{formatDisplayDate(isoValue)}</p>
-      )}
       {error && <p className="mt-1 text-xs text-red-600 sm:text-sm">{error}</p>}
       {helperText && !error && (
         <p className="mt-1 text-xs text-slate-500 sm:text-sm">{helperText}</p>

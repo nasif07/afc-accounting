@@ -92,13 +92,13 @@ export default function Modal({
         className={`relative flex flex-col bg-white shadow-2xl w-full max-h-[92dvh] sm:max-h-[90vh] rounded-2xl ${sizes[size] ?? sizes["3xl"]} overflow-hidden ${className}`}>
 
         {/* Header */}
-        <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4 flex items-start justify-between">
+        <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 flex items-start justify-between">
           <div>
-            <h2 id="modal-title" className="text-xl font-bold text-neutral-900">
+            <h2 id="modal-title" className="text-xl font-bold text-slate-900">
               {title}
             </h2>
             {description && (
-              <p id="modal-description" className="mt-1 text-xs text-neutral-500">
+              <p id="modal-description" className="mt-1 text-xs text-slate-500">
                 {description}
               </p>
             )}
@@ -106,7 +106,7 @@ export default function Modal({
           <button
             onClick={onClose}
             aria-label="Close dialog"
-            className="p-2 hover:bg-white rounded-full transition text-neutral-500"
+            className="p-2 hover:bg-white rounded-full transition text-slate-500"
           >
             <X size={20} />
           </button>

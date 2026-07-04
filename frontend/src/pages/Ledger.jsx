@@ -136,11 +136,11 @@ const Ledger = () => {
                 {formatCurrency(ledgerData.openingBalance)}
               </p>
             </Card>
-            <Card className="p-4 bg-green-50 border-green-100">
-              <p className="text-xs font-medium text-green-600 uppercase tracking-wider">
+            <Card className="p-4 bg-emerald-50 border-emerald-100">
+              <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">
                 Total Debit
               </p>
-              <p className="text-xl font-bold text-green-900 mt-1">
+              <p className="text-xl font-bold text-emerald-900 mt-1">
                 {formatCurrency(ledgerData.totalDebit)}
               </p>
             </Card>
@@ -172,64 +172,64 @@ const Ledger = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 border-bottom border-gray-200">
-                    <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <tr className="bg-slate-50 border-bottom border-slate-200">
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Date
                     </th>
-                    <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Voucher #
                     </th>
-                    <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Description
                     </th>
-                    <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">
                       Debit
                     </th>
-                    <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">
                       Credit
                     </th>
-                    <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">
                       Running Balance
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-200">
                   {/* Opening Balance Row */}
-                  <tr className="bg-gray-50/50 italic">
-                    <td className="px-6 py-4 text-sm text-gray-500" colSpan={5}>
+                  <tr className="bg-slate-50/50 italic">
+                    <td className="px-6 py-4 text-sm text-slate-500" colSpan={5}>
                       Opening Balance
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-right">
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900 text-right">
                       {formatCurrency(ledgerData.openingBalance)} {ledgerData.openingBalanceType === "debit" ? "Dr" : "Cr"}
                     </td>
                   </tr>
 
                   {ledgerData?.transactions?.length > 0 ? (
                     ledgerData.transactions.map((tx, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50 transition">
-                        <td className="px-6 py-4 text-sm text-gray-600">
+                      <tr key={idx} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4 text-sm text-slate-600">
                           {formatDisplayDate(tx.date)}
                         </td>
                         <td className="px-6 py-4 text-sm font-mono text-blue-600">
                           {tx.voucherNumber}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          <div className="font-medium text-gray-900">
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          <div className="font-medium text-slate-900">
                             {tx.description}
                           </div>
                           {tx.reference && (
-                            <div className="text-xs text-gray-400">
+                            <div className="text-xs text-slate-400">
                               Ref: {tx.reference}
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-right text-green-600 font-medium">
+                        <td className="px-6 py-4 text-sm text-right text-emerald-600 font-medium">
                           {tx.debit > 0 ? formatCurrency(tx.debit) : "-"}
                         </td>
                         <td className="px-6 py-4 text-sm text-right text-red-600 font-medium">
                           {tx.credit > 0 ? formatCurrency(tx.credit) : "-"}
                         </td>
-                        <td className="px-6 py-4 text-sm text-right font-bold text-gray-900">
+                        <td className="px-6 py-4 text-sm text-right font-bold text-slate-900">
                           {formatCurrency(tx.runningBalance)} {tx.runningBalanceType === "debit" ? "Dr" : "Cr"}
                         </td>
                       </tr>
@@ -238,18 +238,18 @@ const Ledger = () => {
                     <tr>
                       <td
                         colSpan={6}
-                        className="px-6 py-10 text-center text-gray-500">
+                        className="px-6 py-10 text-center text-slate-500">
                         No transactions found for this period
                       </td>
                     </tr>
                   )}
 
                   {/* Closing Balance Row */}
-                  <tr className="bg-gray-50 font-bold">
-                    <td className="px-6 py-4 text-sm text-gray-900" colSpan={5}>
+                  <tr className="bg-slate-50 font-bold">
+                    <td className="px-6 py-4 text-sm text-slate-900" colSpan={5}>
                       Closing Balance
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 text-right">
+                    <td className="px-6 py-4 text-sm text-slate-900 text-right">
                       {formatCurrency(ledgerData.closingBalance)} {ledgerData.closingBalanceType === "debit" ? "Dr" : "Cr"}
                     </td>
                   </tr>
@@ -260,7 +260,7 @@ const Ledger = () => {
           </Card>
 
           {ledgerData.pagination && (
-            <div className="flex flex-col items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 sm:flex-row">
+            <div className="flex flex-col items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row">
               <span>
                 Page {ledgerData.pagination.page} of{" "}
                 {ledgerData.pagination.totalPages} ·{" "}
@@ -287,12 +287,12 @@ const Ledger = () => {
           )}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-          <ArrowLeftRight size={48} className="text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900">
+        <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+          <ArrowLeftRight size={48} className="text-slate-300 mb-4" />
+          <h3 className="text-lg font-medium text-slate-900">
             No Ledger Selected
           </h3>
-          <p className="text-gray-500 max-w-xs text-center mt-1">
+          <p className="text-slate-500 max-w-xs text-center mt-1">
             Select an account and date range above to generate the general
             ledger report.
           </p>

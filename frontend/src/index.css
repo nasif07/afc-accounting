@@ -1,11 +1,48 @@
 @import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap");
 @import "tailwindcss";
+/* shadcn/ui (Calendar + Popover only — see components/common/DatePicker.jsx).
+   tw-animate-css and shadcn/tailwind.css supply the data-open/data-closed
+   variants and animate-in/out keyframes Radix's Popover needs for its
+   open/close transitions. Deliberately NOT importing shadcn's own font
+   (Geist) or its oklch-based color theme (:root/.dark/@theme inline that
+   `shadcn init` also generates) — this app keeps its existing Quicksand
+   typeface and the consolidated slate/red/emerald/amber palette above;
+   the Calendar/Popover are styled directly with those same utility
+   classes rather than shadcn's bg-primary/text-foreground indirection. */
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 /* ── Brand design tokens (Tailwind v4 @theme) ────────────────────────────── */
-/* Usage: bg-brand-blue, text-brand-red, border-brand-white                  */
+/* Alliance Française tricolor (blue/white/red). Usage: bg-brand-blue,
+   text-brand-red, border-brand-white — brand-blue is the only one with a
+   live call site today (Register.jsx's submit button); brand-red/white
+   are reserved for the same identity but currently unused directly.
+   ────────────────────────────────────────────────────────────────────────
+   Token consolidation (design-system audit): brand-red previously held
+   #ED1C24, but the color actually used everywhere for primary actions,
+   destructive buttons, and error states is Tailwind's own red-600
+   (#DC2626) — 40+ call sites, vs. 0 for the old brand-red value. Rather
+   than retire the token (it completes the brand trio, and blue/white are
+   still live), brand-red now equals red-600 exactly, so it's finally a
+   correct alias for the color already in use rather than a second,
+   slightly-off red nobody reaches for. Actual usage app-wide should keep
+   using the stock red-600/emerald-600/amber-600/slate-* utility classes
+   below — this token stays reserved for the literal brand mark.
+
+   Consolidated color decisions (see docs/frontendreport.md audit):
+     neutral/gray  → slate-*     (was competing with gray-* and neutral-*)
+     success       → emerald-*   (was competing with green-*)
+     danger/error  → red-*       (was competing with rose-* in a few
+                                   genuinely duplicate spots — most rose-*
+                                   usage app-wide is a deliberate, distinct
+                                   convention: paired emerald/rose for
+                                   inflow-vs-outflow amounts, and a four-way
+                                   approved/pending/rejected/paid status
+                                   semaphore — both were left as-is)
+     warning       → amber-*     (already consistent, unchanged)        */
 @theme {
   --color-brand-blue:  #002395;
-  --color-brand-red:   #ED1C24;
+  --color-brand-red:   #DC2626;
   --color-brand-white: #FFFFFF;
 }
 
@@ -44,7 +81,6 @@
   scrollbar-color: #e2e8f0 transparent;
 }
 
-
 @keyframes heartbeat {
   0% {
     transform: scale(1);
@@ -66,3 +102,28 @@
 .animate-heartbeat {
   animation: heartbeat 1.2s ease-in-out infinite;
 }
+
+/* ── Print quality (Reports.jsx / PettyCashReportPage.jsx print windows) ──── */
+/* These popups clone the app's own stylesheets (see utils/printWindow.js),
+   so these rules apply there exactly as they would on the main document. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* Deliberately no shadcn :root/.dark/@theme-inline color theme and no
+   @layer base { body { @apply bg-background text-foreground } } here —
+   `shadcn init` generates that block by default, but it's an oklch-based
+   theme this app doesn't use (see the note above the imports). Removed
+   rather than left dormant, since Tailwind would otherwise still emit its
+   CSS custom properties into every page's stylesheet for no reason. */
