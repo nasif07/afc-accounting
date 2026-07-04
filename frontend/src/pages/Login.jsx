@@ -1,7 +1,11 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useLocation, Link } from "react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { login } from "../store/slices/authSlice";
+import { fetchSettings } from "../store/slices/settingsSlice";
 import { toast } from "sonner";
 import { Mail, Lock, ShieldCheck, Landmark } from "lucide-react";
 import { Input, Button } from "../components/common";
@@ -10,12 +14,31 @@ import logo from "/afc-logo.jpg";
 const authInputClass =
   "pl-10 rounded-sm! focus:ring-1! focus:ring-[#002395]! focus:border-[#002395]! py-2.5 sm:py-2.5";
 
+// ── Zod validation schema ────────────────────────────────────────────────────
+// The backend has no dedicated login validation schema (login failures are
+// intentionally generic business-logic errors, e.g. "Invalid email or
+// password", to avoid revealing which field was wrong) — this schema only
+// catches structural mistakes (empty fields, malformed email) before the
+// request ever reaches the server.
+const loginSchema = z.object({
+  email: z.string().min(1, "Email is required").email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const EMPTY_VALUES = { email: "", password: "" };
+
 export default function Login() {
-  const [formData, setFormData] = useState({ email: "", password: "" });
   const dispatch = useDispatch();
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   const location = useLocation();
-  const { loading, error } = useSelector((state) => state.auth);
+  const { loading } = useSelector((state) => state.auth);
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(loginSchema), defaultValues: EMPTY_VALUES });
 
   useEffect(() => {
     if (location.state?.pendingApproval) {
@@ -23,14 +46,9 @@ export default function Login() {
     }
   }, [location.state]);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async (data) => {
     try {
-      const result = await dispatch(login(formData)).unwrap();
+      const result = await dispatch(login(data)).unwrap();
 
       if (result.user?.status === "pending") {
         toast.warning("Account pending financial controller approval.");
@@ -42,11 +60,29 @@ export default function Login() {
         return;
       }
 
+      // The root reducer wipes `settings` (and every other slice) on logout,
+      // and AppInitializer's fetchSettings only ever runs once per page load —
+      // refetch here so a fast re-login in the same tab isn't left with blank
+      // org settings until the next hard refresh.
+      dispatch(fetchSettings());
+
       const destination = location.state?.from?.pathname || "/dashboard";
       toast.success("Ledger access granted.");
       navigate(destination, { replace: true });
     } catch (err) {
-      toast.error(err || "Login failed. Verify credentials.");
+      // Backend validation failures (errorMiddleware.js) come back as
+      // errors: [{ field, message }] — map each to its form field. Login
+      // itself never actually emits these today (its failures are
+      // intentionally generic), but this keeps the same pattern as every
+      // other converted form in case that ever changes.
+      const fieldErrors = err?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      } else {
+        toast.error(err?.message || "Login failed. Verify credentials.");
+      }
     }
   };
 
@@ -70,7 +106,7 @@ export default function Login() {
         </div>
 
         <div className="p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
                 User Identification
@@ -79,13 +115,12 @@ export default function Login() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
                 <Input
                   type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
                   placeholder="finance.officer@alliance.org"
                   autoComplete="email"
-                  required
                   className={authInputClass}
+                  error={errors.email?.message}
+                  touched={!!errors.email}
+                  {...register("email")}
                 />
               </div>
             </div>
@@ -98,22 +133,15 @@ export default function Login() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
                 <Input
                   type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  required
                   className={authInputClass}
+                  error={errors.password?.message}
+                  touched={!!errors.password}
+                  {...register("password")}
                 />
               </div>
             </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-100 text-red-700 px-3 py-2 text-[11px] font-medium rounded-sm">
-                {error}
-              </div>
-            )}
 
             <Button
               type="submit"

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 import api from "../services/api";
@@ -11,6 +11,8 @@ import {
 import { Button, Badge, Modal, Textarea } from "../components/common";
 import SectionHeader from "../components/common/SectionHeader";
 import { SectionSkeleton } from "../components/common/Loaders";
+import { formatDisplayDate } from "../utils/date";
+import { formatCurrency } from "../utils/currency";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -23,13 +25,11 @@ const TYPE_CONFIG = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const numFmt = (n) =>
-  new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+// Bare number (no ৳ symbol) for table cells whose column header already
+// shows "(৳)" — same shared formatter as formatCurrency, just without the symbol.
+const numFmt = (n) => formatCurrency(n, { showSymbol: false });
 
-const fmtCurrency = (n) => `৳ ${numFmt(n)}`;
-
-const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—";
+const fmtDate = (d) => (d ? formatDisplayDate(d, { locale: "en-US" }) : "—");
 
 const totalDebit  = (e) => e?.bookEntries?.reduce((s, b) => s + (b.debit  || 0), 0) || 0;
 const totalCredit = (e) => e?.bookEntries?.reduce((s, b) => s + (b.credit || 0), 0) || 0;
@@ -69,24 +69,40 @@ export default function JournalEntryApprovals() {
   const [rejecting,       setRejecting]       = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState(null);
+  const [showApproveModal, setShowApproveModal] = useState(null);
 
   const user     = useSelector((s) => s.auth.user);
   const navigate = useNavigate();
+  // No live filters here (fetch runs on mount, after actions, or on the
+  // manual Refresh button), so the race window is narrow, but this still
+  // guards against a rapid double-click on Refresh firing overlapping
+  // requests out of order.
+  const fetchAbortRef = useRef(null);
 
   useEffect(() => {
     if (user?.role !== "director") { navigate("/dashboard"); return; }
     fetchPendingEntries();
+    return () => fetchAbortRef.current?.abort();
   }, [user, navigate]);
 
   const fetchPendingEntries = async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     try {
       setLoading(true);
-      const res = await api.get("/accounting/journal-entries/pending-approvals");
+      const res = await api.get("/accounting/journal-entries/pending-approvals", {
+        signal: controller.signal,
+      });
       setPendingEntries(res?.data?.data || []);
-    } catch {
+    } catch (err) {
+      if (err.code === "ERR_CANCELED") return;
       toast.error("Failed to load pending journal entries");
     } finally {
-      setLoading(false);
+      if (fetchAbortRef.current === controller) {
+        setLoading(false);
+      }
     }
   };
 
@@ -101,6 +117,12 @@ export default function JournalEntryApprovals() {
     } finally {
       setApproving(null);
     }
+  };
+
+  const handleConfirmApprove = async () => {
+    const entryId = showApproveModal;
+    setShowApproveModal(null);
+    await handleApprove(entryId);
   };
 
   const handleRejectSubmit = async (entryId) => {
@@ -155,14 +177,14 @@ export default function JournalEntryApprovals() {
         />
         <StatCard
           label="Total Pending Debit"
-          value={loading ? "—" : fmtCurrency(totalPendingDebit)}
+          value={loading ? "—" : formatCurrency(totalPendingDebit)}
           icon={TrendingUp}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
         />
         <StatCard
           label="Total Pending Credit"
-          value={loading ? "—" : fmtCurrency(totalPendingCredit)}
+          value={loading ? "—" : formatCurrency(totalPendingCredit)}
           icon={TrendingDown}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
@@ -239,16 +261,16 @@ export default function JournalEntryApprovals() {
                       <div className="mt-4 flex flex-wrap items-start gap-6">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Debit</p>
-                          <p className="mt-0.5 text-base font-bold text-emerald-700">{fmtCurrency(tD)}</p>
+                          <p className="mt-0.5 text-base font-bold text-emerald-700">{formatCurrency(tD)}</p>
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Credit</p>
-                          <p className="mt-0.5 text-base font-bold text-blue-700">{fmtCurrency(tC)}</p>
+                          <p className="mt-0.5 text-base font-bold text-blue-700">{formatCurrency(tC)}</p>
                         </div>
                         {!isBalanced && (
                           <div>
                             <p className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Difference</p>
-                            <p className="mt-0.5 text-base font-bold text-rose-600">{fmtCurrency(diff)}</p>
+                            <p className="mt-0.5 text-base font-bold text-rose-600">{formatCurrency(diff)}</p>
                           </div>
                         )}
                       </div>
@@ -269,7 +291,7 @@ export default function JournalEntryApprovals() {
                       <div>
                         <p className="text-xs font-semibold text-rose-800">Approval disabled — entry is not balanced</p>
                         <p className="mt-0.5 text-[11px] text-rose-500">
-                          Debit and credit totals must match. Difference is {fmtCurrency(diff)}.
+                          Debit and credit totals must match. Difference is {formatCurrency(diff)}.
                         </p>
                       </div>
                     </div>
@@ -284,7 +306,7 @@ export default function JournalEntryApprovals() {
                     icon={Check}
                     loading={approving === entry._id}
                     disabled={!isBalanced || !!approving}
-                    onClick={() => handleApprove(entry._id)}
+                    onClick={() => setShowApproveModal(entry._id)}
                   >
                     Approve
                   </Button>
@@ -375,7 +397,7 @@ export default function JournalEntryApprovals() {
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600">
-                                  <AlertCircle size={12} /> Off by {fmtCurrency(diff)}
+                                  <AlertCircle size={12} /> Off by {formatCurrency(diff)}
                                 </span>
                               )}
                             </td>
@@ -422,6 +444,29 @@ export default function JournalEntryApprovals() {
               Confirm Rejection
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* ── Approve confirmation modal ── */}
+      <Modal
+        isOpen={!!showApproveModal}
+        onClose={() => setShowApproveModal(null)}
+        title="Approve Journal Entry"
+        description="This will post the entry to the general ledger. This action cannot be undone."
+        size="sm"
+      >
+        <div className="flex gap-3">
+          <Button variant="secondary" fullWidth onClick={() => setShowApproveModal(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="success"
+            fullWidth
+            loading={approving === showApproveModal}
+            onClick={handleConfirmApprove}
+          >
+            Approve
+          </Button>
         </div>
       </Modal>
     </div>

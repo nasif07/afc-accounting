@@ -18,6 +18,7 @@ import {
 import SectionHeader from "../components/common/SectionHeader";
 import api from "../services/api";
 import { formatCurrency } from "../utils/currency";
+import { formatDisplayDate } from "../utils/date";
 
 const EMPTY_VALUE = "---";
 
@@ -28,16 +29,13 @@ const getPersonLabel = (person) => {
   return person.name || person.email || person._id || EMPTY_VALUE;
 };
 
+// voucherDate/date are calendar-day values (the day the user picked, not a
+// specific instant) — route through the timezone-safe formatter so a date
+// stored near UTC midnight doesn't display as the previous day.
 const formatDate = (date) => {
   if (!date) return EMPTY_VALUE;
-  const parsedDate = new Date(date);
-  return Number.isNaN(parsedDate.getTime())
-    ? EMPTY_VALUE
-    : parsedDate.toLocaleDateString("en-BD", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+  const formatted = formatDisplayDate(date, { locale: "en-BD", month: "long" });
+  return formatted || EMPTY_VALUE;
 };
 
 const formatDateTime = (date) => {

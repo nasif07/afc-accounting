@@ -102,10 +102,8 @@ const COATreeView = ({
   }, [treeData, searchTerm]);
 
   const handleViewAccount = (account) => {
-    console.log("CLICKED ACCOUNT:", account);
     setSelectedAccount(account);
     setIsModalOpen(true);
-    console.log("MODAL SHOULD OPEN");
   };
 
   return (

@@ -45,8 +45,11 @@ export const createPettyCash = createAsyncThunk(
       const response = await pettyCashAPI.create(data);
       return response.data;
     } catch (error) {
+      // Preserve the full backend error payload (not just the message
+      // string) so the component can inspect `.errors` for field-level
+      // validation issues, same pattern as accountSlice.js/payrollSlice.js.
       return rejectWithValue(
-        getErrorMessage(error, "Failed to create petty cash record")
+        error.response?.data || { message: "Failed to create petty cash record" },
       );
     }
   }
@@ -175,7 +178,13 @@ const pettyCashSlice = createSlice({
         }
       })
 
-      .addCase(createPettyCash.rejected, handleRejected)
+      .addCase(createPettyCash.rejected, (state, action) => {
+        state.loading = false;
+        // Field-level errors are shown inline via setError instead — skip
+        // the generic toast in that case (same pattern as accountSlice.js).
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || "Failed to create petty cash record";
+      })
 
       // ==================== UPDATE ====================
 

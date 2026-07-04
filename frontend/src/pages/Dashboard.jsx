@@ -186,7 +186,7 @@ export default function Dashboard() {
         value: formatMoney(summary.monthlyExpense),
         icon: ArrowDownRight,
         tone: "bg-red-50 text-red-700",
-        href: "/dashboard/expenses",
+        href: "/dashboard/reports",
       },
       {
         title: "Pending Approval",

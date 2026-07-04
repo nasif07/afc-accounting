@@ -4,6 +4,12 @@ import { toast } from 'sonner';
 
 const KEY = ['employees'];
 
+// True when the backend responded with structured per-field validation
+// issues (errorMiddleware.js's `errors: [{ field, message }]`) — in that
+// case the form maps them to individual fields via setError, so the generic
+// toast would just be redundant noise on top of the field-level messages.
+const hasFieldErrors = (e) => Array.isArray(e.response?.data?.errors) && e.response.data.errors.length > 0;
+
 export const useEmployees = (params = {}, options = {}) =>
   useQuery({
     queryKey: [...KEY, params],
@@ -23,7 +29,7 @@ export const useCreateEmployee = () => {
       return res.data?.data || res.data;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success('Employee created'); },
-    onError:   (e) => toast.error(e.response?.data?.message || 'Failed to create employee'),
+    onError:   (e) => { if (!hasFieldErrors(e)) toast.error(e.response?.data?.message || 'Failed to create employee'); },
   });
 };
 
@@ -35,7 +41,7 @@ export const useUpdateEmployee = () => {
       return res.data?.data || res.data;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success('Employee updated'); },
-    onError:   (e) => toast.error(e.response?.data?.message || 'Failed to update employee'),
+    onError:   (e) => { if (!hasFieldErrors(e)) toast.error(e.response?.data?.message || 'Failed to update employee'); },
   });
 };
 

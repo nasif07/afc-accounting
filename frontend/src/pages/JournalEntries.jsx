@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import DynamicJournalForm from "../components/journal/DynamicJournalForm";
 import SectionHeader from "../components/common/SectionHeader";
 import { TableSkeleton } from "../components/common/Loaders";
+import { formatDisplayDate } from "../utils/date";
+import { formatCurrency } from "../utils/currency";
 
 export default function JournalEntries() {
   const dispatch = useDispatch();
@@ -351,9 +353,7 @@ export default function JournalEntries() {
                         key={entry._id}
                         className="transition-colors hover:bg-slate-50/50">
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
-                          {new Date(
-                            entry.voucherDate || entry.date,
-                          ).toLocaleDateString()}
+                          {formatDisplayDate(entry.voucherDate || entry.date)}
                         </td>
 
                         <td className="px-6 py-4 font-mono text-sm font-bold tracking-tighter text-blue-600">
@@ -365,11 +365,11 @@ export default function JournalEntries() {
                         </td>
 
                         <td className="px-6 py-4 text-right font-mono text-sm font-medium text-slate-900">
-                          ৳{Number(entry.totalDebit || 0).toLocaleString()}
+                          {formatCurrency(entry.totalDebit || 0)}
                         </td>
 
                         <td className="px-6 py-4 text-right font-mono text-sm font-medium text-slate-900">
-                          ৳{Number(entry.totalCredit || 0).toLocaleString()}
+                          {formatCurrency(entry.totalCredit || 0)}
                         </td>
 
                         <td className="px-6 py-4">{getStatusDisplay(entry)}</td>
@@ -444,7 +444,7 @@ export default function JournalEntries() {
                           Debit
                         </div>
                         <div className="font-mono text-sm font-bold tracking-tight text-slate-800">
-                          ৳{Number(entry.totalDebit || 0).toLocaleString()}
+                          {formatCurrency(entry.totalDebit || 0)}
                         </div>
                       </div>
 
@@ -453,7 +453,7 @@ export default function JournalEntries() {
                           Credit
                         </div>
                         <div className="font-mono text-sm font-bold tracking-tight text-slate-800">
-                          ৳{Number(entry.totalCredit || 0).toLocaleString()}
+                          {formatCurrency(entry.totalCredit || 0)}
                         </div>
                       </div>
                     </div>
@@ -461,9 +461,7 @@ export default function JournalEntries() {
                     <div className="flex items-center justify-between pt-1">
                       <div className="flex items-center gap-1.5 text-xs text-slate-400">
                         <Calendar size={12} />
-                        {new Date(
-                          entry.voucherDate || entry.date,
-                        ).toLocaleDateString()}
+                        {formatDisplayDate(entry.voucherDate || entry.date)}
                       </div>
 
                       <div className="flex gap-2">

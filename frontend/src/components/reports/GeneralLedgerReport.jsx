@@ -1,8 +1,9 @@
 import React from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency } from '../../utils/currency';
 import { formatDisplayDate } from '../../utils/date';
 
-const GeneralLedgerReport = ({ data, startDate, endDate }) => {
+const GeneralLedgerReport = ({ data, startDate, endDate, onPageChange, isFetching }) => {
   if (!data) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -72,6 +73,40 @@ const GeneralLedgerReport = ({ data, startDate, endDate }) => {
           </div>
         ) : (
           <p className="text-gray-500 text-center py-8">No transactions recorded in this period.</p>
+        )}
+
+        {data.pagination && data.pagination.totalPages > 1 && (
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-200 pt-4 mt-2 sm:flex-row">
+            <p className="text-sm text-gray-500">
+              Showing page{" "}
+              <span className="font-semibold text-gray-700">{data.pagination.page}</span> of{" "}
+              <span className="font-semibold text-gray-700">{data.pagination.totalPages}</span>
+              {" • "}Total{" "}
+              <span className="font-semibold text-gray-700">{data.pagination.total}</span>{" "}
+              transactions
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onPageChange?.(Math.max(1, data.pagination.page - 1))}
+                disabled={data.pagination.page <= 1 || isFetching}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                <ChevronLeft size={16} />
+                Prev
+              </button>
+              <div className="px-3 py-2 text-sm font-semibold text-gray-700">
+                Page {data.pagination.page} of {data.pagination.totalPages}
+              </div>
+              <button
+                type="button"
+                onClick={() => onPageChange?.(Math.min(data.pagination.totalPages, data.pagination.page + 1))}
+                disabled={data.pagination.page >= data.pagination.totalPages || isFetching}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                Next
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

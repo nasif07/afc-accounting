@@ -13,6 +13,7 @@ import DatePicker from "../common/DatePicker";
 import Modal from "../common/Modal";
 import { SectionSkeleton } from "../common/Loaders";
 import { todayISO, toISODate, formatDisplayDate } from "../../utils/date";
+import { formatCurrency } from "../../utils/currency";
 
 const DynamicJournalForm = ({
   onSubmit,
@@ -402,7 +403,7 @@ const DynamicJournalForm = ({
                     className="flex items-center justify-between border-b border-slate-50 px-4 py-2.5 last:border-0">
                     <span className="text-sm text-slate-700">{getAccountName(e.account)}</span>
                     <span className="font-mono text-sm font-semibold text-slate-900">
-                      ৳{Number(e.debit).toLocaleString()}
+                      {formatCurrency(e.debit)}
                     </span>
                   </div>
                 ))}
@@ -423,7 +424,7 @@ const DynamicJournalForm = ({
                     className="flex items-center justify-between border-b border-slate-50 px-4 py-2.5 last:border-0">
                     <span className="text-sm text-slate-700">{getAccountName(e.account)}</span>
                     <span className="font-mono text-sm font-semibold text-slate-900">
-                      ৳{Number(e.credit).toLocaleString()}
+                      {formatCurrency(e.credit)}
                     </span>
                   </div>
                 ))}
@@ -437,13 +438,13 @@ const DynamicJournalForm = ({
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Debit</p>
               <p className="mt-0.5 font-mono text-base font-bold text-slate-900">
-                ৳{totalDebit.toLocaleString()}
+                {formatCurrency(totalDebit)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Credit</p>
               <p className="mt-0.5 font-mono text-base font-bold text-slate-900">
-                ৳{totalCredit.toLocaleString()}
+                {formatCurrency(totalCredit)}
               </p>
             </div>
           </div>

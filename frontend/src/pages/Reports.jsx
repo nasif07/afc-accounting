@@ -17,6 +17,9 @@ import api from "../services/api";
 import SectionHeader from "../components/common/SectionHeader";
 import { SectionSkeleton, ErrorState } from "../components/common/Loaders";
 import { formatDisplayDate, todayISO } from "../utils/date";
+import { useGeneralLedgerReport } from "../hooks/useGeneralLedgerReport";
+
+const LEDGER_LIMIT = 50;
 
 export default function Reports() {
   const printRef = useRef(null);
@@ -34,7 +37,38 @@ export default function Reports() {
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
 
+  // ── General Ledger: React Query-driven (page/limit live in the query key) ──
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerSubmitted, setLedgerSubmitted] = useState(false);
+  const isLedger = reportType === "general-ledger";
+  const ledgerQuery = useGeneralLedgerReport(
+    {
+      accountId: filters.accountId,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      page: ledgerPage,
+      limit: LEDGER_LIMIT,
+    },
+    { enabled: isLedger && ledgerSubmitted && !!filters.accountId },
+  );
+
   const fetchReport = async () => {
+    if (reportType === "general-ledger") {
+      if (!filters.accountId) {
+        toast.error("Please select an account for General Ledger report");
+        return;
+      }
+      setLedgerPage(1);
+      if (ledgerSubmitted) {
+        // Query is already enabled for this account — force a fresh fetch.
+        ledgerQuery.refetch();
+      } else {
+        // Flipping `enabled` to true triggers the initial fetch declaratively.
+        setLedgerSubmitted(true);
+      }
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setReportData(null);
@@ -62,17 +96,6 @@ export default function Reports() {
 
         case "cash-flow":
           endpoint += "/cash-flow";
-          if (filters.startDate) params.startDate = filters.startDate;
-          if (filters.endDate) params.endDate = filters.endDate;
-          break;
-
-        case "general-ledger":
-          if (!filters.accountId) {
-            toast.error("Please select an account for General Ledger report");
-            setLoading(false);
-            return;
-          }
-          endpoint += `/ledger/${filters.accountId}`;
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
@@ -107,6 +130,8 @@ export default function Reports() {
     setReportType(type);
     setReportData(null);
     setError(null);
+    setLedgerSubmitted(false);
+    setLedgerPage(1);
   };
 
   const handleReset = () => {
@@ -119,6 +144,8 @@ export default function Reports() {
     });
     setReportData(null);
     setError(null);
+    setLedgerSubmitted(false);
+    setLedgerPage(1);
   };
 
   const handlePrint = () => {
@@ -401,26 +428,33 @@ export default function Reports() {
     }
   };
 
+  // ── Unify ledger (React Query) and other report types (local state) ────────
+  const effectiveReportData = isLedger ? ledgerQuery.data : reportData;
+  const effectiveLoading = isLedger ? ledgerQuery.isLoading && !ledgerQuery.data : loading;
+  const effectiveError = isLedger
+    ? (ledgerQuery.isError && (ledgerQuery.error?.response?.data?.message || ledgerQuery.error?.message || "Failed to load ledger")) || null
+    : error;
+
   const getKPIs = () => {
-    if (!reportData) return [];
+    if (!effectiveReportData) return [];
 
     switch (reportType) {
       case "income-statement":
         return [
           {
             title: "Total Revenue",
-            value: reportData.totalRevenue || 0,
+            value: effectiveReportData.totalRevenue || 0,
             color: "green",
           },
           {
             title: "Total Expenses",
-            value: reportData.totalExpenses || 0,
+            value: effectiveReportData.totalExpenses || 0,
             color: "red",
           },
           {
             title: "Net Income",
-            value: reportData.netIncome || 0,
-            color: reportData.netIncome >= 0 ? "green" : "red",
+            value: effectiveReportData.netIncome || 0,
+            color: effectiveReportData.netIncome >= 0 ? "green" : "red",
           },
         ];
 
@@ -428,17 +462,17 @@ export default function Reports() {
         return [
           {
             title: "Total Assets",
-            value: reportData.totalAssets || 0,
+            value: effectiveReportData.totalAssets || 0,
             color: "blue",
           },
           {
             title: "Total Liabilities",
-            value: reportData.totalLiabilities || 0,
+            value: effectiveReportData.totalLiabilities || 0,
             color: "amber",
           },
           {
             title: "Total Equity",
-            value: reportData.totalEquity || 0,
+            value: effectiveReportData.totalEquity || 0,
             color: "purple",
           },
         ];
@@ -447,18 +481,18 @@ export default function Reports() {
         return [
           {
             title: "Total Inflows",
-            value: reportData.totalInflow || 0,
+            value: effectiveReportData.totalInflow || 0,
             color: "green",
           },
           {
             title: "Total Outflows",
-            value: reportData.totalOutflow || 0,
+            value: effectiveReportData.totalOutflow || 0,
             color: "red",
           },
           {
             title: "Net Cash Flow",
-            value: reportData.netCashFlow || 0,
-            color: reportData.netCashFlow >= 0 ? "green" : "red",
+            value: effectiveReportData.netCashFlow || 0,
+            color: effectiveReportData.netCashFlow >= 0 ? "green" : "red",
           },
         ];
 
@@ -466,18 +500,18 @@ export default function Reports() {
         return [
           {
             title: "Total Debits",
-            value: reportData.totalDebits || 0,
+            value: effectiveReportData.totalDebits || 0,
             color: "blue",
           },
           {
             title: "Total Credits",
-            value: reportData.totalCredits || 0,
+            value: effectiveReportData.totalCredits || 0,
             color: "blue",
           },
           {
             title: "Status",
-            value: reportData.isBalanced ? "Balanced" : "Unbalanced",
-            color: reportData.isBalanced ? "green" : "red",
+            value: effectiveReportData.isBalanced ? "Balanced" : "Unbalanced",
+            color: effectiveReportData.isBalanced ? "green" : "red",
             format: "text",
           },
         ];
@@ -486,17 +520,17 @@ export default function Reports() {
         return [
           {
             title: "Opening Balance",
-            value: reportData.openingBalance || 0,
+            value: effectiveReportData.openingBalance || 0,
             color: "blue",
           },
           {
             title: "Closing Balance",
-            value: reportData.closingBalance || 0,
+            value: effectiveReportData.closingBalance || 0,
             color: "green",
           },
           {
             title: "Transactions",
-            value: reportData.pagination?.total || reportData.transactions?.length || 0,
+            value: effectiveReportData.pagination?.total || effectiveReportData.transactions?.length || 0,
             color: "purple",
             format: "text",
           },
@@ -518,7 +552,7 @@ export default function Reports() {
         buttonText="Generate Report"
         onButtonClick={fetchReport}
         buttonIcon={BarChart3}
-        isLoading={loading}
+        isLoading={effectiveLoading}
       />
 
       <ReportFilters
@@ -527,18 +561,18 @@ export default function Reports() {
         filters={filters}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
-        loading={loading}
+        loading={effectiveLoading}
       />
 
-      {error && (
-        <ErrorState message={error} onRetry={fetchReport} />
+      {effectiveError && (
+        <ErrorState message={effectiveError} onRetry={fetchReport} />
       )}
 
-      {loading && (
+      {effectiveLoading && (
         <SectionSkeleton rows={8} />
       )}
 
-      {reportData && !loading && (
+      {effectiveReportData && !effectiveLoading && (
         <>
           {kpis.length > 0 && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -648,9 +682,11 @@ export default function Reports() {
 
                 {reportType === "general-ledger" && (
                   <GeneralLedgerReport
-                    data={reportData}
+                    data={effectiveReportData}
                     startDate={filters.startDate}
                     endDate={filters.endDate}
+                    onPageChange={setLedgerPage}
+                    isFetching={ledgerQuery.isFetching}
                   />
                 )}
               </div>
@@ -670,7 +706,7 @@ export default function Reports() {
         </>
       )}
 
-      {!reportData && !loading && !error && (
+      {!effectiveReportData && !effectiveLoading && !effectiveError && (
         <Card className="border-2 border-dashed border-neutral-200 bg-neutral-50">
           <CardContent className="py-20 text-center">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">

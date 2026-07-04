@@ -4,8 +4,7 @@ import api from '../../services/api';
 const normalizeAuthPayload = (payload) => {
   const data = payload?.data || payload || {};
   return {
-    user:  data.user  || payload?.user  || null,
-    token: data.token || payload?.token || null,
+    user: data.user || payload?.user || null,
   };
 };
 
@@ -21,7 +20,12 @@ export const register = createAsyncThunk('auth/register', async (userData, { rej
     const authData = normalizeAuthPayload(response.data);
     return authData;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Registration failed');
+    // Preserve the full backend error payload (not just the message string)
+    // so callers using .unwrap() can inspect `.errors` for field-level
+    // validation issues, same as the React Query mutation pattern elsewhere.
+    return rejectWithValue(
+      error.response?.data || { message: 'Registration failed' }
+    );
   }
 });
 
@@ -31,7 +35,12 @@ export const login = createAsyncThunk('auth/login', async (credentials, { reject
     const authData = normalizeAuthPayload(response.data);
     return authData;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Login failed');
+    // Preserve the full backend error payload (not just the message string)
+    // so callers using .unwrap() can inspect `.errors` for field-level
+    // validation issues, same as the React Query mutation pattern elsewhere.
+    return rejectWithValue(
+      error.response?.data || { message: 'Login failed' }
+    );
   }
 });
 
@@ -52,6 +61,20 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, 
 export const logoutAsync = createAsyncThunk('auth/logoutAsync', async () => {
   try {
     await api.post('/auth/logout');
+  } catch {
+    // Always clear locally even if the server request fails
+  } finally {
+    clearAuthSession();
+  }
+  return null;
+});
+
+// "Log out of all devices" — revokes every refresh token for this user, not
+// just the current session's. A separate call from logoutAsync above; the
+// two never share a request.
+export const logoutAllAsync = createAsyncThunk('auth/logoutAllAsync', async () => {
+  try {
+    await api.post('/auth/logout-all');
   } catch {
     // Always clear locally even if the server request fails
   } finally {
@@ -96,7 +119,13 @@ const authSlice = createSlice({
         state.isPending = action.payload.user?.status === 'pending';
         state.isAuthenticated = action.payload.user?.status === 'approved';
       })
-      .addCase(register.rejected,  (state, action) => { state.loading = false; state.error = action.payload; })
+      .addCase(register.rejected,  (state, action) => {
+        state.loading = false;
+        // action.payload is now the full { message, errors? } object (see the
+        // register thunk above) — state.error stays a plain string since it's
+        // rendered directly in JSX elsewhere.
+        state.error = action.payload?.message || 'Registration failed';
+      })
 
       .addCase(login.pending,   (state) => { state.loading = true;  state.error = null; })
       .addCase(login.fulfilled, (state, action) => {
@@ -105,7 +134,13 @@ const authSlice = createSlice({
         state.isPending = action.payload.user?.status === 'pending';
         state.isAuthenticated = action.payload.user?.status === 'approved';
       })
-      .addCase(login.rejected,  (state, action) => { state.loading = false; state.error = action.payload; })
+      .addCase(login.rejected,  (state, action) => {
+        state.loading = false;
+        // action.payload is now the full { message, errors? } object (see the
+        // login thunk above) — state.error stays a plain string since it's
+        // rendered directly in JSX elsewhere.
+        state.error = action.payload?.message || 'Login failed';
+      })
 
       .addCase(getCurrentUser.pending,   (state) => { state.loading = true; })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
@@ -129,6 +164,14 @@ const authSlice = createSlice({
       })
 
       .addCase(logoutAsync.fulfilled, (state) => {
+        state.user = null;
+        state.isAuthenticated = false;
+        state.isPending = false;
+        state.loading = false;
+        state.error = null;
+      })
+
+      .addCase(logoutAllAsync.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.isPending = false;

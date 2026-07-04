@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { accountingAPI, coaAPI } from "../services/apiMethods";
 import { formatCurrency } from "../utils/currency";
+import { formatDisplayDate } from "../utils/date";
 import { toast } from "sonner";
 import Card from "../components/common/Card";
 import SectionHeader from "../components/common/SectionHeader";
@@ -207,7 +208,7 @@ const Ledger = () => {
                     ledgerData.transactions.map((tx, idx) => (
                       <tr key={idx} className="hover:bg-gray-50 transition">
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {new Date(tx.date).toLocaleDateString()}
+                          {formatDisplayDate(tx.date)}
                         </td>
                         <td className="px-6 py-4 text-sm font-mono text-blue-600">
                           {tx.voucherNumber}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Banknote, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { bankBookAPI, coaAPI } from "../services/apiMethods";
@@ -56,6 +56,12 @@ export default function BankBook() {
   const [cancelReason, setCancelReason] = useState("");
   const [filters, setFilters] = useState(defaultFilters());
 
+  // Migration debt: statement loading stays on manual useState+useEffect
+  // rather than a React Query hook (out of scope for this pass) — this ref
+  // is the interim fix so rapidly re-applying filters or clicking Refresh
+  // can't have a stale response land after a fresher one.
+  const statementFetchAbortRef = useRef(null);
+
   // ─── Derived options ────────────────────────────────────────────────────────
 
   const bankHeadOptions = useMemo(() => {
@@ -102,9 +108,14 @@ export default function BankBook() {
       setSummary(defaultSummary());
       return;
     }
+
+    statementFetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    statementFetchAbortRef.current = controller;
+
     setLoading(true);
     try {
-      const response = await bankBookAPI.getStatement(nextFilters);
+      const response = await bankBookAPI.getStatement(nextFilters, { signal: controller.signal });
       const payload = response?.data?.data || {};
       const rows = payload.rows || [];
       setCollections(rows);
@@ -116,10 +127,13 @@ export default function BankBook() {
         count: rows.length,
       });
     } catch (error) {
+      if (error.code === "ERR_CANCELED") return;
       toast.error(getErrorMessage(error, "Failed to load bank statement"));
       setCollections([]);
     } finally {
-      setLoading(false);
+      if (statementFetchAbortRef.current === controller) {
+        setLoading(false);
+      }
     }
   };
 

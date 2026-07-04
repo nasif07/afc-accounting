@@ -3,11 +3,12 @@ import { payrollAPI } from '../../services/apiMethods';
 
 export const fetchPayroll = createAsyncThunk(
   'payroll/fetchPayroll',
-  async (params = {}, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue, signal }) => {
     try {
-      const response = await payrollAPI.getAll(params);
+      const response = await payrollAPI.getAll(params, { signal });
       return response.data;
     } catch (error) {
+      if (error.code === 'ERR_CANCELED') throw error;
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch payroll');
     }
   }
@@ -32,7 +33,12 @@ export const createPayroll = createAsyncThunk(
       const response = await payrollAPI.create(data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create payroll');
+      // Preserve the full backend error payload (not just the message
+      // string) so the component can inspect `.errors` for field-level
+      // validation issues, same pattern as accountSlice.js.
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to create payroll' },
+      );
     }
   }
 );
@@ -44,7 +50,9 @@ export const updatePayroll = createAsyncThunk(
       const response = await payrollAPI.update(id, data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update payroll');
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update payroll' },
+      );
     }
   }
 );
@@ -154,7 +162,10 @@ const payrollSlice = createSlice({
       })
       .addCase(createPayroll.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        // Field-level errors are shown inline via setError instead — skip
+        // the generic toast in that case (same pattern as accountSlice.js).
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || 'Failed to create payroll';
       })
       .addCase(updatePayroll.pending, (state) => {
         state.loading = true;
@@ -170,7 +181,8 @@ const payrollSlice = createSlice({
       })
       .addCase(updatePayroll.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || 'Failed to update payroll';
       })
       .addCase(deletePayroll.pending, (state) => {
         state.loading = true;

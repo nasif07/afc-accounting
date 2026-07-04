@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   fetchAccounts,
   fetchLeafAccounts,
@@ -62,6 +65,46 @@ const ACCOUNT_STATUS_OPTIONS = [
   { value: "inactive", label: "Inactive" },
 ];
 
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Mirrors backend/src/validation/coa.validation.js. Two live bugs found and
+// fixed as a natural consequence of correctly modelling "optional" here:
+//   1. openingDate: the backend's z.coerce.date().optional() rejects an
+//      empty string (only literal undefined counts as "not provided"). The
+//      old code already worked around this manually for openingDate
+//      specifically (`openingDate: formData.openingDate || undefined`) —
+//      this schema now enforces the same fix declaratively.
+//   2. parentAccount on CREATE: createAccountBody's parentAccount is
+//      `objectId.optional()` — it accepts undefined but NOT null. The old
+//      code always sent `parentAccount: formData.parentAccount || null`,
+//      which means creating any top-level (no-parent) account has been
+//      failing with a 400 today. updateAccountBody, by contrast, uses
+//      `objectId.nullable().optional()` and the controller explicitly
+//      distinguishes "omitted" (leave unchanged) from "null" (clear the
+//      parent) — so update must still send null to clear a parent. Payload
+//      construction below branches on create-vs-edit to match each schema.
+// Not fixed here (would require a backend schema change, out of scope):
+// createAccountBody has no `status` field at all, so selecting a non-default
+// status while creating a new account is silently ignored server-side —
+// every new account ends up "active" regardless of what's selected here.
+const blankToUndefined = (v) => (v === "" || v == null ? undefined : v);
+const optionalDate = z.preprocess(blankToUndefined, z.string().optional());
+
+const accountSchema = z.object({
+  accountCode: z
+    .string()
+    .trim()
+    .min(1, "Account code is required")
+    .regex(/^\d+$/, "Account code must contain numbers only"),
+  accountName: z.string().trim().min(1, "Account name is required"),
+  accountType: z.enum(["asset", "liability", "equity", "income", "expense"]),
+  parentAccount: z.preprocess(blankToUndefined, z.string().optional()),
+  openingBalance: z.coerce.number().min(0, "Opening balance must be 0 or greater").optional(),
+  openingBalanceType: z.enum(["debit", "credit"]),
+  openingDate: optionalDate,
+  status: z.enum(["active", "inactive"]),
+  description: z.string().trim().optional(),
+});
+
 export default function Accounts() {
   const dispatch = useDispatch();
   const { accounts, isLoading, error } = useSelector((state) => state.accounts);
@@ -69,7 +112,20 @@ export default function Accounts() {
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [statusFilter, setStatusFilter] = useState("active");
-  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    setValue,
+    control,
+    watch,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(accountSchema), defaultValues: INITIAL_FORM_DATA });
+
+  const watchedAccountType = watch("accountType");
+  const watchedOpeningBalance = watch("openingBalance");
 
   useEffect(() => {
     dispatch(fetchAccounts({ includeDeleted: true }));
@@ -84,7 +140,7 @@ export default function Accounts() {
 
   const resetForm = () => {
     setEditingAccount(null);
-    setFormData(INITIAL_FORM_DATA);
+    reset(INITIAL_FORM_DATA);
   };
 
   const openCreateForm = () => {
@@ -128,7 +184,7 @@ export default function Accounts() {
 
   const parentOptions = useMemo(() => {
     const options = normalizedAccounts
-      .filter((acc) => acc.accountType === formData.accountType)
+      .filter((acc) => acc.accountType === watchedAccountType)
       .filter((acc) => acc.status === "active")
       .filter((acc) => !editingAccount || acc._id !== editingAccount._id)
       .sort((a, b) =>
@@ -143,76 +199,46 @@ export default function Accounts() {
       }));
 
     return options;
-  }, [normalizedAccounts, formData.accountType, editingAccount]);
+  }, [normalizedAccounts, watchedAccountType, editingAccount]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const accountCode = formData.accountCode.trim();
-    const accountName = formData.accountName.trim();
-    const accountType = String(formData.accountType || "").toLowerCase();
-    const description = formData.description.trim();
-    const openingBalance = Number(formData.openingBalance) || 0;
-    const status = String(formData.status || "").toLowerCase();
-
-    if (!accountCode || !accountName) {
-      toast.error("Account code and account name are required");
+  const onSubmit = async (data) => {
+    if (editingAccount?.status === "archived") {
+      toast.error("Archived accounts cannot be edited");
       return;
     }
 
-    if (!/^\d+$/.test(accountCode)) {
-      toast.error("Account code must contain numbers only");
-      return;
-    }
-
-    if (!["debit", "credit"].includes(formData.openingBalanceType)) {
-      toast.error("Opening balance type must be either debit or credit");
-      return;
-    }
-
-    if (!["active", "inactive"].includes(status)) {
-      toast.error("Invalid account status");
-      return;
-    }
+    const openingBalance = Number(data.openingBalance) || 0;
 
     const payload = {
-      accountCode,
-      accountName,
-      accountType,
-      description,
+      accountCode: data.accountCode,
+      accountName: data.accountName,
+      accountType: data.accountType,
+      description: data.description,
       openingBalance,
       openingBalanceType:
         openingBalance === 0
-          ? getDefaultBalanceType(accountType)
-          : formData.openingBalanceType,
-      openingDate: formData.openingDate || undefined,
-      parentAccount: formData.parentAccount || null,
-      status,
+          ? getDefaultBalanceType(data.accountType)
+          : data.openingBalanceType,
+      openingDate: data.openingDate,
+      // createAccountBody only accepts an ObjectId string or undefined (no
+      // null); updateAccountBody explicitly supports null to clear an
+      // existing parent, and the controller treats "omitted" and "null"
+      // differently (omitted = leave unchanged). Branch to match each.
+      parentAccount: data.parentAccount || (editingAccount ? null : undefined),
+      status: data.status,
     };
 
-    let result;
-
-    if (editingAccount) {
-      if (editingAccount.status === "archived") {
-        toast.error("Archived accounts cannot be edited");
-        return;
-      }
-
-      result = await dispatch(
-        updateAccount({
-          id: editingAccount._id,
-          data: payload,
-        }),
-      );
-    } else {
-      result = await dispatch(createAccount(payload));
-    }
+    const result = editingAccount
+      ? await dispatch(updateAccount({ id: editingAccount._id, data: payload }))
+      : await dispatch(createAccount(payload));
 
     if (result?.error) {
-      toast.error(
-        result.payload ||
-          `Failed to ${editingAccount ? "update" : "create"} account`,
-      );
+      const fieldErrors = result.payload?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      }
       return;
     }
 
@@ -274,7 +300,7 @@ export default function Accounts() {
     const accountType = String(account.accountType || "asset").toLowerCase();
 
     setEditingAccount(account);
-    setFormData({
+    reset({
       accountCode: account.accountCode || "",
       accountName: account.accountName || "",
       accountType,
@@ -352,137 +378,93 @@ export default function Accounts() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 label="Account Code"
-                name="accountCode"
                 placeholder="e.g. 1000"
-                value={formData.accountCode}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    accountCode: e.target.value,
-                  }))
-                }
                 required
+                error={errors.accountCode?.message}
+                touched={!!errors.accountCode}
+                {...register("accountCode")}
               />
 
               <Input
                 label="Account Name"
-                name="accountName"
                 placeholder="e.g. Cash in Hand"
-                value={formData.accountName}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    accountName: e.target.value,
-                  }))
-                }
                 required
+                error={errors.accountName?.message}
+                touched={!!errors.accountName}
+                {...register("accountName")}
               />
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select
                 label="Account Type"
-                name="accountType"
-                value={formData.accountType}
-                onChange={(e) => {
-                  const selectedType = e.target.value.toLowerCase();
-                  setFormData((prev) => ({
-                    ...prev,
-                    accountType: selectedType,
-                    parentAccount: "",
-                    openingBalanceType: getDefaultBalanceType(selectedType),
-                  }));
-                }}
                 options={ACCOUNT_TYPE_OPTIONS}
                 required
+                error={errors.accountType?.message}
+                touched={!!errors.accountType}
+                {...register("accountType", {
+                  onChange: (e) => {
+                    const selectedType = e.target.value.toLowerCase();
+                    setValue("parentAccount", "");
+                    setValue("openingBalanceType", getDefaultBalanceType(selectedType));
+                  },
+                })}
               />
 
               <Select
                 label="Parent Account"
-                name="parentAccount"
-                value={formData.parentAccount}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    parentAccount: e.target.value,
-                  }))
-                }
                 options={parentOptions}
                 placeholder="No Parent Account"
+                {...register("parentAccount")}
               />
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <Input
                 label="Opening Balance"
-                name="openingBalance"
                 type="number"
                 placeholder="0.00"
-                value={formData.openingBalance}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    openingBalance: e.target.value,
-                  }))
-                }
                 step="0.01"
+                error={errors.openingBalance?.message}
+                touched={!!errors.openingBalance}
+                {...register("openingBalance")}
               />
 
               <Select
                 label="Balance Type"
-                name="openingBalanceType"
-                value={formData.openingBalanceType}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    openingBalanceType: e.target.value,
-                  }))
-                }
                 options={BALANCE_TYPE_OPTIONS}
-                disabled={Number(formData.openingBalance) === 0}
+                disabled={Number(watchedOpeningBalance) === 0}
+                {...register("openingBalanceType")}
               />
 
-              <DatePicker
-                label="Opening Date"
+              <Controller
                 name="openingDate"
-                value={formData.openingDate}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    openingDate: value,
-                  }))
-                }
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Opening Date"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.openingDate?.message}
+                  />
+                )}
               />
 
               <Select
                 label="Status"
-                name="status"
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    status: e.target.value,
-                  }))
-                }
                 options={ACCOUNT_STATUS_OPTIONS}
+                {...register("status")}
               />
 
               <Input
                 label="Description"
-                name="description"
                 type="text"
                 placeholder="Optional description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
+                {...register("description")}
               />
             </div>
 

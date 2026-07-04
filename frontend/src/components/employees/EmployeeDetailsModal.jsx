@@ -17,6 +17,7 @@ import {
 import Modal from "../common/Modal";
 import Badge from "../common/Badge";
 import Button from "../common/Button";
+import { formatDisplayDate } from "../../utils/date";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,9 +30,7 @@ const statusConfig = {
 
 function fmtDate(value) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
+  return formatDisplayDate(value, { locale: "en-GB" }) || "—";
 }
 
 function avatarColor(name = "") {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   Plus,
   Edit2,
@@ -11,6 +11,9 @@ import {
   Eye,
   ShieldAlert,
 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   useEmployees,
   useCreateEmployee,
@@ -60,6 +63,47 @@ const EMPTY_FORM = {
 const statusVariant = (s) =>
   s === "active" ? "success" : s === "on-leave" ? "warning" : "secondary";
 
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Mirrors backend/src/validation/employee.validation.js exactly. That schema
+// uses bare `.optional()` for email/dateOfBirth, which — since the form always
+// sends "" rather than omitting an untouched field — actually rejects blank
+// values today (a live bug: creating an employee with the Email or Date of
+// Birth field left blank currently 400s). The preprocess below fixes that by
+// treating "" as "not provided", matching what "optional" was always meant to
+// mean, without changing what the field validates when a value IS given.
+const blankToUndefined = (v) => (v === "" || v == null ? undefined : v);
+
+const optionalEmail = z.preprocess(
+  blankToUndefined,
+  z.string().trim().email("Enter a valid email address").optional(),
+);
+const optionalDate = z.preprocess(blankToUndefined, z.string().optional());
+
+const employeeSchema = z.object({
+  employeeCode: z.string().trim().min(1, "Employee code is required"),
+  name: z.string().trim().min(1, "Name is required"),
+  email: optionalEmail,
+  phone: z.string().trim().optional(),
+  designation: z.string().trim().min(1, "Designation is required"),
+  department: z.string().trim().optional(),
+  dateOfJoining: z.string().min(1, "Joining date is required"),
+  dateOfBirth: optionalDate,
+  address: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  state: z.string().trim().optional(),
+  zipCode: z.string().trim().optional(),
+  country: z.string().trim().optional(),
+  bankAccountNumber: z.string().trim().optional(),
+  bankName: z.string().trim().optional(),
+  status: z.string().optional(),
+  notes: z.string().trim().optional(),
+  emergencyContactName: z.string().trim().optional(),
+  emergencyContactRelationship: z.string().trim().optional(),
+  emergencyContactPhone: z.string().trim().optional(),
+  emergencyContactAltPhone: z.string().trim().optional(),
+  emergencyContactAddress: z.string().trim().optional(),
+});
+
 export default function Employees() {
   const { data: items = [], isLoading: loading } = useEmployees();
   const createMutation = useCreateEmployee();
@@ -68,39 +112,52 @@ export default function Employees() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState(EMPTY_FORM);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [viewEmployee, setViewEmployee] = useState(null);
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(employeeSchema), defaultValues: EMPTY_FORM });
+
   const openCreate = () => {
-    setFormData(EMPTY_FORM);
+    reset(EMPTY_FORM);
     setEditingId(null);
     setShowModal(true);
   };
 
-  const openEdit = (emp) => {
-    const f = { ...EMPTY_FORM, ...emp };
-    if (f.dateOfJoining) f.dateOfJoining = f.dateOfJoining.split("T")[0];
-    if (f.dateOfBirth) f.dateOfBirth = f.dateOfBirth.split("T")[0];
-    setFormData(f);
-    setEditingId(emp._id);
-    setShowModal(true);
-  };
+  const openEdit = useCallback(
+    (emp) => {
+      const f = { ...EMPTY_FORM, ...emp };
+      if (f.dateOfJoining) f.dateOfJoining = f.dateOfJoining.split("T")[0];
+      if (f.dateOfBirth) f.dateOfBirth = f.dateOfBirth.split("T")[0];
+      reset(f);
+      setEditingId(emp._id);
+      setShowModal(true);
+    },
+    [reset],
+  );
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (editingId) {
-      await updateMutation.mutateAsync({ id: editingId, data: formData });
-    } else {
-      await createMutation.mutateAsync(formData);
+  const onSubmit = async (data) => {
+    try {
+      if (editingId) {
+        await updateMutation.mutateAsync({ id: editingId, data });
+      } else {
+        await createMutation.mutateAsync(data);
+      }
+      setShowModal(false);
+      setEditingId(null);
+    } catch (err) {
+      const fieldErrors = err?.response?.data?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      }
     }
-    setShowModal(false);
-    setEditingId(null);
   };
 
   const confirmDelete = async () => {
@@ -183,7 +240,7 @@ export default function Employees() {
         ),
       },
     ],
-    [],
+    [openEdit],
   );
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -226,7 +283,7 @@ export default function Employees() {
         }
         description="Provide all details to maintain an accurate staff record."
         size="3xl">
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-8">
           {/* Professional Info */}
           <div className="space-y-4">
             <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
@@ -235,44 +292,37 @@ export default function Employees() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Input
                 label="Employee Code"
-                name="employeeCode"
-                value={formData.employeeCode}
-                onChange={handleChange}
                 required
+                error={errors.employeeCode?.message}
+                touched={!!errors.employeeCode}
+                {...register("employeeCode")}
               />
               <Input
                 label="Full Name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
                 required
+                error={errors.name?.message}
+                touched={!!errors.name}
+                {...register("name")}
               />
               <Select
                 label="Status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
                 options={STATUS_OPTIONS.map((o) => ({ value: o, label: o }))}
+                {...register("status")}
               />
               <Input
                 label="Designation"
-                name="designation"
-                value={formData.designation}
-                onChange={handleChange}
+                error={errors.designation?.message}
+                touched={!!errors.designation}
+                {...register("designation")}
               />
-              <Input
-                label="Department"
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-              />
+              <Input label="Department" {...register("department")} />
               <Input
                 label="Joining Date"
                 type="date"
-                name="dateOfJoining"
-                value={formData.dateOfJoining}
-                onChange={handleChange}
                 required
+                error={errors.dateOfJoining?.message}
+                touched={!!errors.dateOfJoining}
+                {...register("dateOfJoining")}
               />
             </div>
           </div>
@@ -286,23 +336,17 @@ export default function Employees() {
               <Input
                 label="Email"
                 type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
+                error={errors.email?.message}
+                touched={!!errors.email}
+                {...register("email")}
               />
-              <Input
-                label="Phone"
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-              />
+              <Input label="Phone" type="tel" {...register("phone")} />
               <Input
                 label="Date of Birth"
                 type="date"
-                name="dateOfBirth"
-                value={formData.dateOfBirth}
-                onChange={handleChange}
+                error={errors.dateOfBirth?.message}
+                touched={!!errors.dateOfBirth}
+                {...register("dateOfBirth")}
               />
             </div>
           </div>
@@ -314,37 +358,12 @@ export default function Employees() {
             </h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <div className="md:col-span-2">
-                <Input
-                  label="Street Address"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                />
+                <Input label="Street Address" {...register("address")} />
               </div>
-              <Input
-                label="City"
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-              />
-              <Input
-                label="State/Province"
-                name="state"
-                value={formData.state}
-                onChange={handleChange}
-              />
-              <Input
-                label="Zip Code"
-                name="zipCode"
-                value={formData.zipCode}
-                onChange={handleChange}
-              />
-              <Input
-                label="Country"
-                name="country"
-                value={formData.country}
-                onChange={handleChange}
-              />
+              <Input label="City" {...register("city")} />
+              <Input label="State/Province" {...register("state")} />
+              <Input label="Zip Code" {...register("zipCode")} />
+              <Input label="Country" {...register("country")} />
             </div>
           </div>
 
@@ -354,39 +373,12 @@ export default function Employees() {
               <ShieldAlert size={14} aria-hidden="true" /> Emergency Contact
             </h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Input
-                label="Contact Name"
-                name="emergencyContactName"
-                value={formData.emergencyContactName}
-                onChange={handleChange}
-              />
-              <Input
-                label="Relationship"
-                name="emergencyContactRelationship"
-                value={formData.emergencyContactRelationship}
-                onChange={handleChange}
-              />
-              <Input
-                label="Phone Number"
-                name="emergencyContactPhone"
-                type="tel"
-                value={formData.emergencyContactPhone}
-                onChange={handleChange}
-              />
-              <Input
-                label="Alternative Phone"
-                name="emergencyContactAltPhone"
-                type="tel"
-                value={formData.emergencyContactAltPhone}
-                onChange={handleChange}
-              />
+              <Input label="Contact Name" {...register("emergencyContactName")} />
+              <Input label="Relationship" {...register("emergencyContactRelationship")} />
+              <Input label="Phone Number" type="tel" {...register("emergencyContactPhone")} />
+              <Input label="Alternative Phone" type="tel" {...register("emergencyContactAltPhone")} />
               <div className="md:col-span-2">
-                <Input
-                  label="Address"
-                  name="emergencyContactAddress"
-                  value={formData.emergencyContactAddress}
-                  onChange={handleChange}
-                />
+                <Input label="Address" {...register("emergencyContactAddress")} />
               </div>
             </div>
           </div>
@@ -397,26 +389,10 @@ export default function Employees() {
               <CreditCard size={14} aria-hidden="true" /> Financial &amp; Notes
             </h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input
-                label="Bank Name"
-                name="bankName"
-                value={formData.bankName}
-                onChange={handleChange}
-              />
-              <Input
-                label="Account Number"
-                name="bankAccountNumber"
-                value={formData.bankAccountNumber}
-                onChange={handleChange}
-              />
+              <Input label="Bank Name" {...register("bankName")} />
+              <Input label="Account Number" {...register("bankAccountNumber")} />
               <div className="md:col-span-2">
-                <Textarea
-                  label="Administrative Notes"
-                  name="notes"
-                  rows={3}
-                  value={formData.notes}
-                  onChange={handleChange}
-                />
+                <Textarea label="Administrative Notes" rows={3} {...register("notes")} />
               </div>
             </div>
           </div>

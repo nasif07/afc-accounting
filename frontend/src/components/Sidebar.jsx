@@ -1,10 +1,11 @@
 ﻿import { NavLink, useLocation, useNavigate } from "react-router";
 import { useMemo, useState, useEffect } from "react";
-import { LogOut, X, ChevronUp  } from "lucide-react";
+import { LogOut, ShieldOff, X, ChevronUp  } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { menuSections } from "../constants/menuSection";
-import { logoutAsync } from "../store/slices/authSlice";
+import { logoutAsync, logoutAllAsync } from "../store/slices/authSlice";
 import api from "../services/api";
+import { queryClient } from "../lib/queryClient";
 import logo from "/afc-logo.jpg";
 
 export default function Sidebar({
@@ -39,6 +40,19 @@ export default function Sidebar({
 
   const handleLogout = async () => {
     await dispatch(logoutAsync());
+    // Redux is wiped by the root reducer on this action, but React Query's
+    // cache lives outside Redux entirely — clear it too, or a fast re-login
+    // as a different user would still see the previous user's cached data.
+    queryClient.clear();
+    navigate("/login", { replace: true });
+  };
+
+  const handleLogoutAllDevices = async () => {
+    if (!window.confirm("Log out of all devices? Every other signed-in session will be ended immediately.")) {
+      return;
+    }
+    await dispatch(logoutAllAsync());
+    queryClient.clear();
     navigate("/login", { replace: true });
   };
 
@@ -185,9 +199,9 @@ export default function Sidebar({
 
           {/* Slide down logout */}
           <div
-            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            className={`overflow-hidden transition-all duration-300 ease-in-out space-y-1.5 ${
               showLogout
-                ? "max-h-20 opacity-100 mt-2"
+                ? "max-h-40 opacity-100 mt-2"
                 : "max-h-0 opacity-0 mt-0"
             }`}>
             <button
@@ -197,6 +211,14 @@ export default function Sidebar({
               aria-label="Logout">
               <LogOut size={16} />
               {desktopOpen && <span>Logout</span>}
+            </button>
+            <button
+              onClick={handleLogoutAllDevices}
+              type="button"
+              className={`flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-500 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 hover:shadow-none active:bg-slate-100 ${!desktopOpen ? "lg:justify-center" : ""}`}
+              aria-label="Log out of all devices">
+              <ShieldOff size={16} />
+              {desktopOpen && <span>Log out of all devices</span>}
             </button>
           </div>
         </div>

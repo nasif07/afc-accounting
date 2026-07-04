@@ -126,18 +126,6 @@ const settingsSchema = new mongoose.Schema(
       default: 50000,
     },
 
-    // ── Expense payment-mode ledger mapping ──────────────────────────────────
-    // COA account codes credited when an expense is approved, keyed by
-    // Expense.paymentMode. Falls back to EXPENSE_PAYMENT_ACCOUNT_DEFAULTS
-    // (expense.service.js) for any mode left unset here.
-    expensePaymentAccountCodes: {
-      cash: { type: String, trim: true, default: '1001' },
-      bank: { type: String, trim: true, default: '1002' },
-      cheque: { type: String, trim: true, default: '1002' },
-      card: { type: String, trim: true, default: '1002' },
-      online: { type: String, trim: true, default: '1002' },
-    },
-
     // ── Feature flags ────────────────────────────────────────────────────────
     enableEmailNotifications: {
       type: Boolean,

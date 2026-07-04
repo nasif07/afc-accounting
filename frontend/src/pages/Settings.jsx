@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
 import {
@@ -36,6 +39,77 @@ const TABS = [
   { id: "workflow", label: "Workflow", icon: ShieldCheck },
 ];
 
+// ── Zod validation schema ────────────────────────────────────────────────────
+// There's no Zod validation middleware on the settings route at all — the
+// backend only enforces what's declared on settings.model.js's Mongoose
+// schema (an enum on financialYearType; everything else is an unconstrained
+// String/Number/Boolean). This schema mirrors exactly that, plus the two
+// fields the UI itself already marked `required`.
+//
+// Live bug found and fixed here: the Financial Year Type dropdown sent
+// "julyjune" / "jandec", but settings.model.js's Mongoose enum only accepts
+// "july-june" / "jan-dec" (see backend/src/config/constants.js). Selecting
+// either option and saving has been failing with a 400 (Mongoose
+// ValidationError) in production — confirmed no other code reads this field,
+// so the values below are corrected to match the backend exactly.
+const blankToUndefined = (v) => (v === "" || v == null ? undefined : v);
+const optionalEmail = z.preprocess(
+  blankToUndefined,
+  z.string().trim().email("Enter a valid email address").optional(),
+);
+
+const settingsSchema = z.object({
+  orgName: z.string().trim().min(1, "Organisation name is required"),
+  orgEmail: optionalEmail,
+  orgPhone: z.string().trim().optional(),
+  orgAddress: z.string().trim().optional(),
+  orgWebsite: z.string().trim().optional(),
+  orgLogo: z.string().trim().optional(),
+  directorName: z.string().trim().min(1, "Director / Principal name is required"),
+  directorTitle: z.string().trim().optional(),
+  currency: z.enum(["BDT", "USD", "EUR", "GBP"]),
+  currencySymbol: z.string().trim().optional(),
+  financialYearType: z.enum(["july-june", "jan-dec"]),
+  leaveYearLabel: z.string().trim().optional(),
+  benefitPeriodLabel: z.string().trim().optional(),
+  bankNameForPayment: z.string().trim().optional(),
+  bankAccountForPayment: z.string().trim().optional(),
+  reportHeader: z.string().trim().optional(),
+  reportFooter: z.string().trim().optional(),
+  highValueTransactionThreshold: z.coerce.number().optional(),
+  approvalLimitDirector: z.coerce.number().optional(),
+  approvalLimitAccountant: z.coerce.number().optional(),
+  approvalLimitSubAccountant: z.coerce.number().optional(),
+  enableApprovalWorkflow: z.boolean().optional(),
+  enableEmailNotifications: z.boolean().optional(),
+});
+
+const INITIAL_FORM_DATA = {
+  orgName: "",
+  orgEmail: "",
+  orgPhone: "",
+  orgAddress: "",
+  orgWebsite: "",
+  orgLogo: "",
+  directorName: "",
+  directorTitle: "",
+  currency: "BDT",
+  currencySymbol: "৳",
+  financialYearType: "july-june",
+  leaveYearLabel: "",
+  benefitPeriodLabel: "",
+  bankNameForPayment: "",
+  bankAccountForPayment: "",
+  reportHeader: "",
+  reportFooter: "",
+  highValueTransactionThreshold: 50000,
+  approvalLimitDirector: 999999,
+  approvalLimitAccountant: 100000,
+  approvalLimitSubAccountant: 10000,
+  enableApprovalWorkflow: true,
+  enableEmailNotifications: true,
+};
+
 // Icon-prefixed input: wraps common/Input with an absolute icon
 function IconInput({ icon: Icon, ...inputProps }) {
   return (
@@ -55,31 +129,19 @@ export default function Settings() {
 
   const isDirector = user?.role === "director";
   const [activeTab, setActiveTab] = useState("org");
-  const [form, setForm] = useState({
-    orgName: "",
-    orgEmail: "",
-    orgPhone: "",
-    orgAddress: "",
-    orgWebsite: "",
-    orgLogo: "",
-    directorName: "",
-    directorTitle: "",
-    currency: "BDT",
-    currencySymbol: "৳",
-    financialYearType: "julyjune",
-    leaveYearLabel: "",
-    benefitPeriodLabel: "",
-    bankNameForPayment: "",
-    bankAccountForPayment: "",
-    reportHeader: "",
-    reportFooter: "",
-    highValueTransactionThreshold: 50000,
-    approvalLimitDirector: 999999,
-    approvalLimitAccountant: 100000,
-    approvalLimitSubAccountant: 10000,
-    enableApprovalWorkflow: true,
-    enableEmailNotifications: true,
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(settingsSchema),
+    defaultValues: INITIAL_FORM_DATA,
   });
+
+  const watchedOrgLogo = watch("orgLogo");
 
   useEffect(() => {
     dispatch(fetchSettings());
@@ -87,42 +149,9 @@ export default function Settings() {
 
   useEffect(() => {
     if (data) {
-      setForm((prev) => ({
-        ...prev,
-        orgName: data.orgName ?? prev.orgName,
-        orgEmail: data.orgEmail ?? prev.orgEmail,
-        orgPhone: data.orgPhone ?? prev.orgPhone,
-        orgAddress: data.orgAddress ?? prev.orgAddress,
-        orgWebsite: data.orgWebsite ?? prev.orgWebsite,
-        orgLogo: data.orgLogo ?? prev.orgLogo,
-        directorName: data.directorName ?? prev.directorName,
-        directorTitle: data.directorTitle ?? prev.directorTitle,
-        currency: data.currency ?? prev.currency,
-        currencySymbol: data.currencySymbol ?? prev.currencySymbol,
-        financialYearType: data.financialYearType ?? prev.financialYearType,
-        leaveYearLabel: data.leaveYearLabel ?? prev.leaveYearLabel,
-        benefitPeriodLabel: data.benefitPeriodLabel ?? prev.benefitPeriodLabel,
-        bankNameForPayment: data.bankNameForPayment ?? prev.bankNameForPayment,
-        bankAccountForPayment:
-          data.bankAccountForPayment ?? prev.bankAccountForPayment,
-        reportHeader: data.reportHeader ?? prev.reportHeader,
-        reportFooter: data.reportFooter ?? prev.reportFooter,
-        highValueTransactionThreshold:
-          data.highValueTransactionThreshold ??
-          prev.highValueTransactionThreshold,
-        approvalLimitDirector:
-          data.approvalLimitDirector ?? prev.approvalLimitDirector,
-        approvalLimitAccountant:
-          data.approvalLimitAccountant ?? prev.approvalLimitAccountant,
-        approvalLimitSubAccountant:
-          data.approvalLimitSubAccountant ?? prev.approvalLimitSubAccountant,
-        enableApprovalWorkflow:
-          data.enableApprovalWorkflow ?? prev.enableApprovalWorkflow,
-        enableEmailNotifications:
-          data.enableEmailNotifications ?? prev.enableEmailNotifications,
-      }));
+      reset({ ...INITIAL_FORM_DATA, ...data });
     }
-  }, [data]);
+  }, [data, reset]);
 
   useEffect(() => {
     if (success) {
@@ -138,24 +167,8 @@ export default function Settings() {
     }
   }, [error, dispatch]);
 
-  const set = (key) => (e) => {
-    const val =
-      e.target.type === "checkbox"
-        ? e.target.checked
-        : [
-              "highValueTransactionThreshold",
-              "approvalLimitDirector",
-              "approvalLimitAccountant",
-              "approvalLimitSubAccountant",
-            ].includes(key)
-          ? Number(e.target.value) || 0
-          : e.target.value;
-    setForm((prev) => ({ ...prev, [key]: val }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    dispatch(updateSettings(form));
+  const onSubmit = (data) => {
+    dispatch(updateSettings(data));
   };
 
   return (
@@ -207,7 +220,7 @@ export default function Settings() {
           ))}
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <div
             id={`panel-${activeTab}`}
             role="tabpanel"
@@ -220,23 +233,21 @@ export default function Settings() {
                   Organisation Information
                 </h3>
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <FormField label="Organisation Name" required>
+                  <FormField label="Organisation Name" required error={errors.orgName?.message}>
                     <IconInput
                       icon={Building2}
-                      value={form.orgName}
-                      onChange={set("orgName")}
                       disabled={!isDirector}
                       required
+                      {...register("orgName")}
                     />
                   </FormField>
 
-                  <FormField label="Email Address">
+                  <FormField label="Email Address" error={errors.orgEmail?.message}>
                     <IconInput
                       icon={Mail}
                       type="email"
-                      value={form.orgEmail}
-                      onChange={set("orgEmail")}
                       disabled={!isDirector}
+                      {...register("orgEmail")}
                     />
                   </FormField>
 
@@ -244,9 +255,8 @@ export default function Settings() {
                     <IconInput
                       icon={Phone}
                       type="tel"
-                      value={form.orgPhone}
-                      onChange={set("orgPhone")}
                       disabled={!isDirector}
+                      {...register("orgPhone")}
                     />
                   </FormField>
 
@@ -254,23 +264,21 @@ export default function Settings() {
                     <IconInput
                       icon={Globe}
                       type="url"
-                      value={form.orgWebsite}
-                      onChange={set("orgWebsite")}
                       placeholder="https://"
                       disabled={!isDirector}
+                      {...register("orgWebsite")}
                     />
                   </FormField>
 
                   <FormField label="Logo URL / Path">
                     <Input
-                      value={form.orgLogo}
-                      onChange={set("orgLogo")}
                       placeholder="/afc-logo.jpg or https://..."
                       disabled={!isDirector}
+                      {...register("orgLogo")}
                     />
-                    {form.orgLogo && (
+                    {watchedOrgLogo && (
                       <img
-                        src={form.orgLogo}
+                        src={watchedOrgLogo}
                         alt="Logo preview"
                         className="mt-2 h-14 rounded border border-slate-200 object-contain p-1"
                         onError={(e) => {
@@ -285,10 +293,9 @@ export default function Settings() {
                       <MapPin className="pointer-events-none absolute left-3 top-3 z-10 h-4 w-4 text-slate-400" />
                       <Textarea
                         rows={3}
-                        value={form.orgAddress}
-                        onChange={set("orgAddress")}
                         disabled={!isDirector}
                         className="pl-9"
+                        {...register("orgAddress")}
                       />
                     </div>
                   </FormField>
@@ -310,42 +317,38 @@ export default function Settings() {
                   <Input
                     label="Director / Principal Name"
                     required
-                    value={form.directorName}
-                    onChange={set("directorName")}
+                    error={errors.directorName?.message}
+                    touched={!!errors.directorName}
                     disabled={!isDirector}
+                    {...register("directorName")}
                   />
                   <Input
                     label="Title"
-                    value={form.directorTitle}
-                    onChange={set("directorTitle")}
                     placeholder="Director"
                     disabled={!isDirector}
+                    {...register("directorTitle")}
                   />
                   <Input
                     label="Bank Name (for payslip mode of payment)"
-                    value={form.bankNameForPayment}
-                    onChange={set("bankNameForPayment")}
                     disabled={!isDirector}
+                    {...register("bankNameForPayment")}
                   />
                   <Input
                     label="Bank Account No. (for payslip)"
-                    value={form.bankAccountForPayment}
-                    onChange={set("bankAccountForPayment")}
                     disabled={!isDirector}
+                    {...register("bankAccountForPayment")}
                   />
                   <Input
                     label="Leave Year Label (shown on payslips)"
-                    value={form.leaveYearLabel}
-                    onChange={set("leaveYearLabel")}
                     placeholder="July'2025 - June'2026"
                     disabled={!isDirector}
+                    {...register("leaveYearLabel")}
                   />
                   <Input
                     label="Benefit Period Label (shown on payslips)"
-                    value={form.benefitPeriodLabel}
-                    onChange={set("benefitPeriodLabel")}
                     placeholder="01-07-2023 to 30-06-2025"
                     disabled={!isDirector}
+                    {...register("benefitPeriodLabel")}
                   />
                 </div>
               </div>
@@ -360,9 +363,8 @@ export default function Settings() {
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <Select
                     label="Currency Code"
-                    value={form.currency}
-                    onChange={set("currency")}
-                    disabled={!isDirector}>
+                    disabled={!isDirector}
+                    {...register("currency")}>
                     <option value="BDT">BDT — Bangladeshi Taka</option>
                     <option value="USD">USD — US Dollar</option>
                     <option value="EUR">EUR — Euro</option>
@@ -371,28 +373,25 @@ export default function Settings() {
 
                   <Input
                     label="Currency Symbol"
-                    value={form.currencySymbol}
-                    onChange={set("currencySymbol")}
                     placeholder="৳"
                     disabled={!isDirector}
+                    {...register("currencySymbol")}
                   />
 
                   <Select
                     label="Financial Year Type"
-                    value={form.financialYearType}
-                    onChange={set("financialYearType")}
-                    disabled={!isDirector}>
-                    <option value="julyjune">July – June</option>
-                    <option value="jandec">January – December</option>
+                    disabled={!isDirector}
+                    {...register("financialYearType")}>
+                    <option value="july-june">July – June</option>
+                    <option value="jan-dec">January – December</option>
                   </Select>
 
                   <Input
                     label="High-Value Transaction Threshold (৳)"
                     type="number"
                     min="0"
-                    value={form.highValueTransactionThreshold}
-                    onChange={set("highValueTransactionThreshold")}
                     disabled={!isDirector}
+                    {...register("highValueTransactionThreshold")}
                   />
                 </div>
               </div>
@@ -412,18 +411,16 @@ export default function Settings() {
                   <Textarea
                     label="Report Header Text"
                     rows={3}
-                    value={form.reportHeader}
-                    onChange={set("reportHeader")}
                     placeholder="e.g. CONFIDENTIAL — For internal use only"
                     disabled={!isDirector}
+                    {...register("reportHeader")}
                   />
                   <Textarea
                     label="Report Footer Text"
                     rows={3}
-                    value={form.reportFooter}
-                    onChange={set("reportFooter")}
                     placeholder="e.g. This report was generated by Alliance Accounting System"
                     disabled={!isDirector}
+                    {...register("reportFooter")}
                   />
                 </div>
               </div>
@@ -440,25 +437,22 @@ export default function Settings() {
                     label="Director Approval Limit (৳)"
                     type="number"
                     min="0"
-                    value={form.approvalLimitDirector}
-                    onChange={set("approvalLimitDirector")}
                     disabled={!isDirector}
+                    {...register("approvalLimitDirector")}
                   />
                   <Input
                     label="Accountant Approval Limit (৳)"
                     type="number"
                     min="0"
-                    value={form.approvalLimitAccountant}
-                    onChange={set("approvalLimitAccountant")}
                     disabled={!isDirector}
+                    {...register("approvalLimitAccountant")}
                   />
                   <Input
                     label="Sub-Accountant Approval Limit (৳)"
                     type="number"
                     min="0"
-                    value={form.approvalLimitSubAccountant}
-                    onChange={set("approvalLimitSubAccountant")}
                     disabled={!isDirector}
+                    {...register("approvalLimitSubAccountant")}
                   />
                 </div>
 
@@ -478,10 +472,9 @@ export default function Settings() {
                       className={`flex cursor-pointer items-center gap-3 ${!isDirector ? "opacity-60" : ""}`}>
                       <input
                         type="checkbox"
-                        checked={form[key]}
-                        onChange={set(key)}
                         disabled={!isDirector}
                         className="h-4 w-4 rounded border-slate-300 text-[#EE081D] focus:ring-[#EE081D]"
+                        {...register(key)}
                       />
                       <span className="text-sm text-slate-700">{label}</span>
                     </label>

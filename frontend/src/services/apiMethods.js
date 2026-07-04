@@ -16,20 +16,9 @@ export const studentAPI = {
   bulkImport: (data) => api.post("/students/bulk-import", data),
 };
 
-// ==================== RECEIPTS (FEE COLLECTION) ====================
-export const receiptAPI = {
-  getAll: (params) => api.get("/receipts", { params }),
-  getById: (id) => api.get(`/receipts/${id}`),
-  create: (data) => api.post("/receipts", data),
-  update: (id, data) => api.put(`/receipts/${id}`, data),
-  delete: (id) => api.delete(`/receipts/${id}`),
-  approve: (id) => api.put(`/receipts/${id}/approve`),
-  reject: (id, data) => api.put(`/receipts/${id}/reject`, data),
-};
-
 // ==================== PAYROLL ====================
 export const payrollAPI = {
-  getAll: (params) => api.get("/payroll", { params }),
+  getAll: (params, config = {}) => api.get("/payroll", { ...config, params }),
   getById: (id) => api.get(`/payroll/${id}`),
   create: (data) => api.post("/payroll", data),
   update: (id, data) => api.put(`/payroll/${id}`, data),
@@ -74,7 +63,8 @@ export const bankAPI = {
   update: (id, data) => api.put(`/bank/${id}`, data),
   delete: (id) => api.delete(`/bank/${id}`),
   reconcile: (id, data) => api.put(`/bank/${id}/reconciliation`, data),
-  getTransactions: (id, params) => api.get(`/bank/${id}/transactions`, { params }),
+  getTransactions: (id, params, config = {}) =>
+    api.get(`/bank/${id}/transactions`, { ...config, params }),
   getTotalBalance: () => api.get("/bank/report/total-balance"),
 };
 
@@ -82,26 +72,18 @@ export const bankAPI = {
 export const bankBookAPI = {
   create: (data) => api.post("/bank-book", data),
   cancel: (id, data) => api.patch(`/bank-book/${id}/cancel`, data),
-  getStatement: (params) => api.get("/bank-book/statement", { params }),
+  getStatement: (params, config = {}) =>
+    api.get("/bank-book/statement", { ...config, params }),
   exportExcel: (params) =>
     api.get("/bank-book/export/excel", { params, responseType: "blob" }),
   exportPdf: (params) =>
     api.get("/bank-book/export/pdf", { params, responseType: "blob" }),
 };
 
-// ==================== REPORTS ====================
-export const reportAPI = {
-  incomeStatement: (params) =>
-    api.get("/accounting/journal-entries/income-statement", { params }),
-  balanceSheet: (params) =>
-    api.get("/accounting/journal-entries/balance-sheet", { params }),
-  trialBalance: (params) =>
-    api.get("/accounting/journal-entries/trial-balance", { params }),
-};
-
 // ==================== PETTY CASH ====================
 export const pettyCashAPI = {
-  getTransactions: (params) => api.get("/petty-cash/transactions", { params }),
+  getTransactions: (params, config = {}) =>
+    api.get("/petty-cash/transactions", { ...config, params }),
 
   getReport: (params) => api.get("/petty-cash/report", { params }),
 
@@ -117,16 +99,6 @@ export const pettyCashAPI = {
   delete: (id) =>
     api.delete(`/petty-cash/${id}`),
 
-};
-
-// ==================== SEARCH ====================
-export const searchAPI = {
-  global: (query) => api.get("/search/global", { params: { query } }),
-  receipts: (query) => api.get("/search/receipts", { params: { query } }),
-  expenses: (query) => api.get("/search/expenses", { params: { query } }),
-  students: (query) => api.get("/search/students", { params: { query } }),
-  byAmount: (min, max) =>
-    api.get("/search/amount-range", { params: { min, max } }),
 };
 
 // ==================== SETTINGS ====================

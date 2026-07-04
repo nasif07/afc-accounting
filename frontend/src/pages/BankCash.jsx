@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Plus,
   Landmark,
@@ -24,7 +24,7 @@ import Select from "../components/common/Select";
 import SectionHeader from "../components/common/SectionHeader";
 import DatePicker from "../components/common/DatePicker";
 import { SectionSkeleton, TableSkeleton } from "../components/common/Loaders";
-import { todayISO } from "../utils/date";
+import { todayISO, formatDisplayDate } from "../utils/date";
 
 const getErrorMessage = (error, fallback = "Something went wrong") => {
   if (!error) return fallback;
@@ -79,6 +79,13 @@ const BankCash = () => {
   });
 
   const [formData, setFormData] = useState(initialFormData);
+
+  // Migration debt: this fetch stays on manual useState+useEffect rather
+  // than a React Query hook (out of scope for this pass) — the abort ref
+  // below is the interim fix so a rapid search/status change in the
+  // reconcile modal's transaction picker can't have a stale response land
+  // after a fresher one.
+  const transactionFetchAbortRef = useRef(null);
 
   const resetForm = () => {
     setEditingAccount(null);
@@ -240,15 +247,25 @@ const BankCash = () => {
   const fetchBankTransactions = async (account, page = 1) => {
     if (!account?._id) return;
 
+    // Cancel whatever request is still in flight from a previous
+    // search/status change before starting this one.
+    transactionFetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    transactionFetchAbortRef.current = controller;
+
     setTransactionLoading(true);
 
     try {
-      const response = await bankAPI.getTransactions(account._id, {
-        page,
-        limit: 10,
-        search: transactionSearch || undefined,
-        reconciliationStatus,
-      });
+      const response = await bankAPI.getTransactions(
+        account._id,
+        {
+          page,
+          limit: 10,
+          search: transactionSearch || undefined,
+          reconciliationStatus,
+        },
+        { signal: controller.signal },
+      );
       const payload = response?.data?.data || {};
 
       setBankTransactions(Array.isArray(payload.transactions) ? payload.transactions : []);
@@ -259,10 +276,13 @@ const BankCash = () => {
         totalPages: Number(payload.pagination?.totalPages || 1),
       });
     } catch (error) {
+      if (error.code === "ERR_CANCELED") return;
       toast.error(getErrorMessage(error, "Failed to load bank transactions"));
       setBankTransactions([]);
     } finally {
-      setTransactionLoading(false);
+      if (transactionFetchAbortRef.current === controller) {
+        setTransactionLoading(false);
+      }
     }
   };
 
@@ -446,7 +466,7 @@ const BankCash = () => {
                     </p>
                     <p className="mt-1 text-sm font-medium text-slate-700">
                       {account.lastReconciledDate
-                        ? new Date(account.lastReconciledDate).toLocaleDateString()
+                        ? formatDisplayDate(account.lastReconciledDate)
                         : "Never"}
                     </p>
                   </div>
@@ -729,7 +749,7 @@ const BankCash = () => {
                         {transaction.description || "Bank ledger transaction"}
                       </p>
                       <p className="mt-1 text-xs text-slate-400">
-                        {new Date(transaction.date).toLocaleDateString()} ·{" "}
+                        {formatDisplayDate(transaction.date)} ·{" "}
                         {transaction.reconciliationStatus}
                       </p>
                     </div>

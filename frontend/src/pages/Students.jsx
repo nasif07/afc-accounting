@@ -382,19 +382,20 @@ export default function Students() {
         student={editingStudent}
         isSubmitting={isSubmitting}
         onSubmit={async (payload) => {
-          try {
-            if (editingStudent?._id) {
-              await updateMutation.mutateAsync({
-                id: editingStudent._id,
-                data: payload,
-              });
-            } else {
-              await createMutation.mutateAsync(payload);
-            }
-            handleCloseForm();
-          } catch (error) {
-            console.error("Failed to submit student form:", error);
+          // Deliberately not caught here — StudentFormModal awaits this call
+          // and needs the rejection to reach its own catch block so it can
+          // map backend field errors (err.response.data.errors) via setError.
+          // The mutation's own onError (useStudents.js) still shows a toast
+          // for any non-field error regardless of what happens to this promise.
+          if (editingStudent?._id) {
+            await updateMutation.mutateAsync({
+              id: editingStudent._id,
+              data: payload,
+            });
+          } else {
+            await createMutation.mutateAsync(payload);
           }
+          handleCloseForm();
         }}
         onBulkImport={async (studentsArray) => {
           try {

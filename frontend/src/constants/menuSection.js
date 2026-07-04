@@ -40,12 +40,6 @@ export const menuSections = [
         icon: GraduationCap,
         roles: ["director", "accountant", "sub-accountant"],
       },
-      // {
-      //   title: "Receipts",
-      //   path: "/dashboard/receipts",
-      //   icon: Receipt,
-      //   roles: ["director", "accountant", "sub-accountant"],
-      // },
       {
         title: "Employees",
         path: "/dashboard/employees",
@@ -58,19 +52,7 @@ export const menuSections = [
         icon: Briefcase,
         roles: ["director", "accountant"],
       },
-      // {
-      //   title: "Vendors",
-      //   path: "/dashboard/vendors",
-      //   icon: Users,
-      //   roles: ["director", "accountant"],
-      // },
-      // {
-      //   title: "Expenses",
-      //   path: "/dashboard/expenses",
-      //   icon: Wallet,
-      //   roles: ["director", "accountant"],
-      // },
-         {
+      {
         title: "Student Collection",
         path: "/dashboard/bank-book",
         icon: NotebookText,

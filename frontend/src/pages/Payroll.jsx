@@ -1,5 +1,8 @@
 ﻿import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Plus, Edit2, Trash2, Search, Loader,
   CheckCircle, Users, Wallet, TrendingDown, TrendingUp,
@@ -19,6 +22,7 @@ import SectionHeader from "../components/common/SectionHeader";
 import { Modal, Select } from "../components/common";
 import { payrollAPI } from "../services/apiMethods";
 import PayslipPreview from "../components/payroll/PayslipPreview";
+import { formatCurrency } from "../utils/currency";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +42,53 @@ const STATUS_FILTER_OPTIONS = [
   { value: "approved", label: "Approved"    },
   { value: "rejected", label: "Rejected"    },
 ];
+
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Mirrors backend/src/validation/payroll.validation.js's createPayrollBody.
+//
+// Live bug found and fixed here: payroll.model.js declares `month` as a
+// Mongoose String, and createPayrollBody/updatePayrollBody both require
+// `month: z.string()` — Zod does NOT coerce a JS number to a string, it
+// rejects it outright ("expected string, received number"). The old code's
+// handleChange forced month to `Number(value)`, and the initial form state
+// was already a number — so EVERY payroll create/update has been sending
+// month as a number and failing with a 400 the entire time. Confirmed live
+// against the backend (throwaway employee + payroll record, cleaned up
+// after). Fixed by coercing month to a string before validation.
+//
+// The ৳0 salary guard added in Phase 1 is preserved exactly (same message,
+// same trigger conditions: blank, non-numeric, or <= 0) — it's intentionally
+// stricter than the backend's `nonNegative` (which allows 0).
+const monthAsString = z.preprocess((v) => String(v), z.string().min(1, "Month is required"));
+
+const baseSalaryGuard = z.preprocess(
+  (v) => (v === "" || v == null ? NaN : parseFloat(v)),
+  z.any().refine(
+    (n) => typeof n === "number" && !Number.isNaN(n) && n > 0,
+    "Enter a base salary greater than 0.",
+  ),
+);
+
+const optionalNonNegative = (label) =>
+  z.preprocess(
+    (v) => (v === "" || v == null ? 0 : v),
+    z.coerce.number().min(0, `${label} cannot be negative`),
+  );
+
+const payrollSchema = z.object({
+  employee: z.string().min(1, "Please select an employee"),
+  month: monthAsString,
+  year: z.coerce.number().int("Enter a valid year").min(2000, "Enter a valid year").max(2100, "Enter a valid year"),
+  salaryType: z.enum(SALARY_TYPES),
+  baseSalary: baseSalaryGuard,
+  allowances: optionalNonNegative("Allowances"),
+  deductions: optionalNonNegative("Deductions"),
+});
+
+const INITIAL_FORM_DATA = {
+  employee: "", month: CUR_MONTH, year: CUR_YEAR,
+  salaryType: "monthly", baseSalary: "", allowances: "", deductions: "",
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -131,10 +182,18 @@ export default function Payroll() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [downloading,    setDownloading]    = useState(false);
 
-  const [formData, setFormData] = useState({
-    employee: "", month: CUR_MONTH, year: CUR_YEAR,
-    salaryType: "monthly", baseSalary: "", allowances: "", deductions: "", notes: "",
-  });
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    reset,
+    setError,
+    watch,
+    formState: { errors: formErrors },
+  } = useForm({ resolver: zodResolver(payrollSchema), defaultValues: INITIAL_FORM_DATA });
+
+  const watchedBaseSalary  = watch("baseSalary");
+  const watchedAllowances  = watch("allowances");
+  const watchedDeductions  = watch("deductions");
 
   // ── Set URL defaults on first load ───────────────────────────────────────────
   useEffect(() => {
@@ -148,12 +207,19 @@ export default function Payroll() {
   }, []);
 
   // ── Fetch on any filter/page/refresh change ──────────────────────────────────
+  // Migration debt: this stays on the Redux thunk pattern rather than a full
+  // React Query migration (out of scope for this pass given how tightly the
+  // CRUD modal/success/error state is coupled to payrollSlice) — but the
+  // dispatched thunk promise supports .abort(), so a fast filter change still
+  // cancels the previous in-flight request instead of letting a stale
+  // response land after a fresher one.
   useEffect(() => {
-    dispatch(fetchPayroll({
+    const request = dispatch(fetchPayroll({
       month, year, page, limit,
       search: searchQ || undefined,
       approvalStatus: status || undefined,
     }));
+    return () => request.abort();
   }, [dispatch, month, year, page, limit, searchQ, status, refreshKey]);
 
   // ── Search debounce ──────────────────────────────────────────────────────────
@@ -184,6 +250,10 @@ export default function Payroll() {
       resetForm();
       setRefreshKey((k) => k + 1);
     }
+  // resetForm closes over RHF's `reset`, which isn't a plain useState setter
+  // ESLint can statically prove stable — omitted deliberately, same as the
+  // search-debounce effect below, to avoid re-running this effect every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [success, dispatch, editingId]);
 
   useEffect(() => {
@@ -210,21 +280,20 @@ export default function Payroll() {
 
   // ── Form helpers ─────────────────────────────────────────────────────────────
   const resetForm = () => {
-    setFormData({
-      employee: "", month: CUR_MONTH, year: CUR_YEAR,
-      salaryType: "monthly", baseSalary: "", allowances: "", deductions: "", notes: "",
-    });
+    reset(INITIAL_FORM_DATA);
     setEditingId(null);
   };
 
   const handleOpenModal = (payroll = null) => {
     if (payroll) {
-      setFormData({
-        ...payroll,
-        employee: payroll.employee?._id || payroll.employee,
-        baseSalary: payroll.baseSalary || "",
-        allowances: payroll.allowances || "",
-        deductions: payroll.deductions || "",
+      reset({
+        employee: payroll.employee?._id || payroll.employee || "",
+        month: payroll.month ?? CUR_MONTH,
+        year: payroll.year ?? CUR_YEAR,
+        salaryType: payroll.salaryType || "monthly",
+        baseSalary: payroll.baseSalary ?? "",
+        allowances: payroll.allowances ?? "",
+        deductions: payroll.deductions ?? "",
       });
       setEditingId(payroll._id);
     } else {
@@ -233,26 +302,19 @@ export default function Payroll() {
     setShowModal(true);
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "month" ? Number(value) : value,
-    }));
-  };
+  const onSubmit = async (data) => {
+    const result = editingId
+      ? await dispatch(updatePayroll({ id: editingId, data }))
+      : await dispatch(createPayroll(data));
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const data = {
-      ...formData,
-      baseSalary: parseFloat(formData.baseSalary) || 0,
-      allowances: parseFloat(formData.allowances) || 0,
-      deductions: parseFloat(formData.deductions) || 0,
-      year: Number(formData.year) || CUR_YEAR,
-    };
-    editingId
-      ? dispatch(updatePayroll({ id: editingId, data }))
-      : dispatch(createPayroll(data));
+    if (result?.error) {
+      const fieldErrors = result.payload?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      }
+    }
   };
 
   // ── Action handlers ──────────────────────────────────────────────────────────
@@ -338,21 +400,21 @@ export default function Payroll() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <StatCard
           label="Net Disbursement"
-          value={`৳${totalNet.toLocaleString()}`}
+          value={formatCurrency(totalNet)}
           icon={Wallet}
           iconBg="bg-slate-100"
           iconColor="text-slate-600"
         />
         <StatCard
           label="Total Allowances"
-          value={`৳${totalAllow.toLocaleString()}`}
+          value={formatCurrency(totalAllow)}
           icon={TrendingUp}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
         />
         <StatCard
           label="Total Deductions"
-          value={`৳${totalDed.toLocaleString()}`}
+          value={formatCurrency(totalDed)}
           icon={TrendingDown}
           iconBg="bg-rose-50"
           iconColor="text-rose-600"
@@ -504,22 +566,22 @@ export default function Payroll() {
                         <div className="space-y-0.5 text-xs">
                           <div className="flex items-center gap-1.5">
                             <span className="w-14 text-slate-400">Base</span>
-                            <span className="font-medium text-slate-700">৳{(p.baseSalary || 0).toLocaleString()}</span>
+                            <span className="font-medium text-slate-700">{formatCurrency(p.baseSalary || 0)}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="w-14 text-emerald-500">Allow</span>
-                            <span className="font-medium text-emerald-600">+৳{(p.allowances || 0).toLocaleString()}</span>
+                            <span className="font-medium text-emerald-600">+{formatCurrency(p.allowances || 0)}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="w-14 text-rose-400">Deduct</span>
-                            <span className="font-medium text-rose-600">-৳{(p.deductions || 0).toLocaleString()}</span>
+                            <span className="font-medium text-rose-600">-{formatCurrency(p.deductions || 0)}</span>
                           </div>
                         </div>
                       </td>
 
                       {/* Net Pay */}
                       <td className="px-5 py-3.5 text-right">
-                        <span className="text-base font-bold text-slate-900">৳{net.toLocaleString()}</span>
+                        <span className="text-base font-bold text-slate-900">{formatCurrency(net)}</span>
                       </td>
 
                       {/* Status */}
@@ -665,11 +727,11 @@ export default function Payroll() {
         description={editingId ? "Adjust the payroll figures for this period." : "Generate payroll for the selected employee and period."}
         size="xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleFormSubmit(onSubmit)} noValidate className="space-y-5">
               {/* Employee */}
               <div>
                 <FieldLabel>Employee</FieldLabel>
-                <FormSelect name="employee" value={formData.employee} onChange={handleChange} required>
+                <FormSelect required {...register("employee")}>
                   <option value="">Select employee…</option>
                   {employees.map((emp) => (
                     <option key={emp._id} value={emp._id}>
@@ -677,6 +739,9 @@ export default function Payroll() {
                     </option>
                   ))}
                 </FormSelect>
+                {formErrors.employee && (
+                  <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.employee.message}</p>
+                )}
               </div>
 
               {/* Period + Type */}
@@ -684,18 +749,23 @@ export default function Payroll() {
                 <div>
                   <FieldLabel>Salary Period</FieldLabel>
                   <div className="flex gap-2">
-                    <FormSelect name="month" value={formData.month} onChange={handleChange} className="flex-1">
+                    <FormSelect className="flex-1" {...register("month")}>
                       {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                     </FormSelect>
                     <FormInput
-                      name="year" type="number" value={formData.year}
-                      onChange={handleChange} className="w-24"
+                      type="number" className="w-24"
+                      {...register("year")}
                     />
                   </div>
+                  {(formErrors.month || formErrors.year) && (
+                    <p className="mt-1 text-xs font-medium text-rose-600">
+                      {formErrors.month?.message || formErrors.year?.message}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <FieldLabel>Salary Type</FieldLabel>
-                  <FormSelect name="salaryType" value={formData.salaryType} onChange={handleChange}>
+                  <FormSelect {...register("salaryType")}>
                     {SALARY_TYPES.map((t) => (
                       <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
                     ))}
@@ -712,29 +782,39 @@ export default function Payroll() {
                   <div>
                     <FieldLabel>Base Salary</FieldLabel>
                     <FormInput
-                      name="baseSalary" type="number" value={formData.baseSalary}
-                      onChange={handleChange} required placeholder="0"
+                      type="number" min="0.01" step="0.01" placeholder="0"
+                      className={formErrors.baseSalary ? "border-rose-400 focus:border-rose-500" : ""}
+                      {...register("baseSalary")}
                     />
+                    {formErrors.baseSalary && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.baseSalary.message}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1.5">
                       Allowances
                     </label>
                     <FormInput
-                      name="allowances" type="number" value={formData.allowances}
-                      onChange={handleChange} placeholder="0"
+                      type="number" placeholder="0"
                       className="border-emerald-100 bg-emerald-50/40"
+                      {...register("allowances")}
                     />
+                    {formErrors.allowances && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.allowances.message}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-rose-500 uppercase tracking-wide mb-1.5">
                       Deductions
                     </label>
                     <FormInput
-                      name="deductions" type="number" value={formData.deductions}
-                      onChange={handleChange} placeholder="0"
+                      type="number" placeholder="0"
                       className="border-rose-100 bg-rose-50/30"
+                      {...register("deductions")}
                     />
+                    {formErrors.deductions && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.deductions.message}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -746,7 +826,7 @@ export default function Payroll() {
                     Net Payout
                   </p>
                   <p className="text-2xl font-bold mt-0.5">
-                    ৳{netSalary(formData.baseSalary, formData.allowances, formData.deductions).toLocaleString()}
+                    {formatCurrency(netSalary(watchedBaseSalary, watchedAllowances, watchedDeductions))}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

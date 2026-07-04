@@ -1,4 +1,5 @@
 import { Download, X } from "lucide-react";
+import { formatDisplayDate } from "../../utils/date";
 
 const MONTHS = [
   "January","February","March","April","May","June",
@@ -16,9 +17,7 @@ function fmt(value) {
 
 function fmtDate(value) {
   if (!value) return "–";
-  return new Date(value).toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
+  return formatDisplayDate(value, { locale: "en-GB" });
 }
 
 function numberToWords(value) {

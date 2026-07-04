@@ -41,8 +41,22 @@ const errorMiddleware = (err, req, res, next) => {
     message = "Token expired";
   }
 
+  // Structured per-field issues from the Zod validation middleware
+  // (errors/ValidationError.js) were being computed but never actually sent
+  // to the client — only the flattened message string was. Expose them as
+  // `errors: [{ field, message }]` so the frontend can map failures back to
+  // individual form fields instead of a single generic toast.
+  const fieldErrors =
+    Array.isArray(err.errors) && err.errors.length > 0
+      ? err.errors.map((issue) => ({
+          field: Array.isArray(issue.path) ? issue.path.join(".") : "",
+          message: issue.message,
+        }))
+      : undefined;
+
   res.status(statusCode).json({
     ...new ApiResponse(statusCode, null, message),
+    ...(fieldErrors && { errors: fieldErrors }),
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 };

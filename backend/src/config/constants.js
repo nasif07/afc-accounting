@@ -58,16 +58,6 @@ const PAYMENT_MODES = {
   ONLINE: 'online',
 };
 
-// Expense Categories
-const EXPENSE_CATEGORIES = {
-  OPERATIONAL: 'operational',
-  MAINTENANCE: 'maintenance',
-  UTILITIES: 'utilities',
-  SUPPLIES: 'supplies',
-  PETTY_CASH: 'petty-cash',
-  OTHER: 'other',
-};
-
 // Approval Status
 const APPROVAL_STATUS = {
   PENDING: 'pending',
@@ -100,7 +90,6 @@ module.exports = {
   ACCOUNT_TYPES,
   FEE_TYPES,
   PAYMENT_MODES,
-  EXPENSE_CATEGORIES,
   APPROVAL_STATUS,
   SALARY_TYPES,
   CURRENCY,

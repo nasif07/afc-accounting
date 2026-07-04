@@ -1,7 +1,9 @@
-﻿import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router";
-import { register } from "../store/slices/authSlice";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { register as registerUser } from "../store/slices/authSlice";
 import { toast } from "sonner";
 import { User, Mail, Lock, ClipboardCheck } from "lucide-react";
 import { Input, Button } from "../components/common";
@@ -25,50 +27,54 @@ function getPasswordStrength(password) {
   return { level: "weak", label: "Weak", color: "bg-red-400" };
 }
 
-export default function Register() {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Backend has no dedicated register validation schema — auth.controller.js
+// only checks "all fields present" and "password >= 8 chars" with generic
+// messages, so this schema mirrors those exact rules (plus the frontend-only
+// confirmPassword match, which is never sent to the server).
+const registerSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(100, "Name cannot exceed 100 characters"),
+    email: z.string().min(1, "Email is required").email("Enter a valid email address"),
+    password: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`),
+    confirmPassword: z.string().min(1, "Please confirm your password."),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
   });
-  const [touched, setTouched] = useState({});
 
+const EMPTY_VALUES = { name: "", email: "", password: "", confirmPassword: "" };
+
+export default function Register() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { loading, error } = useSelector((state) => state.auth);
+  const { loading } = useSelector((state) => state.auth);
 
-  const passwordStrength = getPasswordStrength(formData.password);
-  const passwordMismatch =
-    touched.confirmPassword &&
-    formData.confirmPassword &&
-    formData.password !== formData.confirmPassword;
+  const {
+    register,
+    handleSubmit,
+    setError,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(registerSchema),
+    defaultValues: EMPTY_VALUES,
+    mode: "onBlur",
+  });
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const password = watch("password");
+  const confirmPassword = watch("confirmPassword");
+  const passwordStrength = getPasswordStrength(password);
+  // Purely a proactive UX nicety (disable submit before the user even tries) —
+  // the zod .refine() above is what actually blocks/reports the mismatch.
+  const passwordMismatch = Boolean(confirmPassword) && password !== confirmPassword;
 
-  const handleBlur = (e) => {
-    setTouched({ ...touched, [e.target.name]: true });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (formData.password.length < MIN_PASSWORD_LENGTH) {
-      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match.");
-      return;
-    }
-
-    const { confirmPassword: _confirmPassword, ...payload } = formData;
+  const onSubmit = async (data) => {
+    const { confirmPassword: _confirmPassword, ...payload } = data;
 
     try {
-      const result = await dispatch(register(payload)).unwrap();
+      const result = await dispatch(registerUser(payload)).unwrap();
 
       if (result.user?.status === "pending") {
         toast.success("Request submitted. Awaiting Directorate approval.");
@@ -79,7 +85,20 @@ export default function Register() {
       toast.success("Account created successfully.");
       navigate("/dashboard");
     } catch (err) {
-      toast.error(err || "Registration failed. Please contact IT support.");
+      // Backend validation failures (errorMiddleware.js) come back as
+      // errors: [{ field, message }] — map each to its form field. Register
+      // itself never actually emits these today (its failures — missing
+      // fields, short password, duplicate email — are intentionally generic
+      // messages), but this keeps the same pattern as every other converted
+      // form in case that ever changes.
+      const fieldErrors = err?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      } else {
+        toast.error(err?.message || "Registration failed. Please contact IT support.");
+      }
     }
   };
 
@@ -103,7 +122,7 @@ export default function Register() {
         </div>
 
         <div className="p-8">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             {/* Full Name */}
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
@@ -113,20 +132,15 @@ export default function Register() {
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
                 <Input
                   type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
                   placeholder="Name"
                   autoComplete="name"
-                  required
                   maxLength={100}
                   className={authInputClass}
+                  error={errors.name?.message}
+                  touched={!!errors.name}
+                  {...register("name")}
                 />
               </div>
-              {touched.name && !formData.name.trim() && (
-                <p className="mt-1 text-[10px] text-red-600">Name is required.</p>
-              )}
             </div>
 
             {/* Email */}
@@ -138,14 +152,12 @@ export default function Register() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
                 <Input
                   type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
                   placeholder="finance.officer@alliance.org"
                   autoComplete="email"
-                  required
                   className={authInputClass}
+                  error={errors.email?.message}
+                  touched={!!errors.email}
+                  {...register("email")}
                 />
               </div>
             </div>
@@ -159,18 +171,15 @@ export default function Register() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
                 <Input
                   type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
                   placeholder="Min. 8 characters"
                   autoComplete="new-password"
-                  required
-                  minLength={MIN_PASSWORD_LENGTH}
                   className={authInputClass}
+                  error={errors.password?.message}
+                  touched={!!errors.password}
+                  {...register("password")}
                 />
               </div>
-              {formData.password && (
+              {password && (
                 <div className="mt-1.5 space-y-1">
                   <div className="flex gap-1">
                     {["weak", "medium", "strong"].map((level) => (
@@ -209,31 +218,21 @@ export default function Register() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
                 <Input
                   type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
                   placeholder="••••••••"
                   autoComplete="new-password"
-                  required
-                  error={passwordMismatch ? "Passwords do not match." : ""}
-                  touched={!!touched.confirmPassword}
                   className={authInputClass}
+                  error={errors.confirmPassword?.message}
+                  touched={!!errors.confirmPassword}
+                  {...register("confirmPassword")}
                 />
               </div>
             </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-100 text-red-700 px-3 py-2 text-[11px] font-medium rounded-sm">
-                {error}
-              </div>
-            )}
 
             <Button
               type="submit"
               fullWidth
               loading={loading}
-              disabled={!!passwordMismatch}
+              disabled={passwordMismatch}
               icon={ClipboardCheck}
               className="bg-brand-blue! hover:bg-[#001a6e]! rounded-sm! font-bold! uppercase tracking-widest text-xs! py-3! shadow-md">
               {loading ? "Processing..." : "Submit Access Request"}

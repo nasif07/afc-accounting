@@ -1,5 +1,6 @@
 import React from "react";
 import { CheckCircle, AlertCircle } from "lucide-react";
+import { formatCurrency } from "../../utils/currency";
 
 const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
   const difference = Math.abs(totalDebit - totalCredit);
@@ -15,8 +16,7 @@ const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
           <p className="text-sm text-blue-700 font-medium mb-1">Total Debit</p>
           <p className="text-2xl font-bold text-blue-900">
-            ৳
-            {totalDebit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {formatCurrency(totalDebit)}
           </p>
         </div>
 
@@ -26,10 +26,7 @@ const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
             Total Credit
           </p>
           <p className="text-2xl font-bold text-purple-900">
-            ৳
-            {totalCredit.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-            })}
+            {formatCurrency(totalCredit)}
           </p>
         </div>
 
@@ -57,9 +54,7 @@ const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
             className={`text-2xl font-bold ${
               isBalanced ? "text-green-900" : "text-red-900"
             }`}>
-            {isBalanced
-              ? "৳0.00"
-              : `৳${difference.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            {isBalanced ? formatCurrency(0) : formatCurrency(difference)}
           </p>
         </div>
       </div>

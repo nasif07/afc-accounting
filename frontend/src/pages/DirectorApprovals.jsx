@@ -1,19 +1,27 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 import api from "../services/api";
 import { toast } from "sonner";
 import { Check, X, UserCheck } from "lucide-react";
 import SectionHeader from "../components/common/SectionHeader";
-import { Button, Badge } from "../components/common";
+import { Button, Badge, Modal, Textarea } from "../components/common";
 import { Card, CardContent } from "../components/common";
 import { PageLoader } from "../components/common/Loaders";
 
 export default function DirectorApprovals() {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pendingApprove, setPendingApprove] = useState(null);
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actioning, setActioning] = useState(false);
   const user = useSelector((state) => state.auth.user);
   const navigate = useNavigate();
+  // No live filters here (fetch only runs on mount + after actions), so the
+  // race window is narrow, but this still guards against a rapid double
+  // approve/reject firing overlapping refetches out of order.
+  const fetchAbortRef = useRef(null);
 
   useEffect(() => {
     if (user?.role !== "director") {
@@ -21,39 +29,60 @@ export default function DirectorApprovals() {
       return;
     }
     fetchPendingUsers();
+    return () => fetchAbortRef.current?.abort();
   }, [user, navigate]);
 
   const fetchPendingUsers = async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     try {
       setLoading(true);
-      const response = await api.get("/auth/pending");
+      const response = await api.get("/auth/pending", { signal: controller.signal });
       setPendingUsers(response.data || []);
-    } catch {
+    } catch (err) {
+      if (err.code === "ERR_CANCELED") return;
       toast.error("Failed to load pending users");
     } finally {
-      setLoading(false);
+      if (fetchAbortRef.current === controller) {
+        setLoading(false);
+      }
     }
   };
 
-  const handleApprove = async (userId) => {
+  const handleConfirmApprove = async () => {
+    const userId = pendingApprove;
     try {
+      setActioning(true);
       await api.patch(`/auth/approve/${userId}`);
       toast.success("User approved successfully");
+      setPendingApprove(null);
       fetchPendingUsers();
     } catch {
       toast.error("Failed to approve user");
+    } finally {
+      setActioning(false);
     }
   };
 
-  const handleReject = async (userId) => {
-    const reason = window.prompt("Rejection reason (optional):");
-    if (reason === null) return; // cancelled
+  const closeRejectModal = () => {
+    setRejectModal(null);
+    setRejectReason("");
+  };
+
+  const handleConfirmReject = async () => {
+    const userId = rejectModal;
     try {
-      await api.patch(`/auth/reject/${userId}`, { reason: reason.trim() });
+      setActioning(true);
+      await api.patch(`/auth/reject/${userId}`, { reason: rejectReason.trim() });
       toast.success("User rejected");
+      closeRejectModal();
       fetchPendingUsers();
     } catch {
       toast.error("Failed to reject user");
+    } finally {
+      setActioning(false);
     }
   };
 
@@ -91,13 +120,13 @@ export default function DirectorApprovals() {
                   <Button
                     variant="success"
                     size="sm"
-                    onClick={() => handleApprove(pendingUser._id)}>
+                    onClick={() => setPendingApprove(pendingUser._id)}>
                     <Check size={16} /> Approve
                   </Button>
                   <Button
                     variant="danger"
                     size="sm"
-                    onClick={() => handleReject(pendingUser._id)}>
+                    onClick={() => setRejectModal(pendingUser._id)}>
                     <X size={16} /> Reject
                   </Button>
                 </div>
@@ -106,6 +135,50 @@ export default function DirectorApprovals() {
           ))}
         </div>
       )}
+
+      {/* Approve confirmation modal */}
+      <Modal
+        isOpen={!!pendingApprove}
+        onClose={() => setPendingApprove(null)}
+        title="Approve User"
+        size="sm">
+        <p className="text-sm text-slate-600 mb-6">
+          Confirm approval of this user? They will gain access to the system immediately.
+        </p>
+        <div className="flex gap-3">
+          <Button variant="secondary" fullWidth onClick={() => setPendingApprove(null)}>
+            Cancel
+          </Button>
+          <Button variant="success" fullWidth loading={actioning} onClick={handleConfirmApprove}>
+            Approve
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Reject reason modal */}
+      <Modal
+        isOpen={!!rejectModal}
+        onClose={closeRejectModal}
+        title="Reject User"
+        size="md">
+        <div className="space-y-4">
+          <Textarea
+            label="Rejection Reason (optional)"
+            rows={3}
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Enter reason for rejection..."
+          />
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={closeRejectModal}>
+              Cancel
+            </Button>
+            <Button variant="danger" fullWidth loading={actioning} onClick={handleConfirmReject}>
+              Confirm Rejection
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

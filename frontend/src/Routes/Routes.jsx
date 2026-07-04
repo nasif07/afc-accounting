@@ -15,11 +15,8 @@ const Login                = lazy(() => import("../pages/Login"));
 const Register             = lazy(() => import("../pages/Register"));
 const Dashboard            = lazy(() => import("../pages/Dashboard"));
 const Students             = lazy(() => import("../pages/Students"));
-const Receipts             = lazy(() => import("../pages/Receipts"));
 const Employees            = lazy(() => import("../pages/Employees"));
 const Payroll              = lazy(() => import("../pages/Payroll"));
-const Vendors              = lazy(() => import("../pages/Vendors"));
-const Expenses             = lazy(() => import("../pages/Expenses"));
 const PettyCash            = lazy(() => import("../pages/PettyCash"));
 const PettyCashReportPage  = lazy(() => import("../pages/PettyCashReportPage"));
 const Accounts             = lazy(() => import("../pages/Accounts"));
@@ -95,11 +92,8 @@ const router = createBrowserRouter([
     children: [
       { index: true,                   element: <Dashboard /> },
       { path: "students",              element: <Students /> },
-      { path: "receipts",              element: <Receipts /> },
       { path: "employees",             element: <Employees /> },
       { path: "payroll",               element: <Payroll /> },
-      { path: "vendors",               element: <Vendors /> },
-      { path: "expenses",              element: <Expenses /> },
       { path: "petty-cash",            element: <PettyCash /> },
       { path: "petty-cash/report",     element: <PettyCashReportPage /> },
       { path: "accounts",              element: <Accounts /> },

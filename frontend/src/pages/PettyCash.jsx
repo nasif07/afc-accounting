@@ -11,11 +11,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
+import { useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { toast } from "sonner";
 
 import { createPettyCash, clearError } from "../store/slices/pettyCashSlice";
 import { fetchCoa } from "../store/slices/coaSlice";
-import { pettyCashAPI } from "../services/apiMethods";
+import {
+  usePettyCashHistory,
+  PETTY_CASH_HISTORY_KEY,
+  EMPTY_PETTY_CASH_SUMMARY,
+  emptyPettyCashPagination,
+} from "../hooks/usePettyCashHistory";
 import SectionHeader from "../components/common/SectionHeader";
 import { Modal } from "../components/common";
 import Input from "../components/common/Input";
@@ -24,7 +33,7 @@ import Button from "../components/common/Button";
 import DatePicker from "../components/common/DatePicker";
 import { TableSkeleton } from "../components/common/Loaders";
 import { formatCurrency } from "../utils/currency";
-import { todayISO, toISODate } from "../utils/date";
+import { todayISO } from "../utils/date";
 
 const PETTY_CASH_ACCOUNT_CODE = "1001";
 const DEFAULT_PAGE_SIZE = 20;
@@ -38,7 +47,20 @@ const initialFormData = {
   referenceNumber: "",
 };
 
-const toDateInputValue = toISODate;
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Mirrors backend/src/validation/pettycash.validation.js's createPettyCashBody.
+// Messages preserve the exact wording of the manual validateForm() this
+// replaces (which already matched the backend's rules) rather than the
+// backend's own slightly different message text, since these are the
+// client-blocking messages users already see today.
+const pettyCashSchema = z.object({
+  date: z.string().min(1, "Date is required."),
+  description: z.string().trim().min(1, "Description is required."),
+  amount: z.coerce.number().positive("Amount must be greater than 0."),
+  paidTo: z.string().trim().optional(),
+  expenseAccount: z.string().min(1, "Please select an expense account."),
+  referenceNumber: z.string().trim().optional(),
+});
 
 const formatDate = (date) => {
   if (!date) return "---";
@@ -53,6 +75,7 @@ const formatDate = (date) => {
 
 export default function PettyCash() {
   const dispatch = useDispatch();
+  const queryClient = useQueryClient();
 
   const { loading: pettyCashSaving, error } = useSelector(
     (state) => state.pettyCash,
@@ -60,31 +83,43 @@ export default function PettyCash() {
   const { items: accounts = [] } = useSelector((state) => state.coa);
   const { user } = useSelector((state) => state.auth);
 
-  const [transactions, setTransactions] = useState([]);
-  const [summary, setSummary] = useState({
-    totalDebit: 0,
-    totalCredit: 0,
-    balance: 0,
-    count: 0,
-  });
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    limit: DEFAULT_PAGE_SIZE,
-    totalPages: 1,
-  });
-  const [pettyCashAccount, setPettyCashAccount] = useState(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState(initialFormData);
-  const [formError, setFormError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm({ resolver: zodResolver(pettyCashSchema), defaultValues: initialFormData });
+
+  // Filters live in the query key (see usePettyCashHistory) — React Query
+  // cancels the in-flight request automatically when they change, so a fast
+  // typer or rapid date-filter toggle can no longer have a stale response
+  // land after a fresher one and overwrite the screen.
+  const historyQuery = usePettyCashHistory({
+    page: currentPage,
+    limit: DEFAULT_PAGE_SIZE,
+    search: searchTerm,
+    dateFrom,
+    dateTo,
+  });
+  const transactions = historyQuery.data?.transactions || [];
+  const summary = historyQuery.data?.summary || EMPTY_PETTY_CASH_SUMMARY;
+  const pagination = historyQuery.data?.pagination || emptyPettyCashPagination(DEFAULT_PAGE_SIZE);
+  const pettyCashAccount = historyQuery.data?.account || null;
+  const historyLoading = historyQuery.isLoading && !historyQuery.data;
+  const historyError = historyQuery.isError
+    ? historyQuery.error?.response?.data?.message ||
+      historyQuery.error?.message ||
+      "Failed to load petty cash history"
+    : "";
 
   const canCreatePettyCash =
     user?.role === "director" ||
@@ -94,83 +129,6 @@ export default function PettyCash() {
   const expenseAccounts = useMemo(() => {
     return accounts.filter((account) => account.accountType === "expense");
   }, [accounts]);
-
-  const fetchPettyCashHistory = async () => {
-    try {
-      setHistoryLoading(true);
-      setHistoryError("");
-
-      const response = await pettyCashAPI.getTransactions({
-        page: currentPage,
-        limit: DEFAULT_PAGE_SIZE,
-        search: searchTerm || undefined,
-        startDate: dateFrom || undefined,
-        endDate: dateTo || undefined,
-      });
-      const payload = response?.data?.data || {};
-      // Defensive: ensure backend returned the expected petty cash account
-      const returnedAccount = payload.account || null;
-      if (
-        returnedAccount &&
-        String(returnedAccount.accountCode) !== PETTY_CASH_ACCOUNT_CODE
-      ) {
-        setPettyCashAccount(null);
-        setTransactions([]);
-        setSummary({
-          totalDebit: 0,
-          totalCredit: 0,
-          balance: 0,
-          count: 0,
-        });
-        setPagination({
-          total: 0,
-          page: 1,
-          limit: DEFAULT_PAGE_SIZE,
-          totalPages: 1,
-        });
-        setHistoryError(
-          `Petty cash account code ${PETTY_CASH_ACCOUNT_CODE} not found`,
-        );
-        return;
-      }
-
-      setPettyCashAccount(returnedAccount);
-      setTransactions(
-        Array.isArray(payload.transactions) ? payload.transactions : [],
-      );
-      setSummary({
-        totalDebit: Number(payload.summary?.totalDebit || 0),
-        totalCredit: Number(payload.summary?.totalCredit || 0),
-        balance: Number(payload.summary?.balance || 0),
-        count: Number(payload.summary?.count || 0),
-      });
-      setPagination({
-        total: Number(payload.pagination?.total || 0),
-        page: Number(payload.pagination?.page || 1),
-        limit: Number(payload.pagination?.limit || DEFAULT_PAGE_SIZE),
-        totalPages: Number(payload.pagination?.totalPages || 1),
-      });
-    } catch (err) {
-      setHistoryError(
-        err?.response?.data?.message || "Failed to load petty cash history",
-      );
-      setTransactions([]);
-      setSummary({
-        totalDebit: 0,
-        totalCredit: 0,
-        balance: 0,
-        count: 0,
-      });
-      setPagination({
-        total: 0,
-        page: 1,
-        limit: DEFAULT_PAGE_SIZE,
-        totalPages: 1,
-      });
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
 
   useEffect(() => {
     dispatch(fetchCoa());
@@ -189,9 +147,6 @@ export default function PettyCash() {
     setCurrentPage(1);
   }, [dateFrom, dateTo]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchPettyCashHistory(); }, [currentPage, searchTerm, dateFrom, dateTo]);
-
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -200,12 +155,10 @@ export default function PettyCash() {
   }, [error, dispatch]);
 
   const resetForm = () => {
-    setFormData(initialFormData);
-    setFormError("");
+    reset(initialFormData);
   };
 
   const handleOpenModal = () => {
-    setFormError("");
     resetForm();
     setShowModal(true);
   };
@@ -213,26 +166,6 @@ export default function PettyCash() {
   const handleCloseModal = () => {
     setShowModal(false);
     resetForm();
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    setFormError("");
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const validateForm = () => {
-    if (!formData.date) return "Date is required.";
-    if (!formData.amount || Number(formData.amount) <= 0) {
-      return "Amount must be greater than 0.";
-    }
-    if (!formData.description.trim()) return "Description is required.";
-    if (!formData.expenseAccount) return "Please select an expense account.";
-    return "";
   };
 
   const getErrorMessage = (err) => {
@@ -247,37 +180,22 @@ export default function PettyCash() {
     );
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const validationError = validateForm();
-
-    if (validationError) {
-      setFormError(validationError);
-      toast.error(validationError);
-      return;
-    }
-
-    const payload = {
-      ...formData,
-      amount: Number(formData.amount),
-    };
-
+  const onSubmit = async (data) => {
     try {
-      setIsSubmitting(true);
-      setFormError("");
-
-      await dispatch(createPettyCash(payload)).unwrap();
+      await dispatch(createPettyCash(data)).unwrap();
       toast.success("Petty cash expense posted to journal successfully.");
 
       handleCloseModal();
-      fetchPettyCashHistory();
+      queryClient.invalidateQueries({ queryKey: PETTY_CASH_HISTORY_KEY });
     } catch (err) {
-      const message = getErrorMessage(err);
-      setFormError(message);
-      toast.error(message);
-    } finally {
-      setIsSubmitting(false);
+      const fieldErrors = err?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+        return;
+      }
+      toast.error(getErrorMessage(err));
     }
   };
 
@@ -290,6 +208,7 @@ export default function PettyCash() {
   };
 
   const isLoading = historyLoading;
+  const isFetchingHistory = historyQuery.isFetching;
 
   return (
     <div className="space-y-4 pb-10">
@@ -539,7 +458,7 @@ export default function PettyCash() {
               <button
                 type="button"
                 onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={pagination.page <= 1 || isLoading}
+                disabled={pagination.page <= 1 || isLoading || isFetchingHistory}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
                 Prev
               </button>
@@ -550,7 +469,7 @@ export default function PettyCash() {
                     Math.min(pagination.totalPages, page + 1),
                   )
                 }
-                disabled={pagination.page >= pagination.totalPages || isLoading}
+                disabled={pagination.page >= pagination.totalPages || isLoading || isFetchingHistory}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
                 Next
               </button>
@@ -566,58 +485,52 @@ export default function PettyCash() {
           title="New Petty Cash Expense"
           description={`This creates an auto-approved journal entry that credits petty cash account ${PETTY_CASH_ACCOUNT_CODE}.`}
           size="2xl">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {formError && (
-              <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{formError}</p>
-              </div>
-            )}
-
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <DatePicker
-                label="Date"
+              <Controller
                 name="date"
-                value={toDateInputValue(formData.date)}
-                onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, date: value }))
-                }
-                required
-                disabled={isSubmitting || pettyCashSaving}
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Date"
+                    value={field.value}
+                    onChange={field.onChange}
+                    required
+                    disabled={isSubmitting || pettyCashSaving}
+                    error={errors.date?.message}
+                  />
+                )}
               />
 
               <Input
                 label="Amount"
                 type="number"
-                name="amount"
                 placeholder="0.00"
-                value={formData.amount}
-                onChange={handleChange}
                 required
                 min="0.01"
                 step="0.01"
                 disabled={isSubmitting || pettyCashSaving}
+                error={errors.amount?.message}
+                touched={!!errors.amount}
+                {...register("amount")}
               />
             </div>
 
             <Input
               label="Description"
-              name="description"
               placeholder="Describe the petty cash expense"
-              value={formData.description}
-              onChange={handleChange}
               required
               textarea
               rows={3}
               disabled={isSubmitting || pettyCashSaving}
+              error={errors.description?.message}
+              touched={!!errors.description}
+              {...register("description")}
             />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Select
                 label="Expense Account"
-                name="expenseAccount"
-                value={formData.expenseAccount}
-                onChange={handleChange}
                 required
                 disabled={isSubmitting || pettyCashSaving}
                 placeholder="Select expense account"
@@ -625,24 +538,23 @@ export default function PettyCash() {
                   label: `${account.accountCode} - ${account.accountName}`,
                   value: account._id,
                 }))}
+                error={errors.expenseAccount?.message}
+                touched={!!errors.expenseAccount}
+                {...register("expenseAccount")}
               />
               <Input
                 label="Paid To"
-                name="paidTo"
                 placeholder="Person who received cash"
-                value={formData.paidTo}
-                onChange={handleChange}
                 disabled={isSubmitting || pettyCashSaving}
+                {...register("paidTo")}
               />
             </div>
 
             <Input
               label="Reference Number"
-              name="referenceNumber"
-              value={formData.referenceNumber}
-              onChange={handleChange}
               placeholder="Optional reference number"
               disabled={isSubmitting || pettyCashSaving}
+              {...register("referenceNumber")}
             />
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
