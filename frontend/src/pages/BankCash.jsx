@@ -301,9 +301,9 @@ const BankCash = () => {
   const getAccountIcon = (type) => {
     switch (type) {
       case "savings":
-        return <Wallet className="text-red-600" size={20} />;
+        return <Wallet className="text-brand-navy" size={20} />;
       case "current":
-        return <Landmark className="text-red-600" size={20} />;
+        return <Landmark className="text-brand-navy" size={20} />;
       default:
         return <CreditCard className="text-slate-500" size={20} />;
     }
@@ -320,16 +320,25 @@ const BankCash = () => {
         icon={Wallet}
         title="Bank & Cash"
         description="Manage cash accounts, bank balances, and reconciliations"
-        buttonText="Add Account"
-        onButtonClick={() => handleOpenModal()}
-        buttonIcon={Plus}
-      />
+        iconBg="bg-brand-navy-light"
+        iconColor="text-brand-navy"
+      >
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => handleOpenModal()}
+          icon={Plus}
+          className="w-full border-brand-navy bg-brand-navy text-white hover:bg-brand-navy-dark hover:border-brand-navy-dark focus:ring-brand-navy-light md:w-auto">
+          Add Account
+        </Button>
+      </SectionHeader>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="rounded-2xl border border-red-200 bg-gradient-to-br from-red-600 to-red-700 p-5 text-white shadow-none">
+        <Card className="rounded-2xl border-0 bg-gradient-to-br from-brand-navy to-brand-navy-dark p-5 text-white shadow-none">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-100">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
                 Total Balance
               </p>
               <h2 className="mt-2 text-2xl font-bold md:text-3xl">
@@ -340,7 +349,7 @@ const BankCash = () => {
               <Landmark size={22} />
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-sm text-red-100">
+          <div className="mt-4 flex items-center gap-2 text-sm text-white/70">
             <RefreshCw size={14} />
             Synced from ledger
           </div>
@@ -356,8 +365,8 @@ const BankCash = () => {
                 {bankAccounts.length}
               </h2>
             </div>
-            <div className="rounded-xl bg-red-50 p-3">
-              <CreditCard size={22} className="text-red-600" />
+            <div className="rounded-xl bg-brand-navy-light p-3">
+              <CreditCard size={22} className="text-brand-navy" />
             </div>
           </div>
           <p className="mt-4 text-sm text-slate-500">
@@ -375,8 +384,8 @@ const BankCash = () => {
                 {bankAccounts.filter((a) => !a.lastReconciledDate).length}
               </h2>
             </div>
-            <div className="rounded-xl bg-red-50 p-3">
-              <History size={22} className="text-red-600" />
+            <div className="rounded-xl bg-amber-50 p-3">
+              <History size={22} className="text-amber-600" />
             </div>
           </div>
           <p className="mt-4 text-sm text-slate-500">
@@ -395,12 +404,12 @@ const BankCash = () => {
           bankAccounts.map((account) => (
             <Card
               key={account._id}
-              className="group rounded-2xl border border-slate-200 bg-white shadow-none transition-colors hover:border-red-200"
+              className="group rounded-2xl border border-slate-200 bg-white shadow-none transition-colors hover:border-brand-navy-light"
             >
               <div className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 gap-4">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors group-hover:border-red-100 group-hover:bg-red-50">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors group-hover:border-brand-navy-light group-hover:bg-brand-navy-light">
                       {getAccountIcon(account.accountType)}
                     </div>
 
@@ -426,7 +435,7 @@ const BankCash = () => {
                   <div className="flex shrink-0 gap-1">
                     <button
                       onClick={() => handleOpenModal(account)}
-                      className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                      className="rounded-lg p-2 text-slate-400 transition hover:bg-brand-navy-light hover:text-brand-navy"
                     >
                       <Edit2 size={16} />
                     </button>
@@ -469,7 +478,7 @@ const BankCash = () => {
 
                 <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={account.isActive ? "success" : "danger"}>
+                    <Badge variant={account.isActive ? "navy" : "warning"}>
                       {account.isActive ? "Active" : "Inactive"}
                     </Badge>
                     <Badge variant="info" className="capitalize">
@@ -492,7 +501,7 @@ const BankCash = () => {
                       setReconciliationStatus("unreconciled");
                       setShowReconcileModal(true);
                     }}
-                    className="border-red-200 text-red-600 hover:bg-red-50"
+                    className="border-brand-navy text-brand-navy hover:bg-brand-navy-light"
                   >
                     <CheckCircle size={14} className="mr-1" />
                     Reconcile
@@ -502,15 +511,15 @@ const BankCash = () => {
             </Card>
           ))
         ) : (
-          <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-red-200 bg-red-50/40 py-20">
-            <Landmark size={44} className="mb-4 text-red-300" />
+          <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 py-20">
+            <Landmark size={44} className="mb-4 text-slate-300" />
             <h3 className="text-lg font-semibold text-slate-900">No Bank Accounts</h3>
             <p className="mt-2 max-w-sm text-center text-sm text-slate-500">
               Add your first bank or cash account to start tracking balances and reconciliations.
             </p>
             <Button
               variant="primary"
-              className="mt-6 bg-red-600 hover:bg-red-700"
+              className="mt-6 bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light"
               onClick={() => handleOpenModal()}
             >
               <Plus size={18} className="mr-2" />
@@ -606,14 +615,19 @@ const BankCash = () => {
           />
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={handleCloseModal} type="button">
+            <Button
+              variant="outline"
+              onClick={handleCloseModal}
+              type="button"
+              className="border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
               Cancel
             </Button>
             <Button
               variant="primary"
               type="submit"
               disabled={submitting || coaLoading}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light"
             >
               {submitting
                 ? editingAccount
@@ -633,8 +647,8 @@ const BankCash = () => {
         title="Reconcile Account"
       >
         <form onSubmit={handleReconcile} className="space-y-4">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">
+          <div className="rounded-xl border border-brand-navy-light bg-brand-navy-light/40 p-4">
+            <p className="text-sm text-brand-navy-dark">
               Enter the actual balance from your bank statement to match it with the system ledger.
             </p>
           </div>
@@ -758,6 +772,7 @@ const BankCash = () => {
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
                     disabled={transactionPagination.page <= 1 || transactionLoading}
                     onClick={() =>
                       fetchBankTransactions(
@@ -771,6 +786,7 @@ const BankCash = () => {
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
                     disabled={
                       transactionPagination.page >=
                         transactionPagination.totalPages || transactionLoading
@@ -796,6 +812,7 @@ const BankCash = () => {
               variant="outline"
               onClick={() => setShowReconcileModal(false)}
               type="button"
+              className="border-slate-300 text-slate-700 hover:bg-slate-50"
             >
               Cancel
             </Button>
@@ -803,7 +820,7 @@ const BankCash = () => {
               variant="primary"
               type="submit"
               disabled={submitting}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light"
             >
               {submitting ? "Processing..." : "Complete Reconciliation"}
             </Button>

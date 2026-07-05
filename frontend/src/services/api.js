@@ -46,9 +46,14 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const requestUrl = originalRequest.url;
 
-    // /auth/me returning 401 is expected when not logged in — don't redirect,
-    // and don't attempt a refresh either (nothing to refresh if this session
-    // was never authenticated to begin with).
+    // /auth/me's 401 is ambiguous on its own: it fires both for "never
+    // logged in" (no refresh token either) AND for "access token expired,
+    // refresh token still valid" — the normal steady-state case on any hard
+    // page reload. It must attempt the same refresh-and-retry as every other
+    // request below; only the *final give-up* behavior differs (see the
+    // isAuthCheck checks further down) — a still-unauthenticated /auth/me
+    // is an expected result for callers like getCurrentUser() to interpret,
+    // not a hard error that should force-navigate the page.
     const isAuthCheck = requestUrl === '/auth/me';
     // A 401 from the refresh endpoint itself means the refresh token is
     // invalid/expired/revoked — there's nothing left to retry with, and
@@ -56,7 +61,7 @@ api.interceptors.response.use(
     const isRefreshCall = requestUrl === '/auth/refresh';
     const onAuthPage = AUTH_PAGES.includes(window.location.pathname);
 
-    if (status === 401 && !isAuthCheck && !isRefreshCall && !originalRequest._retry) {
+    if (status === 401 && !isRefreshCall && !originalRequest._retry) {
       // Mark before awaiting so a second failure on the retried request
       // (below) falls through to a plain redirect instead of looping.
       originalRequest._retry = true;
@@ -73,7 +78,12 @@ api.interceptors.response.use(
       try {
         await refreshPromise;
       } catch {
-        if (!onAuthPage) redirectToLogin();
+        // Refresh also failed — there is genuinely no session. For /auth/me
+        // this is a normal "not logged in" outcome that getCurrentUser()'s
+        // own catch block + ProtectedRoute already handle via isAuthenticated;
+        // forcing a hard redirect here too would double up with that (and
+        // would fire even while already sitting on /login).
+        if (!isAuthCheck && !onAuthPage) redirectToLogin();
         return Promise.reject(error);
       }
 

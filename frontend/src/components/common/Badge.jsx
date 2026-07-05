@@ -18,6 +18,9 @@ export default function Badge({
     rose: 'bg-rose-100 text-rose-800',
     info: 'bg-cyan-100 text-cyan-800',
     outline: 'border border-slate-300 text-slate-700 bg-transparent',
+    // Shell-brand navy — for callers that want the app's primary navy accent
+    // instead of the semantic `success` (emerald) or `primary` (blue) tones.
+    navy: 'bg-brand-navy-light text-brand-navy',
   };
 
   const sizes = {

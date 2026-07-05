@@ -24,6 +24,7 @@ const Select = React.forwardRef(
       disabled = false,
       placeholder = "Select an option",
       className = "",
+      icon: Icon = null,
       ...props
     },
     ref,
@@ -33,6 +34,14 @@ const Select = React.forwardRef(
 
     const selectEl = (
       <div className="relative w-full">
+        {Icon && (
+          <Icon
+            size={16}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
+          />
+        )}
+
         <select
           ref={ref}
           id={name}
@@ -46,6 +55,7 @@ const Select = React.forwardRef(
             "min-h-[44px] py-2.5",
             "focus:outline-none focus:ring-4",
             "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+            Icon ? "pl-10" : "",
             hasError
               ? "border-red-500 focus:border-red-500 focus:ring-red-100"
               : "border-slate-300 focus:border-slate-800 focus:ring-slate-100",

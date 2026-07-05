@@ -1,58 +1,66 @@
 import React from "react";
-import { CheckCircle, AlertCircle } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { formatCurrency } from "../../utils/currency";
 
 const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
   const difference = Math.abs(totalDebit - totalCredit);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-6">
-      <h2 className="text-lg font-semibold text-slate-900 mb-4">
-        Balance Summary
-      </h2>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <h2 className="mb-4 text-sm font-bold text-slate-900">Balance Summary</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Total Debit */}
-        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-          <p className="text-sm text-blue-700 font-medium mb-1">Total Debit</p>
-          <p className="text-2xl font-bold text-blue-900">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-navy-light text-brand-navy">
+              <ArrowUpCircle size={16} />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Total Debit
+            </p>
+          </div>
+          <p className="font-mono text-xl font-bold text-slate-900">
             {formatCurrency(totalDebit)}
           </p>
         </div>
 
-        {/* Total Credit */}
-        <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
-          <p className="text-sm text-purple-700 font-medium mb-1">
-            Total Credit
-          </p>
-          <p className="text-2xl font-bold text-purple-900">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600">
+              <ArrowDownCircle size={16} />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Total Credit
+            </p>
+          </div>
+          <p className="font-mono text-xl font-bold text-slate-900">
             {formatCurrency(totalCredit)}
           </p>
         </div>
 
-        {/* Balance Status */}
         <div
-          className={`rounded-lg p-4 border ${
+          className={`rounded-xl border p-4 ${
             isBalanced
-              ? "bg-emerald-50 border-emerald-100"
-              : "bg-red-50 border-red-100"
+              ? "border-brand-navy-light bg-brand-navy-light/40"
+              : "border-red-200 bg-red-50"
           }`}>
-          <div className="flex items-center gap-2 mb-1">
-            {isBalanced ? (
-              <CheckCircle size={18} className="text-emerald-600" />
-            ) : (
-              <AlertCircle size={18} className="text-red-600" />
-            )}
+          <div className="mb-2 flex items-center gap-2">
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                isBalanced ? "bg-brand-navy text-white" : "bg-red-100 text-red-600"
+              }`}>
+              {isBalanced ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+            </div>
             <p
-              className={`text-sm font-medium ${
-                isBalanced ? "text-emerald-700" : "text-red-700"
+              className={`text-xs font-bold uppercase tracking-wider ${
+                isBalanced ? "text-brand-navy" : "text-red-600"
               }`}>
               {isBalanced ? "Balanced" : "Unbalanced"}
             </p>
           </div>
           <p
-            className={`text-2xl font-bold ${
-              isBalanced ? "text-emerald-900" : "text-red-900"
+            className={`font-mono text-xl font-bold ${
+              isBalanced ? "text-brand-navy-dark" : "text-red-700"
             }`}>
             {isBalanced ? formatCurrency(0) : formatCurrency(difference)}
           </p>
@@ -60,8 +68,8 @@ const BalanceSummary = ({ totalDebit, totalCredit, isBalanced }) => {
       </div>
 
       {!isBalanced && totalDebit > 0 && (
-        <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-md flex items-center gap-2 text-red-800 text-sm">
-          <AlertCircle size={16} />
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
+          <AlertTriangle size={14} className="shrink-0" />
           <span>
             The journal entry must be balanced (Total Debit = Total Credit)
             before it can be submitted.

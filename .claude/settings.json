@@ -194,7 +194,8 @@
       "Bash(npx shadcn@latest add separator -y)",
       "Bash(docker --version)",
       "Bash(docker history *)",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "Bash(git rm *)"
     ],
     "additionalDirectories": [
       "\\tmp",

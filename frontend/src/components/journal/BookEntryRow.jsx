@@ -1,6 +1,6 @@
 import React from "react";
 import { useFormContext } from "react-hook-form";
-import { Trash2, AlertCircle } from "lucide-react";
+import { Trash2, AlertCircle, Landmark, FileText, Banknote } from "lucide-react";
 import Input from "../common/Input";
 import Select from "../common/Select";
 import Button from "../common/Button";
@@ -35,6 +35,7 @@ const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
         <div className="md:col-span-3">
           <Select
             label="Account"
+            icon={Landmark}
             options={accountOptions}
             placeholder="Select Account"
             required
@@ -47,6 +48,7 @@ const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
           <Input
             label="Description"
             type="text"
+            icon={FileText}
             placeholder="Row description"
             {...register(`bookEntries.${index}.description`)}
           />
@@ -57,6 +59,7 @@ const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
             label="Debit"
             type="text"
             inputMode="decimal"
+            icon={Banknote}
             placeholder="0.00"
             error={rowErrors.debit?.message}
             touched={!!rowErrors.debit}
@@ -76,6 +79,7 @@ const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
             label="Credit"
             type="text"
             inputMode="decimal"
+            icon={Banknote}
             placeholder="0.00"
             error={rowErrors.credit?.message}
             touched={!!rowErrors.credit}

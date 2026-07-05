@@ -165,14 +165,14 @@ export default function JournalEntryApprovals() {
           value={loading ? "—" : totalPendingDebit}
           format={loading ? "text" : "currency"}
           icon={TrendingUp}
-          color="green"
+          color="navy"
         />
         <KPICard
           title="Total Pending Credit"
           value={loading ? "—" : totalPendingCredit}
           format={loading ? "text" : "currency"}
           icon={TrendingDown}
-          color="blue"
+          color="slate"
         />
       </div>
 
@@ -186,8 +186,8 @@ export default function JournalEntryApprovals() {
       ) : /* ── Empty state ── */
       pendingEntries.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/40 py-16 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
-            <CheckCircle2 size={26} className="text-emerald-500" />
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-navy-light">
+            <CheckCircle2 size={26} className="text-brand-navy" />
           </div>
           <h3 className="text-sm font-semibold text-slate-700">All caught up</h3>
           <p className="mt-1 text-xs text-slate-400">No journal entries are pending approval right now.</p>
@@ -212,14 +212,14 @@ export default function JournalEntryApprovals() {
                 }`}
               >
                 {/* ── Top accent bar ── */}
-                <div className={`h-1 ${isBalanced ? "bg-emerald-400" : "bg-rose-400"}`} />
+                <div className={`h-1 ${isBalanced ? "bg-brand-navy" : "bg-rose-400"}`} />
 
                 {/* ── Card summary ── */}
                 <div className="p-5">
                   <div className="flex items-start gap-4">
                     {/* Avatar icon */}
-                    <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isBalanced ? "bg-emerald-50" : "bg-rose-50"}`}>
-                      <FileText size={17} className={isBalanced ? "text-emerald-600" : "text-rose-500"} aria-hidden="true" />
+                    <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isBalanced ? "bg-brand-navy-light" : "bg-rose-50"}`}>
+                      <FileText size={17} className={isBalanced ? "text-brand-navy" : "text-rose-500"} aria-hidden="true" />
                     </div>
 
                     {/* Main details */}
@@ -228,7 +228,7 @@ export default function JournalEntryApprovals() {
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-sm font-bold text-slate-900">{entry.voucherNumber || "N/A"}</h3>
                         <Badge variant={typeConf.variant} size="sm">{typeConf.label}</Badge>
-                        <Badge variant={isBalanced ? "success" : "danger"} size="sm">
+                        <Badge variant={isBalanced ? "navy" : "danger"} size="sm">
                           {isBalanced ? "Balanced" : "Unbalanced"}
                         </Badge>
                       </div>
@@ -246,11 +246,11 @@ export default function JournalEntryApprovals() {
                       <div className="mt-4 flex flex-wrap items-start gap-6">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Debit</p>
-                          <p className="mt-0.5 text-base font-bold text-emerald-700">{formatCurrency(tD)}</p>
+                          <p className="mt-0.5 text-base font-bold text-brand-navy">{formatCurrency(tD)}</p>
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Credit</p>
-                          <p className="mt-0.5 text-base font-bold text-blue-700">{formatCurrency(tC)}</p>
+                          <p className="mt-0.5 text-base font-bold text-slate-700">{formatCurrency(tC)}</p>
                         </div>
                         {!isBalanced && (
                           <div>
@@ -292,6 +292,7 @@ export default function JournalEntryApprovals() {
                     loading={approving === entry._id}
                     disabled={!isBalanced || !!approving}
                     onClick={() => setShowApproveModal(entry._id)}
+                    className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light disabled:bg-slate-300"
                   >
                     Approve
                   </Button>
@@ -334,10 +335,10 @@ export default function JournalEntryApprovals() {
                             <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
                               Account
                             </th>
-                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-brand-navy">
                               Debit (৳)
                             </th>
-                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-slate-600">
                               Credit (৳)
                             </th>
                             <th className="hidden px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 sm:table-cell">
@@ -354,12 +355,12 @@ export default function JournalEntryApprovals() {
                               </td>
                               <td className="px-5 py-3.5 text-right">
                                 {be.debit
-                                  ? <span className="font-semibold text-emerald-700">{numFmt(be.debit)}</span>
+                                  ? <span className="font-semibold text-brand-navy">{numFmt(be.debit)}</span>
                                   : <span className="text-slate-300">—</span>}
                               </td>
                               <td className="px-5 py-3.5 text-right">
                                 {be.credit
-                                  ? <span className="font-semibold text-blue-700">{numFmt(be.credit)}</span>
+                                  ? <span className="font-semibold text-slate-700">{numFmt(be.credit)}</span>
                                   : <span className="text-slate-300">—</span>}
                               </td>
                               <td className="hidden px-5 py-3.5 text-slate-500 sm:table-cell">
@@ -373,11 +374,11 @@ export default function JournalEntryApprovals() {
                             <td className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
                               Total
                             </td>
-                            <td className="px-5 py-3 text-right text-sm font-bold text-emerald-700">{numFmt(tD)}</td>
-                            <td className="px-5 py-3 text-right text-sm font-bold text-blue-700">{numFmt(tC)}</td>
+                            <td className="px-5 py-3 text-right text-sm font-bold text-brand-navy">{numFmt(tD)}</td>
+                            <td className="px-5 py-3 text-right text-sm font-bold text-slate-700">{numFmt(tC)}</td>
                             <td className="hidden px-5 py-3 sm:table-cell">
                               {isBalanced ? (
-                                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-navy">
                                   <CheckCircle2 size={12} /> Balanced
                                 </span>
                               ) : (
@@ -449,6 +450,7 @@ export default function JournalEntryApprovals() {
             fullWidth
             loading={approving === showApproveModal}
             onClick={handleConfirmApprove}
+            className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light"
           >
             Approve
           </Button>

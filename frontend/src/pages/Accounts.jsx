@@ -12,7 +12,7 @@ import {
   restoreAccount,
   updateAccountStatus,
 } from "../store/slices/accountSlice";
-import { Plus, X, FolderTree, Landmark, Filter } from "lucide-react";
+import { Plus, FolderTree, Landmark, Filter } from "lucide-react";
 import { toast } from "sonner";
 import COATreeView from "../components/coa/COATreeView";
 import SectionHeader from "../components/common/SectionHeader";
@@ -20,6 +20,7 @@ import Button from "../components/common/Button";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
 import DatePicker from "../components/common/DatePicker";
+import Modal from "../components/common/Modal";
 import { toISODate } from "../utils/date";
 
 const getDefaultBalanceType = (accountType) => {
@@ -317,10 +318,6 @@ export default function Accounts() {
     });
 
     setShowForm(true);
-
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
   };
 
   return (
@@ -329,10 +326,18 @@ export default function Accounts() {
         icon={Landmark}
         title="Chart of Accounts"
         description="Maintain account structure, parent-child relationships, and account status in a clear and simple way."
-        buttonText="Create Account"
-        onButtonClick={openCreateForm}
-        buttonIcon={Plus}
-      />
+        iconBg="bg-brand-navy-light"
+        iconColor="text-brand-navy">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openCreateForm}
+          icon={Plus}
+          className="w-full border-brand-navy bg-brand-navy text-white hover:bg-brand-navy-dark hover:border-brand-navy-dark focus:ring-brand-navy-light md:w-auto">
+          Create Account
+        </Button>
+      </SectionHeader>
 
    <section className="rounded-xl  bg-white p-3 border border-slate-200">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
@@ -347,7 +352,7 @@ export default function Accounts() {
                 onClick={() => setStatusFilter(opt.value)}
                 className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
                   statusFilter === opt.value
-                    ? "bg-red-600 text-white shadow-md"
+                    ? "bg-brand-navy text-white shadow-md"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
@@ -358,26 +363,12 @@ export default function Accounts() {
         </div>
       </section>
 
-      {showForm && (
-        <section className="relative rounded-xl border border-red-100 bg-white p-3 sm:p-4">
-          <Button
-            onClick={closeForm}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="absolute right-3 top-3 min-h-0! border-slate-200 px-2 py-2 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
-            <X size={16} />
-          </Button>
-
-          <div className="mb-4 border-b border-slate-100 pb-3 pr-12">
-            <h2 className="text-base font-bold text-slate-900 sm:text-lg">
-              {editingAccount ? "Edit Account" : "Create New Account"}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-              Enter account details in a clean and consistent format.
-            </p>
-          </div>
-
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        title={editingAccount ? "Edit Account" : "Create New Account"}
+        description="Enter account details in a clean and consistent format."
+        size="3xl">
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
@@ -482,17 +473,16 @@ export default function Accounts() {
                 variant="primary"
                 disabled={isLoading}
                 loading={isLoading}
-                className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto">
+                className="w-full bg-brand-navy text-white hover:bg-brand-navy-dark focus:ring-brand-navy-light sm:w-auto">
                 {editingAccount ? "Update Account" : "Create Account"}
               </Button>
             </div>
           </form>
-        </section>
-      )}
+      </Modal>
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 p-3 sm:p-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-red-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-brand-navy">
             <FolderTree size={18} />
           </div>
           <div>

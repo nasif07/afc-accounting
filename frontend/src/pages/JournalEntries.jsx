@@ -18,7 +18,6 @@ import {
   Search,
   Filter,
   Eye,
-  ArrowLeft,
   BookOpen,
   Calendar,
   Hash,
@@ -28,6 +27,7 @@ import {
 import { toast } from "sonner";
 import DynamicJournalForm from "../components/journal/DynamicJournalForm";
 import SectionHeader from "../components/common/SectionHeader";
+import Modal from "../components/common/Modal";
 import { TableSkeleton } from "../components/common/Loaders";
 import { formatDisplayDate } from "../utils/date";
 import { formatCurrency } from "../utils/currency";
@@ -202,7 +202,7 @@ export default function JournalEntries() {
 
     if (isApproved) {
       return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy">
           <CheckCircle size={12} /> Approved
         </span>
       );
@@ -234,52 +234,40 @@ export default function JournalEntries() {
         buttonIcon={Plus}
       />
 
-      {showForm ? (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-4">
-            <h2 className="text-sm font-bold uppercase tracking-tight text-slate-800">
-              {editingEntry ? "Edit Entry" : "New Entry"}
-            </h2>
+      <Modal
+        isOpen={showForm}
+        onClose={handleCloseForm}
+        title={editingEntry ? "Edit Entry" : "New Entry"}
+        description="Record a balanced journal entry with two or more book entry lines."
+        size="4xl">
+        <DynamicJournalForm
+          initialData={editingEntry}
+          onSubmit={handleFormSubmit}
+          isLoading={isLoading}
+        />
+      </Modal>
 
-            <button
-              onClick={handleCloseForm}
-              className="rounded-lg p-2 transition-colors hover:bg-slate-200">
-              <ArrowLeft size={18} className="text-slate-500" />
-            </button>
-          </div>
-
-          <div className="p-4 md:p-8">
-            <DynamicJournalForm
-              initialData={editingEntry}
-              onSubmit={handleFormSubmit}
-              onCancel={handleCloseForm}
-              isLoading={isLoading}
-            />
-          </div>
+      <div className="flex flex-col gap-3 md:flex-row">
+        <div className="relative flex-1">
+          <Search
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            size={16}
+          />
+          <input
+            type="text"
+            placeholder="Search description or voucher..."
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-slate-400 focus:ring-4 focus:ring-slate-50"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
         </div>
-      ) : (
-        <>
-          <div className="flex flex-col gap-3 md:flex-row">
-            <div className="relative flex-1">
-              <Search
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                size={16}
-              />
-              <input
-                type="text"
-                placeholder="Search description or voucher..."
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-slate-400 focus:ring-4 focus:ring-slate-50"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-              />
-            </div>
 
-            <button className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50">
-              <Filter size={16} /> Filters
-            </button>
-          </div>
+        <button className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50">
+          <Filter size={16} /> Filters
+        </button>
+      </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             {isLoading ? (
               <>
                 <div className="hidden lg:block">
@@ -552,9 +540,7 @@ export default function JournalEntries() {
             )}
             </>
             )}
-          </div>
-        </>
-      )}
+      </div>
     </div>
   );
 }

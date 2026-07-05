@@ -13,6 +13,11 @@ const COATreeView = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Ids the user has explicitly clicked the chevron for — XORed against the
+  // "root levels start expanded, deeper levels start collapsed" default so
+  // expand state survives data refreshes (create/edit/archive) without
+  // needing to remember every node's state up front.
+  const [toggledIds, setToggledIds] = useState(() => new Set());
 
   const treeData = useMemo(() => {
     const safeAccounts = Array.isArray(accounts)
@@ -106,6 +111,48 @@ const COATreeView = ({
     setIsModalOpen(true);
   };
 
+  const isNodeExpanded = (node, level) => {
+    const defaultExpanded = level < 1;
+    return toggledIds.has(node._id) ? !defaultExpanded : defaultExpanded;
+  };
+
+  const toggleExpand = (id) => {
+    setToggledIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Flatten the (already search-filtered) tree into a row list respecting
+  // expand/collapse state, so it can render as a single flat <tbody> — a
+  // real HTML table can't nest a child <tr> inside a parent <tr>.
+  const visibleRows = useMemo(() => {
+    const rows = [];
+
+    const walk = (nodes, level) => {
+      (Array.isArray(nodes) ? nodes : [])
+        .filter((node) => node && node._id)
+        .forEach((node) => {
+          const children = Array.isArray(node.children)
+            ? node.children.filter(Boolean)
+            : [];
+          const expanded = isNodeExpanded(node, level);
+
+          rows.push({ node, level, hasChildren: children.length > 0, childCount: children.length, expanded });
+
+          if (children.length > 0 && expanded) {
+            walk(children, level + 1);
+          }
+        });
+    };
+
+    walk(filteredTree, 0);
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredTree, toggledIds]);
+
   return (
     <div className="w-full bg-white">
       <div className="relative mb-4 group">
@@ -123,32 +170,44 @@ const COATreeView = ({
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <div className="min-w-full inline-block align-middle">
-          {filteredTree.length ? (
-            filteredTree
-              .filter((node) => node && node._id)
-              .map((node) => (
+        {visibleRows.length ? (
+          <table className="w-full min-w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-3 py-2.5">Account</th>
+                <th className="w-28 px-3 py-2.5 text-right">Balance</th>
+                <th className="w-32 px-3 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map(({ node, level, hasChildren, childCount, expanded }) => (
                 <COATreeNode
                   key={node._id}
                   node={node}
+                  level={level}
+                  hasChildren={hasChildren}
+                  childCount={childCount}
+                  isExpanded={expanded}
+                  onToggleExpand={() => toggleExpand(node._id)}
                   onEdit={onEditAccount}
                   onDelete={onDeleteAccount}
                   onRestore={onRestoreAccount}
                   onView={handleViewAccount}
                   onToggleStatus={onStatusChange}
                 />
-              ))
-          ) : (
-            <div className="px-4 py-16 text-center">
-              <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
-                <Search size={20} />
-              </div>
-              <p className="text-sm font-medium text-slate-500">
-                No matching accounts found
-              </p>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="px-4 py-16 text-center">
+            <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
+              <Search size={20} />
             </div>
-          )}
-        </div>
+            <p className="text-sm font-medium text-slate-500">
+              No matching accounts found
+            </p>
+          </div>
+        )}
       </div>
 
       <AccountDetailsModal

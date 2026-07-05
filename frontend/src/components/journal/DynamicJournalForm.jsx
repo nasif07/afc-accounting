@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus, X, ShieldCheck } from "lucide-react";
+import { Plus, X, ShieldCheck, Repeat, FileText } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useForm, useFieldArray, FormProvider, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -293,6 +293,7 @@ const DynamicJournalForm = ({
 
           <Select
             label="Transaction Type"
+            icon={Repeat}
             options={[
               {
                 value: "journal-entry",
@@ -314,7 +315,7 @@ const DynamicJournalForm = ({
             {...register("transactionType")}
           />
 
-          <Input label="Description" {...register("description")} />
+          <Input label="Description" icon={FileText} {...register("description")} />
         </div>
       </div>
 
@@ -335,7 +336,7 @@ const DynamicJournalForm = ({
           type="button"
           variant="outline"
           onClick={handleAddRow}
-          className="mt-3"
+          className="mt-3 border-brand-navy text-brand-navy hover:bg-brand-navy-light focus:ring-brand-navy-light"
           icon={Plus}>
           Add Row
         </Button>
@@ -344,7 +345,7 @@ const DynamicJournalForm = ({
       {/* Approval Settings */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center gap-2">
-          <ShieldCheck size={18} className="text-blue-600" />
+          <ShieldCheck size={18} className="text-brand-navy" />
 
           <h2 className="text-sm font-bold">Approval Settings</h2>
         </div>
@@ -382,7 +383,8 @@ const DynamicJournalForm = ({
         <Button
           type="submit"
           disabled={!isBalanced || isSubmitting}
-          loading={isSubmitting}>
+          loading={isSubmitting}
+          className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light disabled:bg-slate-300">
           {isSubmitting ? "Saving..." : "Save Entry"}
         </Button>
       </div>
@@ -424,7 +426,7 @@ const DynamicJournalForm = ({
 
           {/* Debit entries */}
           <div>
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-brand-navy">
               Debit Accounts
             </p>
             <div className="overflow-hidden rounded-xl border border-slate-100">
@@ -445,7 +447,7 @@ const DynamicJournalForm = ({
 
           {/* Credit entries */}
           <div>
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-rose-500">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Credit Accounts
             </p>
             <div className="overflow-hidden rounded-xl border border-slate-100">
@@ -487,12 +489,14 @@ const DynamicJournalForm = ({
             <Button
               variant="outline"
               onClick={() => setConfirmPayload(null)}
-              disabled={isSubmitting}>
+              disabled={isSubmitting}
+              className="border-slate-300 text-slate-700 hover:bg-slate-50">
               Cancel
             </Button>
             <Button
               onClick={handleConfirm}
-              loading={isSubmitting}>
+              loading={isSubmitting}
+              className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light">
               Confirm &amp; Create
             </Button>
           </div>
