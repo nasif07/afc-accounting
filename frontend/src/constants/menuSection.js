@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   BarChart3,
   ClipboardList,
+  ClipboardCheck,
+  FileCheck2,
   Settings,
 } from "lucide-react";
 
@@ -28,6 +30,27 @@ export const menuSections = [
         path: "/dashboard",
         icon: LayoutDashboard,
         roles: ["director", "accountant", "sub-accountant"],
+      },
+      // A director's two approval queues sit here, immediately under the
+      // Dashboard link, rather than being scattered across Accounting and
+      // Control. They are the work a director opens the app to do, so they
+      // belong at the top with it — and grouping them means the role's daily
+      // queue is one glance rather than two hunts down the sidebar.
+      //
+      // The routes stay on /director/* deliberately: that path is what
+      // enforces the role (DirectorLayoutWrapper in Routes.jsx), and it is the
+      // target of the deep link in approval notification emails.
+      {
+        title: "Request Approvals",
+        path: "/director/approval-requests",
+        icon: FileCheck2,
+        roles: ["director"],
+      },
+      {
+        title: "Journal Approvals",
+        path: "/director/journal-approvals",
+        icon: ClipboardList,
+        roles: ["director"],
       },
     ],
   },
@@ -64,6 +87,12 @@ export const menuSections = [
         icon: Wallet,
         roles: ["director", "accountant", "sub-accountant"],
       },
+      {
+        title: "Approval Requests",
+        path: "/dashboard/approval-requests",
+        icon: ClipboardCheck,
+        roles: ["director", "accountant"],
+      },
     ],
   },
   {
@@ -88,23 +117,23 @@ export const menuSections = [
         roles: ["director", "accountant"],
       },
       {
+        title: "Bank Reconciliation",
+        path: "/dashboard/bank-book/reconciliation",
+        icon: NotebookText,
+        roles: ["director", "accountant"],
+      },
+      {
         title: "Bank / Cash",
         path: "/dashboard/bank-cash",
         icon: Landmark,
         roles: ["director", "accountant"],
       },
-   
+
       {
         title: "Reports",
         path: "/dashboard/reports",
         icon: BarChart3,
         roles: ["director", "accountant"],
-      },
-      {
-        title: "Journal Approvals",
-        path: "/director/journal-approvals",
-        icon: ClipboardList,
-        roles: ["director"],
       },
     ],
   },

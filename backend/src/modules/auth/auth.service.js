@@ -2,6 +2,9 @@ const jwt = require("jsonwebtoken");
 const { randomUUID, randomBytes, createHash } = require("crypto");
 const User = require("../users/user.model");
 const RefreshToken = require("./refreshToken.model");
+const PasswordResetToken = require("./passwordResetToken.model");
+const mail = require("../../services/mail.service");
+const { passwordResetEmail } = require("../../utils/emailTemplates");
 const logger = require("../../utils/logger");
 
 const ACCESS_TOKEN_EXPIRY = "15m";
@@ -12,6 +15,13 @@ const ACCESS_TOKEN_EXPIRY = "15m";
 // every use, so an actively-used session keeps extending; a browser that's
 // been idle longer than this always needs a fresh login.
 const REFRESH_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+// One hour. A reset link is a complete account takeover in a single URL and it
+// travels by email — replayable, forwardable, often synced to other devices —
+// so it is deliberately far shorter-lived than a session.
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+
+const MIN_PASSWORD_LENGTH = 8;
 
 class AuthService {
   static async register(userData) {
@@ -196,6 +206,160 @@ class AuthService {
   // Revokes every non-revoked refresh token for a user, i.e. "log out all
   // devices" — distinct from revokeRefreshToken, which only touches the one
   // token presented by the current session.
+  // ── Passwords ───────────────────────────────────────────────────────────
+
+  /**
+   * Changes the password of a signed-in user.
+   *
+   * The current password is required even though the caller is already
+   * authenticated: the session cookie proves the browser was logged in at some
+   * point, not that the person at the keyboard is the account owner. Without
+   * this, an unattended laptop is a permanent account takeover.
+   */
+  static async changePassword(userId, currentPassword, newPassword) {
+    // The schema marks password as select:false, so it has to be asked for.
+    const user = await User.findById(userId).select("+password");
+    if (!user) throw new Error("User not found");
+
+    const matches = await user.comparePassword(currentPassword);
+    if (!matches) throw new Error("Your current password is incorrect");
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    }
+
+    if (await user.comparePassword(newPassword)) {
+      throw new Error("Your new password must be different from the current one");
+    }
+
+    // Hashing happens in the model's pre-save hook.
+    user.password = newPassword;
+    await user.save();
+
+    // Every other session dies with the old password. If the change was
+    // prompted by a suspected compromise, leaving the attacker's session alive
+    // would defeat the point of changing it.
+    await this.revokeAllRefreshTokens(userId);
+    await this.invalidateResetTokens(userId);
+
+    logger.info({ userId }, "Password changed");
+    return { revokedSessions: true };
+  }
+
+  static hashResetToken(rawToken) {
+    return createHash("sha256").update(rawToken).digest("hex");
+  }
+
+  /** Marks every outstanding reset link for a user as spent. */
+  static async invalidateResetTokens(userId) {
+    await PasswordResetToken.updateMany(
+      { userId, usedAt: null, invalidatedAt: null },
+      { $set: { invalidatedAt: new Date() } },
+    );
+  }
+
+  /**
+   * Emails a password-reset link.
+   *
+   * Always resolves the same way regardless of whether the address exists,
+   * whether the account is approved, and whether the mail actually sent. Any
+   * difference — a different message, or even a noticeably different response
+   * time — turns this endpoint into a way to test which email addresses hold
+   * accounts here. The caller returns one fixed message; the log is where the
+   * real outcome is recorded.
+   */
+  static async requestPasswordReset(email, requestMeta = {}) {
+    const user = await User.findOne({ email: String(email).toLowerCase().trim() });
+
+    if (!user) {
+      logger.info({ email }, "Password reset requested for an unknown address");
+      return;
+    }
+
+    // A rejected or deactivated account cannot log in, so handing it a working
+    // reset link would be pointless at best.
+    if (user.status !== "approved" || !user.isActive) {
+      logger.info({ userId: user._id }, "Password reset requested for an inactive account");
+      return;
+    }
+
+    // Requesting a new link retires the outstanding ones, so clicking "send me
+    // a link" three times does not leave three live keys in an inbox.
+    await this.invalidateResetTokens(user._id);
+
+    const rawToken = randomBytes(48).toString("hex");
+    await PasswordResetToken.create({
+      tokenHash: this.hashResetToken(rawToken),
+      userId: user._id,
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+      requestedFromIp: requestMeta.ipAddress || null,
+      requestedFromUserAgent: requestMeta.userAgent || null,
+    });
+
+    const base = (process.env.APP_URL || process.env.CORS_ORIGIN || "").replace(/\/+$/, "");
+    const resetUrl = `${base}/reset-password?token=${rawToken}`;
+
+    const { subject, html, text } = passwordResetEmail({
+      recipient: { name: user.name },
+      resetUrl,
+      expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+      orgName: requestMeta.orgName || "Alliance Française de Chittagong",
+    });
+
+    const outcome = await mail.sendMail({ to: user.email, subject, html, text });
+
+    if (!outcome.sent) {
+      // Surfaced to the operator through the log only — telling the caller
+      // "email is not configured" would confirm the address exists.
+      logger.error(
+        { userId: user._id, error: outcome.error },
+        "Password reset link could not be emailed",
+      );
+    }
+  }
+
+  /**
+   * Redeems a reset link and sets the new password.
+   *
+   * Every failure mode returns the same message. Distinguishing "expired" from
+   * "already used" from "never existed" tells whoever is holding the link
+   * something about an account that is not theirs, and none of the three
+   * changes what the user has to do next: ask for a new link.
+   */
+  static async resetPassword(rawToken, newPassword) {
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    }
+
+    const invalid = new Error("This reset link is invalid or has expired. Please request a new one.");
+
+    const stored = await PasswordResetToken.findOne({
+      tokenHash: this.hashResetToken(rawToken),
+    });
+
+    if (!stored) throw invalid;
+    if (stored.usedAt || stored.invalidatedAt) throw invalid;
+    if (stored.expiresAt.getTime() <= Date.now()) throw invalid;
+
+    const user = await User.findById(stored.userId).select("+password");
+    if (!user || user.status !== "approved" || !user.isActive) throw invalid;
+
+    user.password = newPassword;
+    await user.save();
+
+    // Consumed before anything else can race a second redemption through.
+    stored.usedAt = new Date();
+    await stored.save();
+
+    await this.invalidateResetTokens(user._id);
+    // The point of a reset is usually that someone else may hold the old
+    // credential; leaving their sessions alive would defeat it.
+    await this.revokeAllRefreshTokens(user._id);
+
+    logger.info({ userId: user._id }, "Password reset via emailed link");
+    return { email: user.email };
+  }
+
   static async revokeAllRefreshTokens(userId) {
     await RefreshToken.updateMany(
       { userId, revokedAt: null },

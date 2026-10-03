@@ -1,28 +1,80 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router";
 import {
   AlertCircle,
   ArrowLeft,
   BookOpen,
-  Calendar,
-  CheckCircle,
+  CheckCircle2,
   Clock,
+  Edit2,
   FileText,
-  Hash,
+  Hourglass,
   Loader2,
-  User,
+  Lock,
+  Scale,
   XCircle,
-  Info,
-  DollarSign,
 } from "lucide-react";
+import { toast } from "sonner";
+import BookEntryLinesTable from "../components/journal/BookEntryLinesTable";
+import DynamicJournalForm from "../components/journal/DynamicJournalForm";
 import SectionHeader from "../components/common/SectionHeader";
-import api from "../services/api";
+import Modal from "../components/common/Modal";
+import Button from "../components/common/Button";
+import { accountingAPI, auditAPI } from "../services/apiMethods";
+import { updateJournalEntry } from "../store/slices/journalSlice";
+import { fetchSettings } from "../store/slices/settingsSlice";
 import { formatCurrency } from "../utils/currency";
 import { formatDisplayDate } from "../utils/date";
+import {
+  canEditEntry,
+  editBlockedReason,
+  editDeadline,
+  isEntryApproved,
+} from "../utils/journalPermissions";
 
-const EMPTY_VALUE = "---";
+const EMPTY_VALUE = "—";
 
-// --- Helper Functions (Keep original logic, refined formatting) ---
+// Maps the flat, field-scoped diff keys the backend stores in
+// auditLog.changes (see accounting.service.js's snapshotEditableFields) to
+// something a human recognises. Line keys arrive as `bookEntries.0.description`.
+const FIELD_LABELS = {
+  voucherDate: "Voucher Date",
+  description: "Description",
+  referenceNumber: "Reference Number",
+  attachments: "Attachments",
+};
+
+const formatFieldName = (field) => {
+  if (FIELD_LABELS[field]) return FIELD_LABELS[field];
+  const lineMatch = field.match(/^bookEntries\.(\d+)\.description$/);
+  if (lineMatch) return `Line ${Number(lineMatch[1]) + 1} Description`;
+  return field;
+};
+
+const formatDiffValue = (value) => {
+  if (value === null || value === undefined || value === "") return "(empty)";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "(empty)";
+  // Dates are stored as ISO strings in the diff.
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return formatDisplayDate(value) || value;
+  }
+  return String(value);
+};
+
+// Zips the stored { before: {...}, after: {...} } field-scoped objects back
+// into per-field rows for display.
+const toDiffRows = (changes) => {
+  const before = changes?.before || {};
+  const after = changes?.after || {};
+  const fields = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+  return fields.map((field) => ({
+    field,
+    before: before[field],
+    after: after[field],
+  }));
+};
+
 const getPersonLabel = (person) => {
   if (!person) return EMPTY_VALUE;
   if (typeof person === "string") return person;
@@ -34,8 +86,9 @@ const getPersonLabel = (person) => {
 // stored near UTC midnight doesn't display as the previous day.
 const formatDate = (date) => {
   if (!date) return EMPTY_VALUE;
-  const formatted = formatDisplayDate(date, { locale: "en-BD", month: "long" });
-  return formatted || EMPTY_VALUE;
+  return (
+    formatDisplayDate(date, { locale: "en-BD", month: "long" }) || EMPTY_VALUE
+  );
 };
 
 const formatDateTime = (date) => {
@@ -44,8 +97,9 @@ const formatDateTime = (date) => {
   return Number.isNaN(parsedDate.getTime())
     ? EMPTY_VALUE
     : parsedDate.toLocaleString("en-BD", {
-        month: "short",
         day: "numeric",
+        month: "short",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       });
@@ -54,349 +108,516 @@ const formatDateTime = (date) => {
 const formatLabel = (value) => {
   if (!value) return EMPTY_VALUE;
   return String(value)
+    .toLowerCase()
     .replace(/[_-]/g, " ")
     .replace(/\b\w/g, (l) => l.toUpperCase());
 };
 
-const getAccountLabel = (account) => {
-  if (!account) return EMPTY_VALUE;
-  const code = account.accountCode ? `[${account.accountCode}] ` : "";
-  return `${code}${account.accountName || EMPTY_VALUE}`;
-};
-
-const getStatusStyles = (entry) => {
-  if (entry?.status === "posted" || entry?.approvalStatus === "approved") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200 ring-emerald-500/20";
+// One place that turns the entry's status fields into what the page shows.
+const getStatusMeta = (entry) => {
+  if (isEntryApproved(entry)) {
+    return {
+      label: "Approved",
+      icon: CheckCircle2,
+      pill: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+      accent: "bg-emerald-500",
+      note: "Posted to the general ledger. Its amounts now count towards account balances and reports.",
+    };
   }
   if (entry?.approvalStatus === "rejected") {
-    return "bg-rose-50 text-rose-700 border-rose-200 ring-rose-500/20";
+    return {
+      label: "Rejected",
+      icon: XCircle,
+      pill: "bg-rose-50 text-rose-700 ring-rose-600/20",
+      accent: "bg-rose-500",
+      note: "Not posted. It has no effect on any ledger or report.",
+    };
   }
-  return "bg-amber-50 text-amber-700 border-amber-200 ring-amber-500/20";
+  return {
+    label: "Pending",
+    icon: Hourglass,
+    pill: "bg-amber-50 text-amber-700 ring-amber-600/20",
+    accent: "bg-amber-500",
+    note: "Waiting for approval. It will reach the ledger once approved.",
+  };
 };
 
-// --- Refined Detail Item Component ---
-function DetailItem({ icon: Icon, label, value, className = "" }) {
+function MetaItem({ label, value, mono = false }) {
   return (
-    <div
-      className={`group flex flex-col gap-1.5 p-3 transition-colors hover:bg-slate-50/80 ${className}`}>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-        {Icon && (
-          <Icon
-            size={12}
-            className="text-slate-300 group-hover:text-blue-500 transition-colors"
-          />
-        )}
+    <div className="min-w-0">
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         {label}
-      </div>
-      <div className="text-sm font-medium text-slate-700 line-clamp-2">
+      </dt>
+      <dd
+        className={`mt-1 truncate text-sm font-medium text-slate-800 ${
+          mono ? "font-mono" : ""
+        }`}
+        title={typeof value === "string" ? value : undefined}>
         {value || EMPTY_VALUE}
-      </div>
+      </dd>
     </div>
+  );
+}
+
+function Panel({ title, icon: Icon, action, children, className = "" }) {
+  return (
+    <section
+      className={`overflow-hidden rounded-xl border border-slate-200 bg-white ${className}`}>
+      {title && (
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            {Icon && <Icon size={16} className="text-slate-400" />}
+            {title}
+          </h3>
+          {action}
+        </div>
+      )}
+      {children}
+    </section>
   );
 }
 
 export default function JournalEntryDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { data: settings } = useSelector((state) => state.settings);
+
   const [entry, setEntry] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // The director's allowJournalEdit switch gates the Edit button.
+  useEffect(() => {
+    dispatch(fetchSettings());
+  }, [dispatch]);
+
+  const loadEntry = useCallback(
+    async ({ silent = false } = {}) => {
+      try {
+        if (!silent) setIsLoading(true);
+        const response = await accountingAPI.getById(id);
+        setEntry(response?.data?.data ?? response?.data ?? null);
+        setError("");
+      } catch (err) {
+        setError(err?.response?.data?.message || "Failed to load journal entry");
+      } finally {
+        if (!silent) setIsLoading(false);
+      }
+    },
+    [id],
+  );
+
+  // Change log. Deliberately independent of the entry fetch — an entry with
+  // no edits is the normal case, and a failure here must not blank the page.
+  const loadAuditLogs = useCallback(async () => {
+    try {
+      setIsLoadingLogs(true);
+      const response = await auditAPI.getEntityLogs("JournalEntry", id);
+      const payload = response?.data?.data ?? response?.data;
+      setAuditLogs(payload?.data || []);
+    } catch {
+      setAuditLogs([]);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    let isMounted = true;
-    const fetchEntry = async () => {
-      try {
-        setIsLoading(true);
-        const response = await api.get(`/accounting/journal-entries/${id}`);
-        const payload = response?.data?.data ?? response?.data;
-        if (isMounted) setEntry(payload || null);
-      } catch (err) {
-        if (isMounted)
-          setError(
-            err?.response?.data?.message || "Failed to load journal entry",
-          );
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-    if (id) fetchEntry();
-    return () => {
-      isMounted = false;
-    };
-  }, [id]);
+    if (!id) return;
+    loadEntry();
+    loadAuditLogs();
+  }, [id, loadEntry, loadAuditLogs]);
 
   const lineItems = useMemo(
     () => (Array.isArray(entry?.bookEntries) ? entry.bookEntries : []),
     [entry?.bookEntries],
   );
-  const totals = useMemo(() => {
-    return lineItems.reduce(
-      (sum, line) => ({
-        debit: sum.debit + Number(line?.debit || 0),
-        credit: sum.credit + Number(line?.credit || 0),
-      }),
-      { debit: 0, credit: 0 },
-    );
-  }, [lineItems]);
+  const totals = useMemo(
+    () =>
+      lineItems.reduce(
+        (sum, line) => ({
+          debit: sum.debit + Number(line?.debit || 0),
+          credit: sum.credit + Number(line?.credit || 0),
+        }),
+        { debit: 0, credit: 0 },
+      ),
+    [lineItems],
+  );
 
-  const statusStyle = getStatusStyles(entry);
+  const isEditable = canEditEntry(entry, settings);
+  const deadline = editDeadline(entry);
+  const status = getStatusMeta(entry);
+  const StatusIcon = status.icon;
   const reviewer = entry?.approvedBy || entry?.rejectedBy;
+  const isReviewed =
+    isEntryApproved(entry) || entry?.approvalStatus === "rejected";
+  const difference = Math.abs(totals.debit - totals.credit);
+  const isBalanced = difference < 0.01;
+
+  // Deliberately rethrows — DynamicJournalForm awaits this and maps the
+  // backend's field-level errors itself, same as on the list page.
+  const handleEditSubmit = async (payload) => {
+    setIsSaving(true);
+    try {
+      const result = await dispatch(
+        updateJournalEntry({ id: entry._id, data: payload }),
+      );
+      if (result?.error) throw result.payload;
+
+      toast.success("Journal entry updated successfully");
+      setIsEditing(false);
+      // Silent refresh: keep the page on screen while the new values and the
+      // new change-log line load in.
+      await Promise.all([loadEntry({ silent: true }), loadAuditLogs()]);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const editButton = entry && (
+    <Button
+      variant="primary"
+      icon={isEditable ? Edit2 : Lock}
+      onClick={() => setIsEditing(true)}
+      disabled={!isEditable}
+      title={isEditable ? "Edit this entry" : editBlockedReason(settings)}>
+      Edit Entry
+    </Button>
+  );
 
   return (
-    <div className="space-y-6 pb-20 pt-4">
+    <div className="space-y-4 pb-16">
       <SectionHeader
         icon={BookOpen}
-        title="Voucher Insight"
-        description="Detailed overview of financial transaction records"
-        buttonText="Back"
-        buttonIcon={ArrowLeft}
-        onButtonClick={() => navigate("/dashboard/journal-entries")}
-        buttonColor="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 "
-      />
+        title="Journal Entry"
+        description="Voucher details, journal lines and change history"
+        hotkey={false}>
+        <Button
+          variant="ghost"
+          icon={ArrowLeft}
+          onClick={() => navigate("/dashboard/journal-entries")}
+          className="border border-slate-200">
+          Back
+        </Button>
+        {editButton}
+      </SectionHeader>
 
       {isLoading ? (
-        <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white/50 backdrop-blur-sm">
-          <Loader2 className="mb-4 animate-spin text-blue-600" size={32} />
-          <p className="text-sm font-medium text-slate-400">
-            Fetching entry details...
-          </p>
+        <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white">
+          <Loader2 className="mb-3 animate-spin text-slate-400" size={28} />
+          <p className="text-sm text-slate-500">Loading entry…</p>
         </div>
       ) : error ? (
-        <div className="flex items-center gap-4 rounded-2xl border border-red-100 bg-red-50/50 p-6 backdrop-blur-sm">
-          <div className="rounded-full bg-red-100 p-3 text-red-600">
-            <AlertCircle size={24} />
-          </div>
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-5">
+          <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" />
           <div>
-            <h3 className="font-bold text-red-900">System Error</h3>
-            <p className="text-sm text-red-700">{error}</p>
+            <h3 className="font-semibold text-red-900">
+              Couldn't load this entry
+            </h3>
+            <p className="mt-0.5 text-sm text-red-700">{error}</p>
           </div>
         </div>
       ) : !entry ? (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white py-20 text-center">
-          <FileText className="mx-auto mb-4 text-slate-200" size={48} />
-          <h2 className="text-lg font-semibold text-slate-800">
-            No Record Found
+        <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white py-20 text-center">
+          <FileText className="mx-auto mb-3 text-slate-300" size={40} />
+          <h2 className="text-base font-semibold text-slate-800">
+            Entry not found
           </h2>
           <button
-            onClick={() => navigate(-1)}
-            className="mt-4 text-sm font-bold text-blue-600 underline">
-            Return to previous page
+            type="button"
+            onClick={() => navigate("/dashboard/journal-entries")}
+            className="mt-3 text-sm font-semibold text-blue-600 hover:underline">
+            Back to journal entries
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* LEFT COLUMN: Header Info */}
-          <div className="lg:col-span-2 space-y-6">
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="border-b border-slate-100 bg-white p-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-2xl font-black tracking-tighter text-slate-900">
-                        {entry.voucherNumber}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase ring-4 ${statusStyle}`}>
-                        {entry.approvalStatus === "approved" ? (
-                          <CheckCircle size={10} />
-                        ) : (
-                          <Clock size={10} />
-                        )}
-                        {entry.approvalStatus || "pending"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                      <Calendar size={14} />
-                      {formatDate(entry.voucherDate || entry.date)}
-                    </div>
-                  </div>
+        <>
+          {/* ── Summary ─────────────────────────────────────────────── */}
+          <section className="relative overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <span
+              aria-hidden="true"
+              className={`absolute inset-y-0 left-0 w-1 ${status.accent}`}
+            />
 
-                  <div className="flex gap-2">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-2 text-right">
-                      <p className="text-[10px] font-bold uppercase text-slate-400">
-                        Total Value
-                      </p>
-                      <p className="font-mono text-lg font-bold text-blue-600">
-                        {formatCurrency(entry.totalDebit ?? totals.debit)}
-                      </p>
-                    </div>
-                  </div>
+            <div className="flex flex-col gap-5 p-5 sm:p-6 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="font-mono text-2xl font-bold tracking-tight text-slate-900">
+                    {entry.voucherNumber || EMPTY_VALUE}
+                  </h2>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${status.pill}`}>
+                    <StatusIcon size={12} />
+                    {status.label}
+                  </span>
                 </div>
-
-                <div className="mt-6 flex items-start gap-3 rounded-xl bg-blue-50/50 p-4">
-                  <Info size={18} className="mt-0.5 text-blue-500" />
-                  <p className="text-sm leading-relaxed text-slate-600">
-                    {entry.description || "No transaction narrative provided."}
-                  </p>
-                </div>
-              </div>
-
-              {/* Grid Details */}
-              <div className="grid grid-cols-2 border-t border-slate-50 sm:grid-cols-4">
-                <DetailItem
-                  label="Transaction"
-                  value={formatLabel(entry.transactionType)}
-                  icon={FileText}
-                  className="border-r border-b border-slate-50"
-                />
-                <DetailItem
-                  label="Reference"
-                  value={entry.referenceNumber}
-                  icon={Hash}
-                  className="border-r border-b border-slate-50"
-                />
-                <DetailItem
-                  label="Created By"
-                  value={getPersonLabel(entry.createdBy)}
-                  icon={User}
-                  className="border-r border-b border-slate-50"
-                />
-                <DetailItem
-                  label="Status"
-                  value={formatLabel(entry.status)}
-                  icon={CheckCircle}
-                  className="border-b border-slate-50"
-                />
-              </div>
-
-              {entry.rejectionReason && (
-                <div className="m-4 flex items-center gap-3 rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-rose-800">
-                  <XCircle size={18} className="text-rose-500" />
-                  <p className="text-xs">
-                    <strong>Rejection:</strong> {entry.rejectionReason}
-                  </p>
-                </div>
-              )}
-            </section>
-
-            {/* Line Items Table */}
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white ">
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                  Journal Line Items
-                </h3>
-                <span className="rounded-md bg-white px-2 py-1 text-[10px] font-bold text-slate-400  border border-slate-100">
-                  {lineItems.length} ENTRIES
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      <th className="px-6 py-3">Account Account Details</th>
-                      <th className="px-6 py-3 text-right">Debit</th>
-                      <th className="px-6 py-3 text-right">Credit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {lineItems.map((line, idx) => (
-                      <tr
-                        key={idx}
-                        className="group hover:bg-blue-50/30 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="text-sm font-semibold text-slate-700">
-                            {getAccountLabel(line.account)}
-                          </p>
-                          <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">
-                            {line.description || "No line description"}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono text-sm font-bold text-slate-600">
-                          {Number(line.debit) > 0
-                            ? formatCurrency(line.debit)
-                            : "—"}
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono text-sm font-bold text-slate-600">
-                          {Number(line.credit) > 0
-                            ? formatCurrency(line.credit)
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className=" text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100">
-                    <tr>
-                      <td className="px-6 py-4 text-sm font-bold uppercase">
-                        Balance Summary
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono text-sm       font-black text-blue-600">
-                        {formatCurrency(totals.debit)}
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono text-sm font-black text-blue-600">
-                        {formatCurrency(totals.credit)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </section>
-          </div>
-
-          {/* RIGHT COLUMN: Audit Trail / Metadata */}
-          <div className="space-y-6">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 ">
-              <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500">
-                <Clock size={14} /> Audit Timeline
-              </h3>
-              <div className="space-y-6">
-                <TimelineItem
-                  label="Submission"
-                  date={formatDateTime(entry.createdAt)}
-                  user={getPersonLabel(entry.createdBy)}
-                  isLast={false}
-                />
-                <TimelineItem
-                  label="Review"
-                  date={formatDateTime(
-                    entry.approvalDate || entry.rejectionDate,
+                <p className="text-sm text-slate-500">
+                  {formatDate(entry.voucherDate || entry.date)}
+                  <span className="mx-2 text-slate-300">•</span>
+                  {formatLabel(entry.transactionType)}
+                </p>
+                <p className="max-w-2xl pt-1 text-[15px] leading-relaxed text-slate-700">
+                  {entry.description || (
+                    <span className="italic text-slate-400">
+                      No description provided.
+                    </span>
                   )}
-                  user={getPersonLabel(reviewer)}
-                  isLast={true}
-                  status={entry.approvalStatus}
+                </p>
+              </div>
+
+              <div className="shrink-0 rounded-lg bg-slate-50 px-5 py-3 md:text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Total amount
+                </p>
+                <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-slate-900">
+                  {formatCurrency(entry.totalDebit ?? totals.debit)}
+                </p>
+              </div>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-100 bg-slate-50/50 px-5 py-4 sm:px-6 md:grid-cols-4">
+              <MetaItem
+                label="Reference"
+                // referenceLabel is the server's display form — opening
+                // balance journals store an id-based key that means nothing
+                // on screen. Falls back for any cached older response.
+                value={entry.referenceLabel ?? entry.referenceNumber}
+                mono
+              />
+              <MetaItem label="Source" value={formatLabel(entry.sourceModule)} />
+              <MetaItem label="Created by" value={getPersonLabel(entry.createdBy)} />
+              <MetaItem label="Created on" value={formatDateTime(entry.createdAt)} />
+            </dl>
+
+            {entry.rejectionReason && (
+              <div className="flex items-start gap-2.5 border-t border-rose-100 bg-rose-50 px-5 py-3.5 text-sm text-rose-800 sm:px-6">
+                <XCircle size={16} className="mt-0.5 shrink-0 text-rose-500" />
+                <p>
+                  <span className="font-semibold">Rejection reason:</span>{" "}
+                  {entry.rejectionReason}
+                </p>
+              </div>
+            )}
+          </section>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* ── Journal lines ──────────────────────────────────────── */}
+            <Panel
+              title="Journal lines"
+              icon={Scale}
+              className="lg:col-span-2"
+              action={
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    isBalanced
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-rose-50 text-rose-700"
+                  }`}>
+                  {isBalanced ? (
+                    <>
+                      <CheckCircle2 size={12} /> Balanced ·{" "}
+                      {lineItems.length} lines
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={12} /> Off by{" "}
+                      {formatCurrency(difference)}
+                    </>
+                  )}
+                </span>
+              }>
+              <div className="p-4">
+                <BookEntryLinesTable
+                  lines={lineItems}
+                  showNarration={false}
+                  totalLabel="Total"
                 />
               </div>
-            </section>
+            </Panel>
 
-            <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 p-6 text-white shadow-lg shadow-blue-200">
-              <DollarSign className="mb-4 opacity-40" size={32} />
-              <h4 className="text-xs font-bold uppercase tracking-widest opacity-80">
-                Quick Summary
-              </h4>
-              <p className="mt-2 text-sm leading-relaxed opacity-90">
-                This voucher is currently{" "}
-                <strong>{entry.approvalStatus}</strong>.
-                {entry.approvalStatus === "approved"
-                  ? " It has been posted to the general ledger."
-                  : " It requires further action before posting."}
-              </p>
+            {/* ── Side column ────────────────────────────────────────── */}
+            <div className="space-y-4">
+              <Panel title="Status" icon={StatusIcon}>
+                <div className="space-y-3 p-5">
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    {status.note}
+                  </p>
+
+                  <div
+                    className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-xs ${
+                      isEditable
+                        ? "bg-blue-50 text-blue-800"
+                        : "bg-slate-50 text-slate-500"
+                    }`}>
+                    {isEditable ? (
+                      <Edit2 size={14} className="mt-px shrink-0" />
+                    ) : (
+                      <Lock size={14} className="mt-px shrink-0" />
+                    )}
+                    <p>
+                      {isEditable ? (
+                        <>
+                          Editable until{" "}
+                          <span className="font-semibold">
+                            {formatDateTime(deadline)}
+                          </span>
+                          . Date, description, reference and line notes can
+                          be changed.
+                        </>
+                      ) : (
+                        editBlockedReason(settings)
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </Panel>
+
+              <Panel title="Activity" icon={Clock}>
+                <ol className="space-y-5 p-5">
+                  <TimelineItem
+                    label="Submitted"
+                    user={getPersonLabel(entry.createdBy)}
+                    date={formatDateTime(entry.createdAt)}
+                    tone="blue"
+                  />
+                  <TimelineItem
+                    label={
+                      isReviewed
+                        ? entry.approvalStatus === "rejected"
+                          ? "Rejected"
+                          : "Approved"
+                        : "Awaiting review"
+                    }
+                    user={isReviewed ? getPersonLabel(reviewer) : null}
+                    date={
+                      isReviewed
+                        ? formatDateTime(
+                            entry.approvalDate || entry.rejectionDate,
+                          )
+                        : null
+                    }
+                    tone={
+                      !isReviewed
+                        ? "amber"
+                        : entry.approvalStatus === "rejected"
+                          ? "rose"
+                          : "emerald"
+                    }
+                    isLast={auditLogs.length === 0}
+                  />
+
+                  {/* Change log — one entry per recorded edit, newest first */}
+                  {auditLogs.map((log, idx) => {
+                    const diff = toDiffRows(log.changes);
+                    return (
+                      <TimelineItem
+                        key={log._id || idx}
+                        label={`Edited${
+                          diff.length
+                            ? ` · ${formatFieldName(diff[0].field)}${
+                                diff.length > 1 ? ` +${diff.length - 1}` : ""
+                              }`
+                            : ""
+                        }`}
+                        user={getPersonLabel(log.userId) || log.userName}
+                        date={formatDateTime(log.timestamp)}
+                        tone="slate"
+                        isLast={idx === auditLogs.length - 1}
+                        diff={diff}
+                      />
+                    );
+                  })}
+                </ol>
+
+                {isLoadingLogs && (
+                  <p className="px-5 pb-4 text-xs text-slate-400">
+                    Loading change history…
+                  </p>
+                )}
+                {!isLoadingLogs && auditLogs.length === 0 && (
+                  <p className="px-5 pb-4 text-xs text-slate-400">
+                    No edits recorded for this entry.
+                  </p>
+                )}
+              </Panel>
             </div>
           </div>
-        </div>
+
+          <Modal
+            isOpen={isEditing}
+            onClose={() => !isSaving && setIsEditing(false)}
+            title={`Edit ${entry.voucherNumber || "Entry"}`}
+            description="Update the voucher details. Amounts and accounts stay as posted."
+            size="4xl">
+            <DynamicJournalForm
+              initialData={entry}
+              onSubmit={handleEditSubmit}
+              isLoading={isSaving}
+            />
+          </Modal>
+        </>
       )}
     </div>
   );
 }
 
-// --- Internal Visual Components ---
-function TimelineItem({ label, date, user, isLast, status }) {
-  const isRejected = status === "rejected";
+const TONES = {
+  blue: "bg-blue-500",
+  emerald: "bg-emerald-500",
+  rose: "bg-rose-500",
+  amber: "bg-amber-400",
+  slate: "bg-slate-400",
+};
+
+function TimelineItem({ label, date, user, tone = "slate", isLast, diff }) {
   return (
-    <div className="relative flex gap-4">
+    <li className="relative flex gap-3">
       {!isLast && (
-        <div className="absolute left-[11px] top-6 h-full w-0.5 bg-slate-100" />
+        <span
+          aria-hidden="true"
+          className="absolute left-1.25 top-4 h-[calc(100%+0.75rem)] w-px bg-slate-200"
+        />
       )}
-      <div
-        className={`relative z-10 h-6 w-6 rounded-full border-4 border-white  
-        ${status ? (isRejected ? "bg-rose-500" : "bg-emerald-500") : "bg-blue-500"}`}
+      <span
+        aria-hidden="true"
+        className={`relative mt-1.5 h-2.75 w-2.75 shrink-0 rounded-full ring-4 ring-white ${TONES[tone]}`}
       />
-      <div className="-mt-1">
-        <p className="text-[10px] font-bold uppercase text-slate-400">
-          {label}
-        </p>
-        <p className="text-sm font-bold text-slate-700">{user}</p>
-        <p className="text-[11px] text-slate-500">{date}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-slate-900">{label}</p>
+        {(user || date) && (
+          <p className="text-xs text-slate-500">
+            {user}
+            {user && date && <span className="mx-1.5 text-slate-300">•</span>}
+            {date}
+          </p>
+        )}
+
+        {Array.isArray(diff) && diff.length > 0 && (
+          <ul className="mt-2 space-y-1.5 rounded-lg border border-slate-100 bg-slate-50 p-2.5">
+            {diff.map((row) => (
+              <li key={row.field} className="text-xs leading-snug">
+                <span className="font-medium text-slate-600">
+                  {formatFieldName(row.field)}
+                </span>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <span className="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700 line-through">
+                    {formatDiffValue(row.before)}
+                  </span>
+                  <span className="text-slate-400">→</span>
+                  <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700">
+                    {formatDiffValue(row.after)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-    </div>
+    </li>
   );
 }

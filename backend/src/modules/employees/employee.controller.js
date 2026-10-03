@@ -69,6 +69,10 @@ class EmployeeController {
         bankAccountNumber, bankName, notes,
         emergencyContactName, emergencyContactRelationship,
         emergencyContactPhone, emergencyContactAltPhone, emergencyContactAddress,
+        employmentType, payScale, scalePointValue, monthlyWorkingHours,
+        healthFundTotal, healthFundTaken, healthFundNote,
+        lifeFundBalance, retirementBenefitBalance,
+        annualLeaveDays, annualLeaveTaken, sickLeaveDays, sickLeaveTaken,
       } = req.body;
 
       const updateData = {
@@ -78,6 +82,10 @@ class EmployeeController {
         bankAccountNumber, bankName, notes,
         emergencyContactName, emergencyContactRelationship,
         emergencyContactPhone, emergencyContactAltPhone, emergencyContactAddress,
+        employmentType, payScale, scalePointValue, monthlyWorkingHours,
+        healthFundTotal, healthFundTaken, healthFundNote,
+        lifeFundBalance, retirementBenefitBalance,
+        annualLeaveDays, annualLeaveTaken, sickLeaveDays, sickLeaveTaken,
       };
 
       // Strip undefined so Mongoose doesn't unset fields the caller didn't send

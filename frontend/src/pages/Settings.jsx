@@ -15,8 +15,13 @@ import {
   Banknote,
   ShieldCheck,
   Save,
+  Lock,
 } from "lucide-react";
 import SectionHeader from "../components/common/SectionHeader";
+import ImageUploader from "../components/common/ImageUploader";
+import SecuritySection from "../components/settings/SecuritySection";
+import { useOrgLogo } from "../hooks/useOrgLogo";
+import { selectOrgInfo } from "../store/slices/settingsSlice";
 import {
   Input,
   Select,
@@ -37,6 +42,10 @@ const TABS = [
   { id: "financial", label: "Financial", icon: Banknote },
   { id: "reports", label: "Reports", icon: FileText },
   { id: "workflow", label: "Workflow", icon: ShieldCheck },
+  // Available to every role, unlike the tabs above it: an accountant cannot
+  // edit organisation settings but must still be able to manage their own
+  // password.
+  { id: "security", label: "Security", icon: Lock },
 ];
 
 // ── Zod validation schema ────────────────────────────────────────────────────
@@ -64,7 +73,10 @@ const settingsSchema = z.object({
   orgPhone: z.string().trim().optional(),
   orgAddress: z.string().trim().optional(),
   orgWebsite: z.string().trim().optional(),
-  orgLogo: z.string().trim().optional(),
+  // orgLogo is deliberately absent. The logo is no longer a form field —
+  // it uploads and commits on its own (see useOrgLogo.js), and zod strips
+  // keys it does not declare, so Save can never write a stale logo value
+  // back over an upload the director just made.
   directorName: z.string().trim().min(1, "Director / Principal name is required"),
   directorTitle: z.string().trim().optional(),
   currency: z.enum(["BDT", "USD", "EUR", "GBP"]),
@@ -72,6 +84,9 @@ const settingsSchema = z.object({
   financialYearType: z.enum(["july-june", "jan-dec"]),
   leaveYearLabel: z.string().trim().optional(),
   benefitPeriodLabel: z.string().trim().optional(),
+  healthFundLabel: z.string().trim().optional(),
+  annualLeaveDays: z.coerce.number().min(0, "Cannot be negative").optional(),
+  sickLeaveDays: z.coerce.number().min(0, "Cannot be negative").optional(),
   bankNameForPayment: z.string().trim().optional(),
   bankAccountForPayment: z.string().trim().optional(),
   reportHeader: z.string().trim().optional(),
@@ -82,6 +97,7 @@ const settingsSchema = z.object({
   approvalLimitSubAccountant: z.coerce.number().optional(),
   enableApprovalWorkflow: z.boolean().optional(),
   enableEmailNotifications: z.boolean().optional(),
+  allowJournalEdit: z.boolean().optional(),
 });
 
 const INITIAL_FORM_DATA = {
@@ -90,7 +106,6 @@ const INITIAL_FORM_DATA = {
   orgPhone: "",
   orgAddress: "",
   orgWebsite: "",
-  orgLogo: "",
   directorName: "",
   directorTitle: "",
   currency: "BDT",
@@ -98,6 +113,9 @@ const INITIAL_FORM_DATA = {
   financialYearType: "july-june",
   leaveYearLabel: "",
   benefitPeriodLabel: "",
+  healthFundLabel: "Health Fund",
+  annualLeaveDays: 0,
+  sickLeaveDays: 0,
   bankNameForPayment: "",
   bankAccountForPayment: "",
   reportHeader: "",
@@ -108,6 +126,7 @@ const INITIAL_FORM_DATA = {
   approvalLimitSubAccountant: 10000,
   enableApprovalWorkflow: true,
   enableEmailNotifications: true,
+  allowJournalEdit: true,
 };
 
 // Icon-prefixed input: wraps common/Input with an absolute icon
@@ -134,14 +153,18 @@ export default function Settings() {
     register,
     handleSubmit,
     reset,
-    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(settingsSchema),
     defaultValues: INITIAL_FORM_DATA,
   });
 
-  const watchedOrgLogo = watch("orgLogo");
+  // The logo is NOT part of this form. It uploads and commits on its own,
+  // immediately — a two-step direct-to-R2 upload cannot be folded into a
+  // single settings PUT, and making the user press Save to apply an image
+  // they can already see in the preview would be a lie about what happened.
+  const orgInfo = useSelector(selectOrgInfo);
+  const { upload, remove, uploading, removing, progress } = useOrgLogo();
 
   useEffect(() => {
     dispatch(fetchSettings());
@@ -220,6 +243,15 @@ export default function Settings() {
           ))}
         </div>
 
+        {activeTab === "security" ? (
+          <div
+            id="panel-security"
+            role="tabpanel"
+            aria-labelledby="tab-security"
+            className="p-6">
+            <SecuritySection userEmail={user?.email} />
+          </div>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <div
             id={`panel-${activeTab}`}
@@ -270,22 +302,30 @@ export default function Settings() {
                     />
                   </FormField>
 
-                  <FormField label="Logo URL / Path">
-                    <Input
-                      placeholder="/afc-logo.png or https://..."
-                      disabled={!isDirector}
-                      {...register("orgLogo")}
+                  <FormField
+                    label="Organisation Logo"
+                    hint={
+                      isDirector
+                        ? "Applies immediately — no need to press Save. Used on the sidebar, payslips and every printed report."
+                        : "Only a director can change the logo."
+                    }>
+                    <ImageUploader
+                      currentUrl={orgInfo.orgLogo}
+                      uploading={uploading}
+                      progress={progress}
+                      disabled={!isDirector || removing}
+                      onSelect={upload}
+                      // Removing only makes sense when there is an upload to
+                      // remove — with none, the app is already showing the
+                      // bundled artwork that "remove" would fall back to.
+                      onRemove={orgInfo.orgLogoKey ? remove : undefined}
+                      hint="PNG, JPG or WEBP · up to 2 MB · landscape artwork works best"
+                      emptyLabel={
+                        orgInfo.orgLogoKey
+                          ? "Drop a new image here to replace the logo"
+                          : "Drag an image here, or browse"
+                      }
                     />
-                    {watchedOrgLogo && (
-                      <img
-                        src={watchedOrgLogo}
-                        alt="Logo preview"
-                        className="mt-2 h-14 rounded border border-slate-200 object-contain p-1"
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                        }}
-                      />
-                    )}
                   </FormField>
 
                   <FormField label="Full Address">
@@ -349,6 +389,28 @@ export default function Settings() {
                     placeholder="01-07-2023 to 30-06-2025"
                     disabled={!isDirector}
                     {...register("benefitPeriodLabel")}
+                  />
+                  <Input
+                    label="Health Fund Label (shown on payslips)"
+                    placeholder="Health Fund (July'24 - June'27)"
+                    disabled={!isDirector}
+                    {...register("healthFundLabel")}
+                  />
+                  <Input
+                    label="Annual Leave Entitlement (days/year)"
+                    type="number"
+                    min="0"
+                    disabled={!isDirector}
+                    error={errors.annualLeaveDays?.message}
+                    {...register("annualLeaveDays")}
+                  />
+                  <Input
+                    label="Sick Leave Entitlement (days/year)"
+                    type="number"
+                    min="0"
+                    disabled={!isDirector}
+                    error={errors.sickLeaveDays?.message}
+                    {...register("sickLeaveDays")}
                   />
                 </div>
               </div>
@@ -466,17 +528,29 @@ export default function Settings() {
                       key: "enableEmailNotifications",
                       label: "Enable email notifications",
                     },
-                  ].map(({ key, label }) => (
+                    {
+                      key: "allowJournalEdit",
+                      label: "Allow journal entries to be edited",
+                      hint: "When on, an accountant or director can correct a journal entry's date, reference and descriptions for 3 days after it was created. Amounts and accounts are never editable — those always require a reversing entry.",
+                    },
+                  ].map(({ key, label, hint }) => (
                     <label
                       key={key}
-                      className={`flex cursor-pointer items-center gap-3 ${!isDirector ? "opacity-60" : ""}`}>
+                      className={`flex cursor-pointer items-start gap-3 ${!isDirector ? "opacity-60" : ""}`}>
                       <input
                         type="checkbox"
                         disabled={!isDirector}
-                        className="h-4 w-4 rounded border-slate-300 text-[#EE081D] focus:ring-[#EE081D]"
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#EE081D] focus:ring-[#EE081D]"
                         {...register(key)}
                       />
-                      <span className="text-sm text-slate-700">{label}</span>
+                      <span>
+                        <span className="text-sm text-slate-700">{label}</span>
+                        {hint && (
+                          <span className="mt-0.5 block text-xs text-slate-500">
+                            {hint}
+                          </span>
+                        )}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -498,6 +572,7 @@ export default function Settings() {
             </div>
           )}
         </form>
+        )}
       </div>
     </div>
   );

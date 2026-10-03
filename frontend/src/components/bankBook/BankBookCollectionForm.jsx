@@ -1,6 +1,7 @@
 import { AlertCircle, Plus } from "lucide-react";
 import Badge from "../common/Badge";
 import Button from "../common/Button";
+import AccountCombobox from "../common/AccountCombobox";
 import Card from "../common/Card";
 import DatePicker from "../common/DatePicker";
 import Input from "../common/Input";
@@ -17,8 +18,8 @@ export default function BankBookCollectionForm({
   formData,
   formError,
   saving,
-  bankHeadOptions,
-  incomeHeadOptions,
+  bankHeadAccounts,
+  incomeHeadAccounts,
   selectedBankHead,
   selectedIncomeHead,
   amount,
@@ -78,26 +79,36 @@ export default function BankBookCollectionForm({
 
         <Card title="Account Selection">
           <div className="space-y-4">
-            <Select
+            {/* Searchable: these lists run to dozens of accounts and are
+                picked on every collection, so type-to-filter beats scrolling
+                a native dropdown. onChange is adapted to the event shape the
+                parent's shared handleFormChange expects. */}
+            <AccountCombobox
               label="Bank Head"
               name="bankHeadId"
               value={formData.bankHeadId}
-              onChange={onChange}
-              options={bankHeadOptions}
+              onChange={(value) =>
+                onChange({ target: { name: "bankHeadId", value } })
+              }
+              accounts={bankHeadAccounts}
               placeholder="Select bank, cheque, or POS head"
+              panelTitle="Select Bank Head"
               required
             />
             <p className="text-xs leading-5 text-slate-500">
               This account will be debited. Choose the bank, cheque, or POS
               account that received the payment.
             </p>
-            <Select
+            <AccountCombobox
               label="Income Head"
               name="incomeHeadId"
               value={formData.incomeHeadId}
-              onChange={onChange}
-              options={incomeHeadOptions}
+              onChange={(value) =>
+                onChange({ target: { name: "incomeHeadId", value } })
+              }
+              accounts={incomeHeadAccounts}
               placeholder="Select income head"
+              panelTitle="Select Income Head"
               required
             />
             <p className="text-xs leading-5 text-slate-500">

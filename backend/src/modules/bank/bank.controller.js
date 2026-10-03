@@ -15,7 +15,6 @@ class BankController {
         accountHolderName,
         branchName,
         accountType,
-        openingBalance,
         coaAccount, // FIXED: Extract coaAccount
       } = req.body;
 
@@ -36,21 +35,12 @@ class BankController {
         );
       }
 
-      // Validate opening balance if provided
-      if (
-        openingBalance !== undefined &&
-        Number.isNaN(Number(openingBalance))
-      ) {
-        return ApiResponse.badRequest(res, "Opening balance must be a number");
-      }
-
       const bankData = {
         bankName: bankName.trim(),
         accountNumber: accountNumber.trim(),
         accountHolderName: accountHolderName.trim(),
         branchName: branchName ? branchName.trim() : null,
         accountType,
-        openingBalance: Number(openingBalance || 0),
         coaAccount, // FIXED: Include coaAccount
         createdBy: req.user.userId,
       };
@@ -102,6 +92,19 @@ class BankController {
   }
 
   /**
+   * Persist the drag-and-drop card order from the Bank & Cash screen.
+   */
+  static async reorderBankAccounts(req, res, next) {
+    try {
+      const order = await BankService.reorderBankAccounts(req.body.order);
+
+      return ApiResponse.success(res, order, "Bank account order updated");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Update a bank account
    * FIXED: Prevent updating immutable fields
    */
@@ -114,11 +117,16 @@ class BankController {
         return ApiResponse.badRequest(res, "Bank account ID is required");
       }
 
-      // Prevent updating immutable fields
+      // openingBalance is not a Bank field at all (it lives on the linked COA
+      // account — see bank.model.js). Strip it rather than reject it: older
+      // cached clients still submit their whole form state on update, and
+      // rejecting it made every edit fail. There's nothing to update anyway.
+      delete updateData.openingBalance;
+
+      // Prevent updating genuinely immutable fields
       const immutableFields = [
         "accountNumber",
         "coaAccount",
-        "openingBalance",
         "createdBy",
         "createdAt",
       ];
@@ -183,54 +191,13 @@ class BankController {
   }
 
   /**
-   * Reconcile a bank account
+   * FDR accounts (children of 1100) with balances and transaction counts
    */
-  static async reconcileBankAccount(req, res, next) {
+  static async getFdrSummary(req, res, next) {
     try {
-      const { id } = req.params;
-      const {
-        reconciledBalance,
-        reconciledDate,
-        reconciliationId,
-        statementReference,
-        transactionIds,
-      } = req.body;
+      const summary = await BankService.getFdrSummary();
 
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      if (reconciledBalance === undefined || reconciledBalance === null) {
-        return ApiResponse.badRequest(res, "Reconciled balance is required");
-      }
-
-      if (!reconciledDate) {
-        return ApiResponse.badRequest(res, "Reconciliation date is required");
-      }
-
-      if (Number.isNaN(Number(reconciledBalance))) {
-        return ApiResponse.badRequest(res, "Reconciled balance must be a number");
-      }
-
-      // Validate date format
-      const dateObj = new Date(reconciledDate);
-      if (isNaN(dateObj.getTime())) {
-        return ApiResponse.badRequest(res, "Reconciliation date must be a valid date");
-      }
-
-      const account = await BankService.reconcileBankAccount(
-        id,
-        {
-          reconciledBalance: Number(reconciledBalance),
-          reconciledDate: dateObj,
-          reconciliationId,
-          statementReference,
-          transactionIds,
-        },
-        req.user.userId
-      );
-
-      return ApiResponse.success(res, account, "Bank account reconciled successfully");
+      return ApiResponse.success(res, summary, "FDR summary retrieved successfully");
     } catch (error) {
       next(error);
     }
@@ -239,16 +206,8 @@ class BankController {
   static async getBankTransactions(req, res, next) {
     try {
       const { id } = req.params;
-      const {
-        page,
-        limit,
-        startDate,
-        endDate,
-        status,
-        reconciliationStatus,
-        search,
-        referenceNumber,
-      } = req.query;
+      const { page, limit, startDate, endDate, status, search, referenceNumber } =
+        req.query;
 
       if (!id) {
         return ApiResponse.badRequest(res, "Bank account ID is required");
@@ -260,7 +219,6 @@ class BankController {
         startDate,
         endDate,
         status,
-        reconciliationStatus,
         search,
         referenceNumber,
       });
@@ -269,6 +227,33 @@ class BankController {
         res,
         result,
         "Bank transactions retrieved successfully",
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Printable cash-book report for one bank account
+   */
+  static async getBankReport(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { startDate, endDate } = req.query;
+
+      if (!id) {
+        return ApiResponse.badRequest(res, "Bank account ID is required");
+      }
+
+      const result = await BankService.getJournalBackedReport(id, {
+        startDate,
+        endDate,
+      });
+
+      return ApiResponse.success(
+        res,
+        result,
+        "Bank report retrieved successfully",
       );
     } catch (error) {
       next(error);

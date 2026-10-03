@@ -1,5 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { Plus, X, ShieldCheck, Repeat, FileText } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Plus,
+  X,
+  ShieldCheck,
+  Repeat,
+  FileText,
+  AlertCircle,
+  Hash,
+  Lock,
+} from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useForm, useFieldArray, FormProvider, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +24,7 @@ import Button from "../common/Button";
 import DatePicker from "../common/DatePicker";
 import Modal from "../common/Modal";
 import { SectionSkeleton } from "../common/Loaders";
+import { useHotkeys, MOD_LABEL } from "../../hooks/useHotkeys";
 import { todayISO, toISODate, formatDisplayDate } from "../../utils/date";
 import { formatCurrency } from "../../utils/currency";
 
@@ -54,6 +64,7 @@ const journalSchema = z
     voucherDate: z.string().min(1, "Voucher date is required"),
     transactionType: z.enum(["journal-entry", "receipt", "payment", "transfer"]),
     description: z.string().trim().optional(),
+    referenceNumber: z.string().trim().optional(),
     requiresApproval: z.boolean().optional(),
     bookEntries: z
       .array(bookEntrySchema)
@@ -85,6 +96,19 @@ const journalSchema = z
 
 const blankRow = { account: "", debit: "", credit: "", description: "" };
 
+// Fields an edit may change, per the backend whitelist in
+// accounting.controller.js's updateEntry. Anything else in the payload is
+// rejected with a 400 rather than silently dropped, so the edit submission
+// has to be built explicitly instead of forwarding the whole form state.
+const toEditPayload = (data) => ({
+  voucherDate: data.voucherDate,
+  description: data.description || "",
+  referenceNumber: data.referenceNumber || "",
+  bookEntries: (data.bookEntries || []).map((line) => ({
+    description: line.description || "",
+  })),
+});
+
 // initialData's bookEntries.account is a populated object ({_id, accountCode,
 // accountName, accountType} — see accounting.service.js's .populate() calls),
 // not a plain id string. The old code spread it through unchanged, so
@@ -98,6 +122,7 @@ const buildDefaultValues = (initialData) => ({
   voucherDate: toISODate(initialData?.voucherDate) || todayISO(),
   transactionType: initialData?.transactionType || "journal-entry",
   description: initialData?.description || "",
+  referenceNumber: initialData?.referenceNumber || "",
   requiresApproval: initialData ? initialData.approvalStatus === "pending" : false,
   bookEntries: initialData?.bookEntries?.length
     ? initialData.bookEntries.map((e) => ({
@@ -150,6 +175,16 @@ const DynamicJournalForm = ({
 
   const [confirmPayload, setConfirmPayload] = useState(null);
 
+  // Editing an existing entry is narrative-only: amounts, accounts, line
+  // count, transaction type and approval routing are all immutable.
+  const isEditMode = !!initialData;
+
+  // Backend rejections that aren't field-scoped (edit window closed, editing
+  // disabled by the director, voucher date inside a finalized reconciliation)
+  // need to stay on screen next to the form — a toast disappears before the
+  // user has finished reading why their edit didn't take.
+  const [formError, setFormError] = useState("");
+
   // ==============================
   // BALANCE CALCULATION (live, mirrors the schema's superRefine exactly so
   // the UI hint never disagrees with what submission will actually enforce)
@@ -182,9 +217,43 @@ const DynamicJournalForm = ({
     remove(rowIndex);
   };
 
+  // Index of a row whose account picker should take focus once it renders —
+  // adding a line by keyboard should leave the caret in the new line, not
+  // back where it was.
+  const focusRowRef = useRef(null);
+
   const handleAddRow = () => {
+    focusRowRef.current = fields.length;
     append(blankRow);
   };
+
+  useEffect(() => {
+    if (focusRowRef.current === null) return;
+    const index = focusRowRef.current;
+    focusRowRef.current = null;
+    // The account combobox trigger is the first button in the row.
+    document
+      .querySelector(`[data-book-entry-row="${index}"] button`)
+      ?.focus();
+  }, [fields.length]);
+
+  // Alt+A / Alt+D — the repetitive part of multi-line entry. Alt combos are
+  // allowed to fire from inside a field (that's where the user will be), and
+  // Alt+D acts on whichever row currently holds focus, falling back to the
+  // last row when focus is elsewhere in the form.
+  const removeFocusedRow = () => {
+    const row = document.activeElement?.closest?.("[data-book-entry-row]");
+    const parsed = Number(row?.dataset.bookEntryRow);
+    handleRowRemove(Number.isInteger(parsed) ? parsed : fields.length - 1);
+  };
+
+  useHotkeys(
+    [
+      { combo: "alt+a", handler: handleAddRow },
+      { combo: "alt+d", handler: removeFocusedRow },
+    ],
+    { enabled: !isEditMode },
+  );
 
   // ==============================
   // SUBMIT
@@ -193,11 +262,14 @@ const DynamicJournalForm = ({
   const applyServerErrors = (err) => {
     const fieldErrors = err?.errors;
     if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+      setFormError("");
       fieldErrors.forEach(({ field, message }) => {
         if (field) setError(field, { type: "server", message });
       });
     } else {
-      toast.error(err?.message || "Failed to save journal entry");
+      // Business-rule rejections (BadRequestError) carry no `errors[]`, so
+      // they'd previously vanish into a toast. Pin them to the form instead.
+      setFormError(err?.message || "Failed to save journal entry");
     }
   };
 
@@ -216,13 +288,15 @@ const DynamicJournalForm = ({
   };
 
   const onValid = async (data) => {
-    if (!initialData) {
+    if (!isEditMode) {
       setConfirmPayload(data);
       return;
     }
 
+    setFormError("");
+
     try {
-      await onSubmit(data);
+      await onSubmit(toEditPayload(data));
     } catch (err) {
       applyServerErrors(err);
     }
@@ -271,6 +345,27 @@ const DynamicJournalForm = ({
         </Button>
       )}
 
+      {/* Non-field backend rejections (edit window closed, editing disabled,
+          date inside a finalized reconciliation) */}
+      {formError && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
+          <p>{formError}</p>
+        </div>
+      )}
+
+      {isEditMode && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <Lock size={18} className="mt-0.5 shrink-0 text-amber-500" />
+          <p>
+            Amounts, accounts and transaction type are permanently locked. You
+            can change the voucher date, reference, and descriptions for 3 days
+            after the entry was created — to correct an amount, post a
+            reversing entry instead.
+          </p>
+        </div>
+      )}
+
       {/* Voucher Details */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-bold">Voucher Details</h2>
@@ -291,31 +386,48 @@ const DynamicJournalForm = ({
             )}
           />
 
-          <Select
-            label="Transaction Type"
-            icon={Repeat}
-            options={[
-              {
-                value: "journal-entry",
-                label: "Journal Entry",
-              },
-              {
-                value: "receipt",
-                label: "Receipt",
-              },
-              {
-                value: "payment",
-                label: "Payment",
-              },
-              {
-                value: "transfer",
-                label: "Transfer",
-              },
-            ]}
-            {...register("transactionType")}
-          />
+          {isEditMode ? (
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Transaction Type (locked)
+              </p>
+              <p className="text-sm font-semibold capitalize text-slate-700">
+                {(initialData?.transactionType || "").replace(/-/g, " ") || "—"}
+              </p>
+            </div>
+          ) : (
+            <Select
+              label="Transaction Type"
+              icon={Repeat}
+              options={[
+                {
+                  value: "journal-entry",
+                  label: "Journal Entry",
+                },
+                {
+                  value: "receipt",
+                  label: "Receipt",
+                },
+                {
+                  value: "payment",
+                  label: "Payment",
+                },
+                {
+                  value: "transfer",
+                  label: "Transfer",
+                },
+              ]}
+              {...register("transactionType")}
+            />
+          )}
 
           <Input label="Description" icon={FileText} {...register("description")} />
+
+          <Input
+            label="Reference Number"
+            icon={Hash}
+            {...register("referenceNumber")}
+          />
         </div>
       </div>
 
@@ -329,47 +441,74 @@ const DynamicJournalForm = ({
             index={idx}
             leafAccounts={leafAccounts}
             onRemove={() => handleRowRemove(idx)}
+            readOnly={isEditMode}
           />
         ))}
 
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleAddRow}
-          className="mt-3 border-brand-navy text-brand-navy hover:bg-brand-navy-light focus:ring-brand-navy-light"
-          icon={Plus}>
-          Add Row
-        </Button>
-      </div>
+        {/* Adding or removing a line changes the entry's structure, which an
+            edit can never do — the backend rejects a differing line count. */}
+        {!isEditMode && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddRow}
+              title="Add a line (Alt + A)"
+              className="border-brand-navy text-brand-navy hover:bg-brand-navy-light focus:ring-brand-navy-light"
+              icon={Plus}>
+              Add Row
+            </Button>
 
-      {/* Approval Settings */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <ShieldCheck size={18} className="text-brand-navy" />
-
-          <h2 className="text-sm font-bold">Approval Settings</h2>
-        </div>
-
-        <label className="flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4"
-            {...register("requiresApproval")}
-          />
-
-          <div>
-            <p className="text-sm font-medium text-slate-700">
-              Require Director Approval
-            </p>
-
-            <p className="mt-1 text-xs text-slate-500">
-              If enabled, this journal entry will be sent for director approval
-              before posting. Otherwise it will be automatically approved and
-              posted instantly.
+            <p className="text-xs text-slate-400">
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-500">
+                Alt A
+              </kbd>{" "}
+              add line ·{" "}
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-500">
+                Alt D
+              </kbd>{" "}
+              remove ·{" "}
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-500">
+                {MOD_LABEL} ↵
+              </kbd>{" "}
+              save
             </p>
           </div>
-        </label>
+        )}
       </div>
+
+      {/* Approval Settings — creation only. An edit never changes approval
+          routing (approvalStatus is immutable), so showing the toggle here
+          would promise something the backend rejects. */}
+      {!isEditMode && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck size={18} className="text-brand-navy" />
+
+            <h2 className="text-sm font-bold">Approval Settings</h2>
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4"
+              {...register("requiresApproval")}
+            />
+
+            <div>
+              <p className="text-sm font-medium text-slate-700">
+                Require Director Approval
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                If enabled, this journal entry will be sent for director approval
+                before posting. Otherwise it will be automatically approved and
+                posted instantly.
+              </p>
+            </div>
+          </label>
+        </div>
+      )}
 
       {/* Balance Summary */}
       <BalanceSummary

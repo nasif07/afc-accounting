@@ -1,6 +1,6 @@
 ﻿/* eslint-disable react-refresh/only-export-components */
 import { lazy, Suspense } from "react";
-import { createBrowserRouter, Navigate, Outlet, Link } from "react-router";
+import { createBrowserRouter, Navigate, Link } from "react-router";
 import { useSelector } from "react-redux";
 import ErrorBoundary from "../components/ErrorBoundary";
 import Layout from "../components/Layout";
@@ -13,6 +13,8 @@ import { PageLoader } from "../components/common/Loaders";
 // to ~250 KB; remaining pages load on demand as users navigate.
 const Login                = lazy(() => import("../pages/Login"));
 const Register             = lazy(() => import("../pages/Register"));
+const ForgotPassword       = lazy(() => import("../pages/ForgotPassword"));
+const ResetPassword        = lazy(() => import("../pages/ResetPassword"));
 const Dashboard            = lazy(() => import("../pages/Dashboard"));
 const Students             = lazy(() => import("../pages/Students"));
 const Employees            = lazy(() => import("../pages/Employees"));
@@ -24,11 +26,15 @@ const JournalEntries       = lazy(() => import("../pages/JournalEntries"));
 const JournalEntryDetails  = lazy(() => import("../pages/JournalEntryDetails"));
 const Ledger               = lazy(() => import("../pages/Ledger"));
 const BankCash             = lazy(() => import("../pages/BankCash"));
+const BankReportPage       = lazy(() => import("../pages/BankReportPage"));
 const BankBook             = lazy(() => import("../pages/BankBook"));
+const BankReconciliation   = lazy(() => import("../pages/BankReconciliation"));
 const Reports              = lazy(() => import("../pages/Reports"));
 const Settings             = lazy(() => import("../pages/Settings"));
 const DirectorApprovals    = lazy(() => import("../pages/DirectorApprovals"));
 const JournalEntryApprovals = lazy(() => import("../pages/JournalEntryApprovals"));
+const ApprovalRequests     = lazy(() => import("../pages/ApprovalRequests"));
+const ApprovalReview       = lazy(() => import("../pages/ApprovalReview"));
 
 // Redirect from / based on auth state
 function RootRedirect() {
@@ -37,15 +43,18 @@ function RootRedirect() {
   return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
 }
 
-// Layout wrapper for all authenticated users
+// Layout wrapper for all authenticated users.
+// Note: Layout (DashboardLayout) takes no props and renders its OWN internal
+// <Outlet /> — it never reads `children`. A <Suspense> previously wrapped
+// around an <Outlet /> passed as children here, which meant it was dead
+// code: React never rendered it, so page navigation had no working Suspense
+// boundary at all (the real Outlet, inside Layout.jsx, was unwrapped). The
+// working boundary now lives in Layout.jsx around the Outlet that's
+// actually rendered.
 function ProtectedLayoutWrapper() {
   return (
     <ProtectedRoute>
-      <Layout>
-        <Suspense fallback={<PageLoader message="Loading page..." />}>
-          <Outlet />
-        </Suspense>
-      </Layout>
+      <Layout />
     </ProtectedRoute>
   );
 }
@@ -54,11 +63,7 @@ function ProtectedLayoutWrapper() {
 function DirectorLayoutWrapper() {
   return (
     <ProtectedRoute requiredRole="director">
-      <Layout>
-        <Suspense fallback={<PageLoader message="Loading page..." />}>
-          <Outlet />
-        </Suspense>
-      </Layout>
+      <Layout />
     </ProtectedRoute>
   );
 }
@@ -84,6 +89,10 @@ const router = createBrowserRouter([
   { path: "/",         element: <RootRedirect />,      errorElement: <ErrorBoundary /> },
   { path: "/login",    element: <PublicRoute><Suspense fallback={<PageLoader />}><Login /></Suspense></PublicRoute>,    errorElement: <ErrorBoundary /> },
   { path: "/register", element: <PublicRoute><Suspense fallback={<PageLoader />}><Register /></Suspense></PublicRoute>, errorElement: <ErrorBoundary /> },
+  { path: "/forgot-password", element: <PublicRoute><Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense></PublicRoute>, errorElement: <ErrorBoundary /> },
+  // NOT wrapped in PublicRoute: a signed-in user following a reset link from
+  // their inbox must still land on the form, not be bounced to the dashboard.
+  { path: "/reset-password", element: <Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>, errorElement: <ErrorBoundary /> },
 
   {
     path: "/dashboard",
@@ -101,9 +110,13 @@ const router = createBrowserRouter([
       { path: "journal-entries/:id",   element: <JournalEntryDetails /> },
       { path: "ledger",                element: <Ledger /> },
       { path: "bank-cash",             element: <BankCash /> },
+      { path: "bank-cash/report",      element: <BankReportPage /> },
       { path: "bank-book",             element: <BankBook /> },
+      { path: "bank-book/reconciliation", element: <BankReconciliation /> },
       { path: "reports",               element: <Reports /> },
-      { path: "settings",              element: <Settings /> },
+      { path: "settings",               element: <Settings /> },
+
+      { path: "approval-requests",     element: <ApprovalRequests /> },
       // { path: "audit-log",             element: <ComingSoon /> },
     ],
   },
@@ -116,6 +129,8 @@ const router = createBrowserRouter([
     children: [
       { path: "approvals",         element: <DirectorApprovals /> },
       { path: "journal-approvals", element: <JournalEntryApprovals /> },
+
+      { path: "approval-requests", element: <ApprovalReview /> },
     ],
   },
 

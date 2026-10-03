@@ -1,14 +1,15 @@
 const express = require("express");
 const BankController = require("./bank.controller");
 const auth = require("../../middleware/auth");
-const { directorOnly } = require("../../middleware/roleCheck");
+const { accountantOrDirector } = require("../../middleware/roleCheck");
 const validate = require("../../validation/validate");
 const {
   createBankAccountBody,
   updateBankAccountBody,
-  reconcileBankAccountBody,
+  reorderBankAccountsBody,
   getAllBankAccountsQuery,
   getBankTransactionsQuery,
+  getBankReportQuery,
   idParam,
 } = require("../../validation/bank.validation");
 
@@ -18,9 +19,10 @@ router.use(auth);
 
 // Static routes BEFORE dynamic /:id
 router.get("/report/total-balance", BankController.getTotalBankBalance);
+router.get("/report/fdr-summary", BankController.getFdrSummary);
 router.post(
   "/",
-  directorOnly,
+  accountantOrDirector,
   validate({ body: createBankAccountBody }),
   BankController.createBankAccount,
 );
@@ -28,6 +30,12 @@ router.get(
   "/",
   validate({ query: getAllBankAccountsQuery }),
   BankController.getAllBankAccounts,
+);
+router.patch(
+  "/reorder",
+  accountantOrDirector,
+  validate({ body: reorderBankAccountsBody }),
+  BankController.reorderBankAccounts,
 );
 
 // Dynamic routes
@@ -37,27 +45,26 @@ router.get(
   BankController.getBankTransactions,
 );
 router.get(
+  "/:id/report",
+  validate({ params: idParam, query: getBankReportQuery }),
+  BankController.getBankReport,
+);
+router.get(
   "/:id",
   validate({ params: idParam }),
   BankController.getBankAccountById,
 );
 router.put(
   "/:id",
-  directorOnly,
+  accountantOrDirector,
   validate({ params: idParam, body: updateBankAccountBody }),
   BankController.updateBankAccount,
 );
 router.delete(
   "/:id",
-  directorOnly,
+  accountantOrDirector,
   validate({ params: idParam }),
   BankController.deleteBankAccount,
-);
-router.put(
-  "/:id/reconciliation",
-  directorOnly,
-  validate({ params: idParam, body: reconcileBankAccountBody }),
-  BankController.reconcileBankAccount,
 );
 
 module.exports = router;

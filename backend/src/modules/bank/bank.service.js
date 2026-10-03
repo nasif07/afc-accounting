@@ -4,8 +4,13 @@ const COAService = require("../chartOfAccounts/coa.service");
 const JournalEntry = require("../accounting/accounting.model");
 const { NotFoundError, BadRequestError } = require("../../errors");
 const logger = require("../../utils/logger");
+const { formatReferenceNumber } = require("../../utils/reference");
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Parent head every Fixed Deposit Receipt account hangs off, mirroring how
+// 1002 is the parent for individual bank accounts.
+const FDR_PARENT_ACCOUNT_CODE = "1100";
 
 class BankService {
   static async getBankParentAccount() {
@@ -13,6 +18,89 @@ class BankService {
       accountCode: "1002",
       deletedAt: null,
     });
+  }
+
+  static async getFdrParentAccount() {
+    return await ChartOfAccounts.findOne({
+      accountCode: FDR_PARENT_ACCOUNT_CODE,
+      deletedAt: null,
+    });
+  }
+
+  /**
+   * Fixed Deposit Receipts: every active child of the FDR head (1100), with
+   * its ledger balance and how many approved journal entries touch it.
+   *
+   * FDRs are plain Chart-of-Accounts children — there is no Bank-style
+   * document behind them — so everything here derives from the same approved
+   * journal ledger the bank balances use.
+   *
+   * `configured: false` (rather than an error) when 1100 doesn't exist yet:
+   * the head is a normal COA account someone has to create, and the Bank &
+   * Cash screen shows a "create it" hint instead of an error state.
+   */
+  static async getFdrSummary() {
+    const parent = await this.getFdrParentAccount();
+
+    if (!parent) {
+      return {
+        configured: false,
+        parent: null,
+        totalBalance: 0,
+        accountCount: 0,
+        transactionCount: 0,
+        accounts: [],
+      };
+    }
+
+    const children = await ChartOfAccounts.find({
+      parentAccount: parent._id,
+      accountType: "asset",
+      status: "active",
+      deletedAt: null,
+    })
+      .select("_id accountCode accountName")
+      .sort({ accountCode: 1 });
+
+    const accounts = [];
+    let totalBalance = 0;
+    let transactionCount = 0;
+
+    for (const account of children) {
+      const [currentBalance, count] = await Promise.all([
+        this.calculateCoaLedgerBalance(account._id),
+        JournalEntry.countDocuments({
+          "bookEntries.account": account._id,
+          status: "posted",
+          approvalStatus: "approved",
+          deletedAt: null,
+        }),
+      ]);
+
+      totalBalance += currentBalance;
+      transactionCount += count;
+
+      accounts.push({
+        _id: account._id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        currentBalance,
+        transactionCount: count,
+      });
+    }
+
+    return {
+      configured: true,
+      parent: {
+        _id: parent._id,
+        accountCode: parent.accountCode,
+        accountName: parent.accountName,
+      },
+      totalBalance,
+      accountCount: accounts.length,
+      transactionCount,
+      accounts,
+    };
   }
 
   static async getActiveBankChildAccounts() {
@@ -120,25 +208,23 @@ class BankService {
       );
     }
 
-    // Create bank account
-    const bank = new Bank(bankData);
+    // A bank account carries no opening balance of its own — it only links to
+    // a COA account that already has one (set on the COA screen, backed by a
+    // real OPENING_BALANCE journal). Every balance read here derives from that
+    // account's ledger, so there is nothing to seed at creation time.
+    // New accounts land at the end of the user-defined order rather than
+    // jumping to the front. Accounts predating displayOrder all sit at 0, so
+    // the first created account after this change gets 1.
+    const lastOrdered = await Bank.findOne({ deletedAt: null })
+      .sort({ displayOrder: -1 })
+      .select("displayOrder")
+      .lean();
+
+    const bank = new Bank({
+      ...bankData,
+      displayOrder: Number(lastOrdered?.displayOrder || 0) + 1,
+    });
     await bank.save();
-
-    const hasOpeningBalanceJournal =
-      await COAService.hasOpeningBalanceJournal(coaAccount._id);
-
-    if (Number(bankData.openingBalance || 0) > 0 && !hasOpeningBalanceJournal) {
-      coaAccount.openingBalance = Number(bankData.openingBalance);
-      coaAccount.openingBalanceType = "debit";
-      coaAccount.openingDate = bankData.openingDate || new Date();
-      await coaAccount.save();
-      await COAService.createOpeningBalanceJournal(coaAccount, bankData.createdBy);
-    } else if (hasOpeningBalanceJournal) {
-      await COAService.deduplicateOpeningBalanceJournals(
-        coaAccount._id,
-        bankData.createdBy,
-      );
-    }
 
     // Populate references for response
     await bank.populate("coaAccount", "accountCode accountName accountType");
@@ -164,17 +250,15 @@ class BankService {
     const banks = await Bank.find(query)
       .populate("createdBy", "name email")
       .populate("coaAccount", "accountName accountCode accountType balance")
-      .sort({ createdAt: -1 })
+      // displayOrder is the drag-and-drop order from the Bank & Cash screen;
+      // createdAt breaks ties for accounts that have never been reordered.
+      .sort({ displayOrder: 1, createdAt: -1 })
       .lean();
 
     // Calculate current balance for each bank from approved journal ledger only.
     for (const bank of banks) {
       try {
         bank.currentBalance = await this.calculateBankBalance(bank._id);
-        if (bank.lastReconciledDate) {
-          bank.reconciliationDifference =
-            Number(bank.lastReconciledBalance || 0) - bank.currentBalance;
-        }
       } catch (error) {
         logger.error({ err: error, bankId: bank._id }, "Error calculating balance for bank");
         bank.currentBalance = 0;
@@ -183,6 +267,64 @@ class BankService {
     }
 
     return banks;
+  }
+
+  /**
+   * Persist the card order from the Bank & Cash screen.
+   *
+   * `orderedIds` is whatever the client had on screen. It is treated as a
+   * preference, not as the authoritative set: ids that no longer exist are
+   * dropped and any account the client didn't know about (created or
+   * reactivated by someone else in the meantime) is appended in its current
+   * order. That way a concurrent edit degrades to "the new account is last"
+   * instead of failing the request or losing rows from the ordering.
+   */
+  static async reorderBankAccounts(orderedIds) {
+    const current = await Bank.find({ deletedAt: null, isActive: true })
+      .sort({ displayOrder: 1, createdAt: -1 })
+      .select("_id")
+      .lean();
+
+    if (current.length === 0) {
+      throw new NotFoundError("No bank accounts to reorder");
+    }
+
+    const knownIds = new Set(current.map((bank) => String(bank._id)));
+    const seen = new Set();
+    const requested = [];
+
+    for (const rawId of orderedIds) {
+      const id = String(rawId);
+      if (!knownIds.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      requested.push(id);
+    }
+
+    if (requested.length === 0) {
+      throw new BadRequestError(
+        "None of the supplied bank accounts exist — reload the page and try again",
+      );
+    }
+
+    const finalOrder = [
+      ...requested,
+      ...current.map((bank) => String(bank._id)).filter((id) => !seen.has(id)),
+    ];
+
+    // timestamps:false and no updatedBy on purpose — dragging a card is a
+    // presentation change, not an edit of the account, and it would otherwise
+    // rewrite the "last updated by/at" of every account on the screen at once.
+    await Bank.bulkWrite(
+      finalOrder.map((id, index) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $set: { displayOrder: index + 1 } },
+        },
+      })),
+      { timestamps: false },
+    );
+
+    return finalOrder.map((id, index) => ({ _id: id, displayOrder: index + 1 }));
   }
 
   /**
@@ -203,10 +345,6 @@ class BankService {
     // Calculate current balance
     try {
       bank.currentBalance = await this.calculateBankBalance(bankId);
-      if (bank.lastReconciledDate) {
-        bank.reconciliationDifference =
-          Number(bank.lastReconciledBalance || 0) - bank.currentBalance;
-      }
     } catch (error) {
       logger.error({ err: error, bankId }, "Error calculating balance for bank");
       bank.currentBalance = 0;
@@ -221,11 +359,17 @@ class BankService {
    * FIXED: Prevent updating immutable fields
    */
   static async updateBankAccount(bankId, updateData, userId) {
-    // Prevent updating immutable fields
+    // Prevent updating immutable fields. `openingBalance` is deliberately
+    // NOT listed: it is not a field on this schema at all (see bank.model.js),
+    // so there is nothing to protect — and guarding it here is what used to
+    // make every edit fail, back when the form sent its whole state on update.
+    // The controller strips it from the payload before this runs.
+    //
+    // Note these are rejected on mere *presence*, not on change — so callers
+    // must send only the mutable fields, never a whole form snapshot.
     const immutableFields = [
       "accountNumber",
       "coaAccount",
-      "openingBalance",
       "createdBy",
       "createdAt",
     ];
@@ -348,12 +492,6 @@ class BankService {
     });
   }
 
-  static getReconciliation(entry, coaAccountId) {
-    return (entry.bankReconciliations || []).find(
-      (item) => String(item.account) === String(coaAccountId),
-    );
-  }
-
   static async getApprovedBankTransactions(bankId, filters = {}) {
     const bank = await Bank.findOne({ _id: bankId, deletedAt: null }).lean();
 
@@ -368,7 +506,6 @@ class BankService {
     const search = String(filters.search || filters.referenceNumber || "")
       .trim()
       .toLowerCase();
-    const reconciliationStatus = filters.reconciliationStatus || filters.status;
 
     const query = {
       "bookEntries.account": bank.coaAccount,
@@ -406,16 +543,13 @@ class BankService {
         const credit = Number(line.credit || 0);
         runningBalance += debit - credit;
 
-        const reconciliation = this.getReconciliation(jsonEntry, bank.coaAccount);
-        const status = reconciliation?.status || "unreconciled";
-        const isReconciled =
-          Boolean(reconciliation?.isReconciled) || status === "reconciled";
-
+        // No per-transaction reconciliation status: reconciliation is
+        // period-based and lives entirely in the BankReconciliation module.
         return {
           journalEntryId: jsonEntry._id,
           date: jsonEntry.voucherDate,
           voucherNumber: jsonEntry.voucherNumber,
-          referenceNumber: jsonEntry.referenceNumber || "",
+          referenceNumber: formatReferenceNumber(jsonEntry),
           description: line.description || jsonEntry.description || "",
           debit,
           credit,
@@ -423,26 +557,12 @@ class BankService {
           runningBalance,
           sourceModule: jsonEntry.sourceModule,
           status: "approved",
-          reconciliationStatus: status,
-          isReconciled,
-          reconciledAt: isReconciled ? reconciliation.reconciledAt : null,
-          reconciledBy: isReconciled ? reconciliation.reconciledBy : null,
-          reconciliationId: isReconciled ? reconciliation.reconciliationId : "",
-          statementRef: isReconciled ? reconciliation.statementRef || "" : "",
           createdBy: jsonEntry.createdBy,
         };
       })
       .filter(Boolean);
 
     const filteredRows = rows.filter((row) => {
-      if (
-        reconciliationStatus &&
-        reconciliationStatus !== "all" &&
-        row.reconciliationStatus !== reconciliationStatus
-      ) {
-        return false;
-      }
-
       if (!search) return true;
 
       return [
@@ -450,7 +570,6 @@ class BankService {
         row.referenceNumber,
         row.description,
         row.sourceModule,
-        row.reconciliationId,
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(search));
@@ -471,6 +590,200 @@ class BankService {
         page: safePage,
         limit,
         totalPages,
+      },
+    };
+  }
+
+  static getAccountId(account) {
+    if (!account) return "";
+    if (typeof account === "object") return String(account._id || account);
+    return String(account);
+  }
+
+  static getAccountLabel(account) {
+    if (!account) return "---";
+    if (typeof account === "string") return account;
+
+    const code = account.accountCode ? `${account.accountCode} - ` : "";
+    return `${code}${account.accountName || "---"}`;
+  }
+
+  /**
+   * The other side of the entry — the head money came from (on a deposit) or
+   * went to (on a withdrawal). Multi-line entries report their first non-bank
+   * line, which is what the cash-book column has room for.
+   */
+  static getCounterpartyLabel(entry, coaAccountId) {
+    const otherLine = (entry.bookEntries || []).find(
+      (line) => this.getAccountId(line.account) !== String(coaAccountId),
+    );
+
+    return this.getAccountLabel(otherLine?.account);
+  }
+
+  static buildBankReportRow(entry, coaAccountId) {
+    const bankLine = (entry.bookEntries || []).find(
+      (line) => this.getAccountId(line.account) === String(coaAccountId),
+    );
+
+    if (!bankLine) return null;
+
+    const debit = Number(bankLine.debit || 0);
+    const credit = Number(bankLine.credit || 0);
+
+    return {
+      id: entry._id,
+      journalEntryId: entry._id,
+      date: entry.voucherDate || entry.createdAt,
+      voucherNumber: entry.voucherNumber || "---",
+      referenceNumber: formatReferenceNumber(entry),
+      type: debit > 0 ? "deposit" : "withdrawal",
+      description: bankLine.description || entry.description || "",
+      // Entry-level description, the same thing the Bank Book statement
+      // prints in its "Note" column (see bankBook.service buildRow) — kept
+      // separate from `description`, which falls back to the bank line's own
+      // narration and feeds the "paid from / paid to" column instead.
+      note: entry.description || "",
+      counterparty: this.getCounterpartyLabel(entry, coaAccountId),
+      debit,
+      credit,
+      sourceModule: entry.sourceModule || "manual",
+      status: "approved",
+      approvalStatus: entry.approvalStatus,
+      createdBy: entry.createdBy || null,
+    };
+  }
+
+  /**
+   * Printable cash-book report for one bank account, built from the approved
+   * journal ledger only — the same source and shape as the petty cash report
+   * (see PettyCashService.getJournalBackedReport), so the two screens agree
+   * on what an "approved" balance means.
+   *
+   * The opening balance is everything posted strictly before startDate; with
+   * no startDate there is no prior period, so it is zero and the running
+   * balance starts from the first transaction.
+   */
+  static async getJournalBackedReport(bankId, filters = {}) {
+    const bank = await Bank.findOne({ _id: bankId, deletedAt: null })
+      .populate("coaAccount", "accountCode accountName accountType")
+      .lean();
+
+    if (!bank) {
+      throw new NotFoundError("Bank account not found");
+    }
+
+    if (!bank.coaAccount) {
+      throw new BadRequestError(
+        "Bank account is not linked to a chart of account",
+      );
+    }
+
+    const coaAccountId = bank.coaAccount._id;
+
+    await COAService.deduplicateOpeningBalanceJournals(coaAccountId);
+
+    const startDate = filters.startDate ? new Date(filters.startDate) : null;
+    const endDate = filters.endDate ? new Date(filters.endDate) : null;
+
+    if (startDate && Number.isNaN(startDate.getTime())) {
+      throw new BadRequestError("Invalid from date");
+    }
+
+    if (endDate && Number.isNaN(endDate.getTime())) {
+      throw new BadRequestError("Invalid to date");
+    }
+
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    const baseQuery = {
+      "bookEntries.account": coaAccountId,
+      status: "posted",
+      approvalStatus: "approved",
+      deletedAt: null,
+    };
+
+    const openingQuery = { ...baseQuery };
+
+    if (startDate) {
+      openingQuery.voucherDate = { $lt: startDate };
+    } else {
+      // No period start means no prior period to accumulate.
+      openingQuery._id = null;
+    }
+
+    const periodQuery = { ...baseQuery };
+
+    if (startDate || endDate) {
+      periodQuery.voucherDate = {};
+      if (startDate) periodQuery.voucherDate.$gte = startDate;
+      if (endDate) periodQuery.voucherDate.$lte = endDate;
+    }
+
+    const [openingEntries, periodEntries] = await Promise.all([
+      JournalEntry.find(openingQuery)
+        .populate("bookEntries.account", "accountCode accountName accountType")
+        .sort({ voucherDate: 1, createdAt: 1, _id: 1 }),
+      JournalEntry.find(periodQuery)
+        .populate("createdBy", "name email")
+        .populate("bookEntries.account", "accountCode accountName accountType")
+        .sort({ voucherDate: 1, createdAt: 1, _id: 1 }),
+    ]);
+
+    const openingBalance = openingEntries.reduce((sum, entry) => {
+      const row = this.buildBankReportRow(entry.toJSON(), coaAccountId);
+      if (!row) return sum;
+      return sum + row.debit - row.credit;
+    }, 0);
+
+    let runningBalance = openingBalance;
+    const transactions = periodEntries
+      .map((entry) => this.buildBankReportRow(entry.toJSON(), coaAccountId))
+      .filter(Boolean)
+      .map((row) => {
+        runningBalance += row.debit - row.credit;
+
+        return {
+          ...row,
+          accountHead: row.counterparty,
+          runningBalance,
+        };
+      });
+
+    const totalDeposit = transactions.reduce((sum, row) => sum + row.debit, 0);
+    const totalWithdrawal = transactions.reduce(
+      (sum, row) => sum + row.credit,
+      0,
+    );
+
+    return {
+      bank: {
+        _id: bank._id,
+        bankName: bank.bankName,
+        accountNumber: bank.accountNumber,
+        accountHolderName: bank.accountHolderName,
+        branchName: bank.branchName,
+        accountType: bank.accountType,
+      },
+      account: {
+        _id: bank.coaAccount._id,
+        accountCode: bank.coaAccount.accountCode,
+        accountName: bank.coaAccount.accountName,
+        accountType: bank.coaAccount.accountType,
+      },
+      openingBalance,
+      transactions,
+      summary: {
+        totalDeposit,
+        totalWithdrawal,
+        closingBalance: openingBalance + totalDeposit - totalWithdrawal,
+        count: transactions.length,
+      },
+      dateRange: {
+        from: filters.startDate || null,
+        to: filters.endDate || null,
       },
     };
   }
@@ -500,161 +813,6 @@ class BankService {
       accounts,
     };
   }
-
-  /**
-   * Reconcile a bank account
-   * FIXED: Store signed difference (positive = over, negative = under)
-   */
-  static async reconcileBankAccount(bankId, reconcileData, userId) {
-    const bank = await Bank.findById(bankId);
-
-    if (!bank) {
-      throw new NotFoundError("Bank account not found");
-    }
-
-    const reconciledBalance = Number(reconcileData.reconciledBalance || 0);
-    const reconciledDate = reconcileData.reconciledDate;
-    const reconciliationId =
-      reconcileData.reconciliationId ||
-      reconcileData.statementReference ||
-      `REC-${bankId}-${Date.now()}`;
-    const statementRef = reconcileData.statementReference || reconciliationId;
-    const transactionIds = Array.isArray(reconcileData.transactionIds)
-      ? reconcileData.transactionIds
-      : [];
-
-    // Get current system balance
-    const currentBalance = await this.calculateBankBalance(bankId, new Date(reconciledDate));
-
-    // FIXED: Store signed difference (positive = bank has more, negative = bank has less)
-    const difference = reconciledBalance - currentBalance;
-
-    // Update reconciliation data
-    bank.lastReconciledDate = new Date(reconciledDate);
-    bank.lastReconciledBalance = reconciledBalance;
-    bank.reconciliationDifference = difference;
-    bank.updatedBy = userId;
-
-    await bank.save();
-
-    if (transactionIds.length > 0) {
-      const approvedEntries = await JournalEntry.find({
-        _id: { $in: transactionIds },
-        "bookEntries.account": bank.coaAccount,
-        status: "posted",
-        approvalStatus: "approved",
-        deletedAt: null,
-      });
-
-      for (const entry of approvedEntries) {
-        const existing = (entry.bankReconciliations || []).find(
-          (item) => String(item.account) === String(bank.coaAccount),
-        );
-
-        if (existing) {
-          existing.status = "reconciled";
-          existing.isReconciled = true;
-          existing.reconciledAt = new Date(reconciledDate);
-          existing.reconciledBy = userId;
-          existing.reconciliationId = reconciliationId;
-          existing.statementRef = statementRef;
-        } else {
-          entry.bankReconciliations.push({
-            account: bank.coaAccount,
-            status: "reconciled",
-            isReconciled: true,
-            reconciledAt: new Date(reconciledDate),
-            reconciledBy: userId,
-            reconciliationId,
-            statementRef,
-          });
-        }
-
-        await entry.save();
-      }
-    }
-
-    const reconciliationStatus = await this.getReconciliationStatus(bankId);
-
-    return {
-      ...bank.toObject(),
-      reconciliationInfo: {
-        systemBalance: currentBalance,
-        statementBalance: reconciledBalance,
-        reconciledBalance: reconciliationStatus.reconciledBalance,
-        unreconciledBalance: reconciliationStatus.unreconciledBalance,
-        difference: difference,
-        status: difference === 0 ? "reconciled" : "pending",
-        reconciliationId,
-        statementRef,
-      },
-    };
-  }
-
-  /**
-   * Get reconciliation status for a bank account.
-   * Used internally by reconcileBankAccount to build its response payload.
-   */
-  static async getReconciliationStatus(bankId) {
-    const bank = await Bank.findById(bankId);
-
-    if (!bank) {
-      throw new NotFoundError("Bank account not found");
-    }
-
-    await COAService.deduplicateOpeningBalanceJournals(bank.coaAccount);
-
-    const approvedEntries = await JournalEntry.find({
-      "bookEntries.account": bank.coaAccount,
-      status: "posted",
-      approvalStatus: "approved",
-      deletedAt: null,
-    });
-
-    let currentBalance = 0;
-    let reconciledBalance = 0;
-
-    for (const entry of approvedEntries) {
-      const jsonEntry = entry.toJSON();
-      const line = this.getBankLine(jsonEntry, bank.coaAccount);
-      if (!line) continue;
-
-      const amount = Number(line.debit || 0) - Number(line.credit || 0);
-      currentBalance += amount;
-
-      const reconciliation = this.getReconciliation(jsonEntry, bank.coaAccount);
-      if (
-        reconciliation?.isReconciled ||
-        reconciliation?.status === "reconciled"
-      ) {
-        reconciledBalance += amount;
-      }
-    }
-
-    const unreconciledBalance = currentBalance - reconciledBalance;
-    const reconciliationDifference = bank.lastReconciledDate
-      ? Number(bank.lastReconciledBalance || 0) - currentBalance
-      : bank.reconciliationDifference;
-
-    return {
-      bankId: bank._id,
-      bankName: bank.bankName,
-      currentBalance,
-      reconciledBalance,
-      unreconciledBalance,
-      lastReconciledDate: bank.lastReconciledDate,
-      lastReconciledBalance: bank.lastReconciledBalance,
-      reconciliationDifference,
-      isReconciled: reconciliationDifference === 0,
-      status:
-        reconciliationDifference === 0
-          ? "reconciled"
-          : reconciliationDifference > 0
-          ? "over"
-          : "under",
-    };
-  }
-
 }
 
 module.exports = BankService;

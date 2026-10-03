@@ -3,6 +3,29 @@ const { idParam, paginationQuery, requiredDate } = require("./common");
 
 const VALID_STATUSES = ["active", "inactive", "on-leave", "resigned"];
 
+// Payslip reference figures: the form posts "" for an untouched box, which
+// means "not provided" rather than zero.
+const optionalAmount = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : v),
+  z.coerce.number().min(0).optional(),
+);
+
+const payslipFields = {
+  employmentType: z.string().trim().optional(),
+  payScale: optionalAmount,
+  scalePointValue: optionalAmount,
+  monthlyWorkingHours: optionalAmount,
+  healthFundTotal: optionalAmount,
+  healthFundTaken: optionalAmount,
+  healthFundNote: z.string().trim().optional(),
+  lifeFundBalance: optionalAmount,
+  retirementBenefitBalance: optionalAmount,
+  annualLeaveDays: optionalAmount,
+  annualLeaveTaken: optionalAmount,
+  sickLeaveDays: optionalAmount,
+  sickLeaveTaken: optionalAmount,
+};
+
 const createEmployeeBody = z.object({
   employeeCode: z.string().trim().min(1, "Employee code is required"),
   name: z.string().trim().min(1, "Name is required"),
@@ -28,6 +51,7 @@ const createEmployeeBody = z.object({
   emergencyContactPhone: z.string().trim().optional(),
   emergencyContactAltPhone: z.string().trim().optional(),
   emergencyContactAddress: z.string().trim().optional(),
+  ...payslipFields,
 });
 
 // Mirrors the exact field set the controller already whitelists for update.
@@ -52,6 +76,7 @@ const updateEmployeeBody = z.object({
   emergencyContactPhone: z.string().trim().optional(),
   emergencyContactAltPhone: z.string().trim().optional(),
   emergencyContactAddress: z.string().trim().optional(),
+  ...payslipFields,
 });
 
 const getAllEmployeesQuery = paginationQuery.extend({

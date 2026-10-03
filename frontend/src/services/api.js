@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Exported because the org logo is served as a plain <img src> pointing at
+// GET /api/settings/logo — an <img> cannot go through this axios instance, so
+// the slice that builds that URL needs the same base.
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,

@@ -1,9 +1,11 @@
+const mongoose = require("mongoose");
 const PettyCash = require("./pettycash.model");
 const AccountingService = require("../accounting/accounting.service");
 const ValidationService = require("../../services/validationService");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const JournalEntry = require("../accounting/accounting.model");
 const { NotFoundError, BadRequestError } = require("../../errors");
+const { formatReferenceNumber } = require("../../utils/reference");
 
 const PETTY_CASH_ACCOUNT_CODE = "1001";
 
@@ -83,7 +85,7 @@ class PettyCashService {
       journalEntryId: entry._id,
       date: entry.voucherDate || entry.createdAt,
       voucherNumber: entry.voucherNumber || "---",
-      referenceNumber: entry.referenceNumber || "",
+      referenceNumber: formatReferenceNumber(entry),
       type: debit > 0 ? "deposit" : "expense",
       description: pettyCashLine.description || entry.description || "",
       counterparty: this.getCounterpartyLabel(entry, pettyCashAccountId),
@@ -190,6 +192,18 @@ class PettyCashService {
     const safePage = Math.min(page, totalPages);
     const skip = (safePage - 1) * limit;
 
+    // Same magnitude + type convention as the COA "Current Balance" figure
+    // (accounting.service.js's signedToDisplayBalance) instead of a bare
+    // signed number — the two screens show a value under the identical
+    // label "Current Balance" for the identical account, so they need to
+    // agree on how a negative/overdrawn position is represented, not just
+    // on the underlying math.
+    const signedBalance = totalDebit - totalCredit;
+    const balanceDisplay = AccountingService.signedToDisplayBalance(
+      pettyCashAccount.accountType,
+      signedBalance,
+    );
+
     return {
       account: {
         _id: pettyCashAccount._id,
@@ -201,7 +215,8 @@ class PettyCashService {
       summary: {
         totalDebit,
         totalCredit,
-        balance: totalDebit - totalCredit,
+        balance: balanceDisplay.balance,
+        balanceType: balanceDisplay.balanceType,
         count: total,
       },
       pagination: {
@@ -343,7 +358,7 @@ class PettyCashService {
    * Debit  = Expense Account
    * Credit = Petty Cash Account
    */
-  static async createJournalEntryForPettyCash(pettyCash) {
+  static async createJournalEntryForPettyCash(pettyCash, { session } = {}) {
     const pettyCashAccount = await this.getPettyCashAccount();
 
     if (!pettyCashAccount) {
@@ -376,19 +391,31 @@ class PettyCashService {
       );
     }
 
-    return await AccountingService.createJournalEntry({
-      voucherDate: pettyCash.date,
-      transactionType: "payment",
-      sourceModule: "petty_cash",
-      requiresApproval: false,
-      description: `Petty Cash: ${pettyCash.description} (${pettyCash.pettyCashNumber})`,
-      bookEntries,
-      referenceNumber: pettyCash.pettyCashNumber,
-      createdBy: pettyCash.createdBy,
-    });
+    return await AccountingService.createJournalEntry(
+      {
+        voucherDate: pettyCash.date,
+        transactionType: "payment",
+        sourceModule: "petty_cash",
+        requiresApproval: false,
+        description: `Petty Cash: ${pettyCash.description} (${pettyCash.pettyCashNumber})`,
+        bookEntries,
+        referenceNumber: pettyCash.pettyCashNumber,
+        createdBy: pettyCash.createdBy,
+      },
+      { session },
+    );
   }
   /**
    * Create a new petty cash disbursement
+   *
+   * Runs as a single transaction: the PettyCash record, its journal entry,
+   * and the journal entry's auto-approval (which recalculates the COA
+   * balance) all commit together or not at all. Previously these were three
+   * separate writes — a crash between them could leave a PettyCash record
+   * stuck at accountingStatus "pending" while its ledger effect had already
+   * posted (or vice versa), which is exactly the kind of divergence between
+   * the petty cash module and the chart of accounts this is meant to
+   * prevent.
    */
   static async createPettyCash(pettyCashData) {
     const validation = this.validatePettyCashData(pettyCashData);
@@ -410,34 +437,46 @@ class PettyCashService {
       }
     }
 
-    const pettyCash = new PettyCash({
-      ...pettyCashData,
-      pettyCashNumber: pettyCashData.pettyCashNumber
-        ? pettyCashData.pettyCashNumber.toUpperCase()
-        : undefined,
-      amount: Number(pettyCashData.amount),
-      accountingStatus: "pending",
-    });
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    await pettyCash.save();
+    let pettyCashId;
 
     try {
-      const journalEntry = await this.createJournalEntryForPettyCash(pettyCash);
+      const [pettyCash] = await PettyCash.create(
+        [
+          {
+            ...pettyCashData,
+            pettyCashNumber: pettyCashData.pettyCashNumber
+              ? pettyCashData.pettyCashNumber.toUpperCase()
+              : undefined,
+            amount: Number(pettyCashData.amount),
+            accountingStatus: "pending",
+          },
+        ],
+        { session },
+      );
+
+      const journalEntry = await this.createJournalEntryForPettyCash(
+        pettyCash,
+        { session },
+      );
 
       pettyCash.journalEntryId = journalEntry._id;
       pettyCash.accountingStatus = "posted";
+      await pettyCash.save({ session });
 
-      await pettyCash.save();
+      pettyCashId = pettyCash._id;
+
+      await session.commitTransaction();
     } catch (error) {
-      pettyCash.accountingStatus = "pending";
-      await pettyCash.save();
-
-      throw new Error(
-        `Petty cash saved but journal entry failed: ${error.message}`,
-      );
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
     }
 
-    return await this.getPettyCashById(pettyCash._id);
+    return await this.getPettyCashById(pettyCashId);
   }
 
   /**

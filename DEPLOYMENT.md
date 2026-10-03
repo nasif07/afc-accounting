@@ -83,6 +83,18 @@ JWT_SECRET=replace-with-a-real-secret
 CORS_ORIGIN=https://accounts.afchittagong.org
 ```
 
+Direct approval-attachment uploads go from the browser to R2. Configure the
+bucket CORS policy once after setting the R2 credentials:
+
+```bash
+cd /opt/alliance-accounting-app/backend
+R2_CORS_ORIGINS=https://accounts.afchittagong.org node scripts/configure-r2-cors.js
+```
+
+For local development, use `R2_CORS_ORIGINS=http://localhost:5173` instead.
+The policy must allow `PUT` and the `Content-Type` request header; without it,
+the browser reports the upload as an unreachable storage service.
+
 Generate a strong JWT secret:
 
 ```bash

@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import { settingsAPI } from '../../services/apiMethods';
+import { API_URL } from '../../services/api';
 
 export const fetchSettings = createAsyncThunk(
   'settings/fetch',
@@ -78,17 +79,47 @@ export const { clearError, clearSuccess } = settingsSlice.actions;
 // preventing unnecessary rerenders in every consumer on unrelated state updates.
 const selectSettingsData = (state) => state.settings.data;
 
+/**
+ * The URL an <img> should load for the organisation logo.
+ *
+ * Three sources, in priority order, because installs exist in all three states:
+ *   1. an uploaded object — served through the API, which redirects to a
+ *      short-lived presigned GET (the bucket is private, so the key itself is
+ *      never a URL);
+ *   2. a legacy hand-typed path or URL from the old text field;
+ *   3. the artwork bundled with the frontend.
+ *
+ * The `v` parameter is what makes a replaced logo actually appear: the URL is
+ * otherwise identical across uploads, so the browser would keep serving the
+ * previous image from cache.
+ */
+const resolveLogoUrl = (data) => {
+  if (data?.orgLogoKey) {
+    const version = data.orgLogoUpdatedAt
+      ? new Date(data.orgLogoUpdatedAt).getTime()
+      : '';
+    return `${API_URL}/settings/logo${version ? `?v=${version}` : ''}`;
+  }
+  return data?.orgLogo || '/afc-full-logo.jpg';
+};
+
 export const selectOrgInfo = createSelector(selectSettingsData, (data) => ({
   orgName:               data?.orgName    || 'Alliance Francaise de Chittagong',
   orgEmail:              data?.orgEmail   || '',
   orgPhone:              data?.orgPhone   || '',
   orgAddress:            data?.orgAddress || '',
   orgWebsite:            data?.orgWebsite || '',
-  orgLogo:               data?.orgLogo    || '/afc-logo.png',
+  orgLogo:               resolveLogoUrl(data),
+  // The raw key, for the Settings screen: it needs to know whether a logo was
+  // uploaded (and so whether "Remove" applies) rather than just what to render.
+  orgLogoKey:            data?.orgLogoKey || '',
   directorName:          data?.directorName  || 'Bruno LACRAMPE',
   directorTitle:         data?.directorTitle || 'Director',
   leaveYearLabel:        data?.leaveYearLabel     || "July'2025 - June'2026",
   benefitPeriodLabel:    data?.benefitPeriodLabel || '01-07-2023 to 30-06-2025',
+  healthFundLabel:       data?.healthFundLabel    || 'Health Fund',
+  annualLeaveDays:       data?.annualLeaveDays ?? 0,
+  sickLeaveDays:         data?.sickLeaveDays   ?? 0,
   bankNameForPayment:    data?.bankNameForPayment   || 'Brac Bank PLC',
   bankAccountForPayment: data?.bankAccountForPayment || 'XXXXXXXXXXXXXXX',
   currency:              data?.currency       || 'BDT',

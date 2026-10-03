@@ -1,4 +1,5 @@
 import Button from "./Button";
+import { useHotkeys } from "../../hooks/useHotkeys";
 
 const SectionHeader = ({
   icon: Icon,
@@ -11,8 +12,17 @@ const SectionHeader = ({
   iconBg = "bg-red-50",
   iconColor = "text-red-600",
   isLoading = false,
+  // Alt+N fires the page's primary action. Bound here so every list page
+  // gets it from one place. Pages that render their own button as `children`
+  // (Accounts, Bank & Cash) still pass onButtonClick to opt in — without
+  // buttonText no built-in button renders, only the shortcut.
+  hotkey = true,
   children,
 }) => {
+  useHotkeys([{ combo: "alt+n", handler: () => onButtonClick?.() }], {
+    enabled: hotkey && typeof onButtonClick === "function" && !isLoading,
+  });
+
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-col gap-3 p-3 sm:gap-4 sm:p-4 md:flex-row md:items-center md:justify-between">
@@ -45,6 +55,7 @@ const SectionHeader = ({
               onClick={onButtonClick}
               loading={isLoading}
               icon={ButtonIcon}
+              title={hotkey ? `${buttonText} (Alt + N)` : undefined}
               className="w-full md:w-auto">
               {buttonText}
             </Button>

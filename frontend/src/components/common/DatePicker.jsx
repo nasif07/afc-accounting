@@ -41,6 +41,7 @@ export default function DatePicker({
   disabled = false,
   error = "",
   helperText = "",
+  placeholder = "Pick a date",
   className = "",
   ...props
 }) {
@@ -81,7 +82,7 @@ export default function DatePicker({
             {...props}>
             <CalendarIcon size={16} className="shrink-0 text-slate-400" />
             <span className="truncate">
-              {isoValue ? formatDisplayDate(isoValue) : "Pick a date"}
+              {isoValue ? formatDisplayDate(isoValue) : placeholder}
             </span>
           </button>
         </PopoverTrigger>

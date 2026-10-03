@@ -4,7 +4,7 @@ import { pettyCashAPI } from '../services/apiMethods';
 const KEY = ['petty-cash-history'];
 const PETTY_CASH_ACCOUNT_CODE = '1001';
 
-const EMPTY_SUMMARY = { totalDebit: 0, totalCredit: 0, balance: 0, count: 0 };
+const EMPTY_SUMMARY = { totalDebit: 0, totalCredit: 0, balance: 0, balanceType: "debit", count: 0 };
 const EMPTY_PAGINATION = (limit) => ({ total: 0, page: 1, limit, totalPages: 1 });
 
 // Filters (page/search/date range) live in the query key so a rapid filter
@@ -39,6 +39,7 @@ export const usePettyCashHistory = ({ page, limit, search, dateFrom, dateTo }, o
           totalDebit: Number(payload.summary?.totalDebit || 0),
           totalCredit: Number(payload.summary?.totalCredit || 0),
           balance: Number(payload.summary?.balance || 0),
+          balanceType: payload.summary?.balanceType || "debit",
           count: Number(payload.summary?.count || 0),
         },
         pagination: {
@@ -50,6 +51,13 @@ export const usePettyCashHistory = ({ page, limit, search, dateFrom, dateTo }, o
       };
     },
     placeholderData: keepPreviousData,
+    // Balance figures specifically need to reflect whatever just changed
+    // elsewhere (an opening balance edit in COA, a new petty cash entry,
+    // ...) — the app-wide 5 minute staleTime default would otherwise serve
+    // a cached balance for up to 5 minutes after navigating back to this
+    // page. Force a real network refetch every time it's visited.
+    staleTime: 0,
+    refetchOnMount: 'always',
     ...options,
   });
 

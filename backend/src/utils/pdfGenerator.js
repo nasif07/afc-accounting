@@ -1,4 +1,12 @@
 const PDFDocument = require("pdfkit");
+const {
+  buildPayslipModel,
+  formatMoney,
+  formatDecimal,
+  formatDate,
+  monthName,
+  numberToWords,
+} = require("./payslipModel");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -16,62 +24,17 @@ const ensureUploadDir = () => {
 };
 
 class PDFGenerator {
-  static formatMoney(value) {
-    const n = Number(value || 0);
-    return n
-      ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : "–";
-  }
+  // Every payslip figure is formatted by the shared payslip model, so the
+  // PDF and the Word export can never render the same value differently.
+  static formatMoney(value)   { return formatMoney(value); }
 
-  static formatPlainMoney(value) {
-    return Number(value || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  }
+  static formatDecimal(value) { return formatDecimal(value); }
 
-  static formatDate(value) {
-    if (!value) return "";
-    return new Date(value).toLocaleDateString("en-GB", {
-      day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Dhaka",
-    });
-  }
+  static formatDate(value)    { return formatDate(value); }
 
-  static monthName(month) {
-    const months = [
-      "January","February","March","April","May","June",
-      "July","August","September","October","November","December",
-    ];
-    return months[Number(month) - 1] || month || "";
-  }
+  static monthName(month)     { return monthName(month); }
 
-  static numberToWords(value) {
-    const amount = Math.round(Number(value || 0));
-    if (!amount) return "Zero taka only";
-
-    const belowTwenty = [
-      "","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten",
-      "Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen",
-    ];
-    const tens = ["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
-
-    const wordsBelowThousand = (n) => {
-      let text = "";
-      if (n >= 100) { text += `${belowTwenty[Math.floor(n / 100)]} Hundred `; n %= 100; }
-      if (n >= 20)  { text += `${tens[Math.floor(n / 10)]} `;                 n %= 10;  }
-      if (n > 0)    text += `${belowTwenty[n]} `;
-      return text.trim();
-    };
-
-    const parts = [];
-    let remaining = amount;
-    [["Crore",10000000],["Lakh",100000],["Thousand",1000],["",1]].forEach(([label, divisor]) => {
-      const unit = Math.floor(remaining / divisor);
-      if (unit) { parts.push(`${wordsBelowThousand(unit)} ${label}`.trim()); remaining %= divisor; }
-    });
-
-    return `${parts.join(" ")} taka only`;
-  }
+  static numberToWords(value) { return numberToWords(value); }
 
   static drawText(doc, text, x, y, opts = {}) {
     doc
@@ -81,84 +44,86 @@ class PDFGenerator {
       .text(text ?? "", x, y, {
         width: opts.width,
         align: opts.align || "left",
-        lineBreak: false,
+        // Off by default so a stray long value can never reflow a fixed-height
+        // row; `wrap` opts in where the layout reserves room for extra lines.
+        lineBreak: Boolean(opts.wrap),
       });
   }
 
-  static drawRow(doc, y, cells, opts = {}) {
-    const h = opts.height || 14;
-    const totalW = cells[cells.length - 1].x + cells[cells.length - 1].width - cells[0].x;
+  static drawRule(doc, x1, x2, y, opts = {}) {
+    doc
+      .moveTo(x1, y)
+      .lineTo(x2, y)
+      .lineWidth(opts.width || 0.8)
+      .stroke(opts.color || "#333333");
+  }
 
-    // Fill background for total/bold rows
-    if (opts.fill) {
-      doc.save()
-        .rect(cells[0].x, y, totalW, h)
-        .fill(opts.fill);
-      doc.restore();
-    }
-
-    cells.forEach((cell) => {
-      doc.rect(cell.x, y, cell.width, h).stroke("#555555");
-      this.drawText(doc, cell.text, cell.x + 4, y + 3, {
-        width: cell.width - 8,
-        align: cell.align,
-        bold: opts.bold || cell.bold,
-        size: opts.size || 9,
-      });
+  // "Label: value" pair used throughout the payslip's particulars block.
+  static drawField(doc, label, value, x, y, labelWidth, opts = {}) {
+    this.drawText(doc, `${label}:`, x, y, { bold: true, size: 10 });
+    this.drawText(doc, value ?? "", x + labelWidth, y, {
+      width: opts.width || 160,
+      size: 10,
+      bold: opts.bold,
     });
-
-    return y + h;
   }
 
-  static drawHeader(doc, payroll, employee, title, orgInfo = {}) {
-    const org = {
-      orgName: orgInfo.orgName || "Alliance Francaise de Chittagong",
-      orgLogo: orgInfo.orgLogo || "",
+  // A ruled-only table (no vertical grid): a rule above and below the header
+  // row and one under the final row — the styling the printed slip uses for
+  // its leave / health fund / life fund blocks.
+  static drawRuledTable(doc, x, y, columns, rows, opts = {}) {
+    const rowHeight = opts.rowHeight || 14;
+    const tableWidth = columns.reduce((sum, col) => sum + col.width, 0);
+    const cellX = (index) =>
+      x + columns.slice(0, index).reduce((sum, col) => sum + col.width, 0);
+
+    const drawCells = (cells, cellY, bold) => {
+      cells.forEach((cell, i) => {
+        const isObj = cell !== null && typeof cell === "object";
+        this.drawText(doc, isObj ? cell.text : cell, cellX(i) + 4, cellY + 3, {
+          width: columns[i].width - 8,
+          align: columns[i].align || (i === 0 ? "left" : "center"),
+          bold: bold || (isObj && cell.bold),
+          size: 9.5,
+        });
+      });
     };
 
-    const logoPath =
-      org.orgLogo && fs.existsSync(org.orgLogo)
-        ? org.orgLogo
-        : path.resolve(__dirname, "../../../frontend/public/afc-logo.png");
-    if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, 52, 36, { width: 76 });
+    this.drawRule(doc, x, x + tableWidth, y);
+    drawCells(columns.map((col) => col.label), y, true);
+    y += rowHeight;
+    this.drawRule(doc, x, x + tableWidth, y);
+
+    rows.forEach((row) => {
+      if (row.some((cell) => cell !== null && typeof cell === "object" && cell.topRule)) {
+        this.drawRule(doc, x, x + tableWidth, y);
+      }
+      drawCells(row, y);
+      y += rowHeight;
+    });
+
+    this.drawRule(doc, x, x + tableWidth, y);
+    return y;
+  }
+
+  // Letterhead band: 54..541 wide, 36..86 tall. The logo is fitted inside a
+  // fixed box rather than scaled by width alone — a portrait logo (the AFC
+  // mark is 219×240) would otherwise run its own height and overlap the
+  // employee particulars below.
+  static drawPayslipHeader(doc, model) {
+    // pdfkit takes a Buffer or a path; the uploaded logo is only ever a
+    // Buffer, so it is tried first and the on-disk path remains the fallback.
+    const { logoImage, logoPath } = model.org;
+    const logoSource =
+      logoImage || (logoPath && fs.existsSync(logoPath) ? logoPath : null);
+    if (logoSource) {
+      doc.image(logoSource, 54, 36, { fit: [64, 48], align: "left", valign: "center" });
     }
 
-    // Organisation name + pay slip title
-    this.drawText(doc, org.orgName, 150, 50, { width: 300, align: "center", bold: true, size: 15 });
-    this.drawText(doc, title,        150, 70, { width: 300, align: "center", bold: true, size: 12 });
-
-    // Horizontal rule under header
-    doc.moveTo(52, 96).lineTo(543, 96).lineWidth(0.8).stroke("#888888");
-
-    // Payslip number + generated timestamp (right-aligned below rule)
-    const genLine = `Payslip No: ${payroll.payrollNumber || "—"}    |    Generated: ${new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`;
-    this.drawText(doc, genLine, 52, 100, { width: 491, align: "right", size: 8, color: "#555555" });
-
-    // Employee info block
-    const left  = 54;
-    const right  = 340;
-    let ey = 118;
-
-    this.drawText(doc, "Name of the Employee:",         left, ey,       { bold: true });
-    this.drawText(doc, employee?.name || "",             185, ey,        { width: 150 });
-    this.drawText(doc, "Employee ID:",                   left, ey + 16,  { bold: true });
-    this.drawText(doc, employee?.employeeCode || "",     132, ey + 16,   { width: 150 });
-    this.drawText(doc, "Designation:",                   left, ey + 32,  { bold: true });
-    this.drawText(doc, employee?.designation || "",      132, ey + 32,   { width: 190 });
-    this.drawText(doc, "Date of Joining:",               left, ey + 48,  { bold: true });
-    this.drawText(doc, this.formatDate(employee?.dateOfJoining), 148, ey + 48, { width: 160 });
-    this.drawText(doc, "Scale of Pay for Coordination:", left, ey + 64,  { bold: true });
-
-    this.drawText(doc, "Employment Type:",               right, ey,       { bold: true });
-    this.drawText(
-      doc,
-      payroll.salaryType === "hourly" ? "Paid by the Hour" : "Permanent",
-      right + 106, ey, { width: 130, bold: true },
-    );
-    this.drawText(doc, "Scale of Pay:",                  right, ey + 16,  { bold: true });
-    this.drawText(doc, this.formatMoney(payroll.baseSalary), right + 88, ey + 16, { width: 130 });
-    this.drawText(doc, "Value of Scale Point:",          right, ey + 32,  { bold: true });
+    // Centred over the space that remains to the right of the logo, so a long
+    // organisation name grows away from it instead of into it.
+    this.drawText(doc, model.org.orgName, 126, 42, { width: 415, align: "center", bold: true, size: 13.5 });
+    this.drawText(doc, model.title,       126, 60, { width: 415, align: "center", bold: true, size: 12 });
   }
 
   // ─── Receipt ─────────────────────────────────────────────────────────────────
@@ -214,6 +179,7 @@ class PDFGenerator {
   static async generatePayslip(payroll, employee, orgInfo = {}) {
     return new Promise((resolve, reject) => {
       try {
+        const model    = buildPayslipModel(payroll, employee, orgInfo);
         const doc      = new PDFDocument({ size: "A4", margin: 36 });
         const filename = `payslip-${payroll._id}.pdf`;
         const filepath = path.join(ensureUploadDir(), filename);
@@ -223,236 +189,166 @@ class PDFGenerator {
         stream.on("error", reject);
         doc.pipe(stream);
 
-        const emp = employee || payroll.employee || {};
-        const org = {
-          orgName:               orgInfo.orgName               || "Alliance Francaise de Chittagong",
-          orgPhone:              orgInfo.orgPhone               || "+88 01318896444",
-          orgEmail:              orgInfo.orgEmail               || "",
-          orgAddress:            orgInfo.orgAddress             || "123, K. B. Fazlul Kader Road, Panchlaish R/A, Chittagong-4203, Bangladesh",
-          directorName:          orgInfo.directorName           || "Bruno LACRAMPE",
-          directorTitle:         orgInfo.directorTitle          || "Director",
-          leaveYearLabel:        orgInfo.leaveYearLabel         || "July'2025 - June'2026",
-          benefitPeriodLabel:    orgInfo.benefitPeriodLabel     || "01-07-2023 to 30-06-2025",
-          bankNameForPayment:    orgInfo.bankNameForPayment     || "Brac Bank PLC",
-          bankAccountForPayment: orgInfo.bankAccountForPayment  || "XXXXXXXXXXXXXXX",
-        };
-
-        const period   = `${this.monthName(payroll.month)} ${payroll.year}`;
-        const isHourly = payroll.salaryType === "hourly";
-
-        const totalEarnings =
-          Number(payroll.totalEarnings) ||
-          Number(payroll.baseSalary || 0) + Number(payroll.allowances || 0) + Number(payroll.bonus || 0);
-        const totalDeductions =
-          Number(payroll.totalDeductions) ||
-          Number(payroll.deductions || 0) + Number(payroll.leaveDeduction || 0);
-        const netSalary =
-          Number(payroll.netSalary) ||
-          Math.max(0, totalEarnings - totalDeductions);
-
-        // ── Header ──────────────────────────────────────────────────────────────
-        this.drawHeader(doc, payroll, emp, `Pay Slip for ${period}`, orgInfo);
-
-        // ── Main salary table ────────────────────────────────────────────────────
         const x = 54;
-        let y = 210;
+        const contentWidth = 487;
 
-        const cols = [
-          { x,           width: 182 },
-          { x: x + 182,  width: 60,  align: "center" },
-          { x: x + 242,  width: 88,  align: "center" },
-          { x: x + 330,  width: 96,  align: "right"  },
-          { x: x + 426,  width: 83,  align: "right"  },
-        ];
+        // ── Letterhead ───────────────────────────────────────────────────────
+        this.drawPayslipHeader(doc, model);
 
-        // Column headers
-        y = this.drawRow(doc, y, [
-          { ...cols[0], text: "Particulars" },
-          { ...cols[1], text: isHourly ? "Hours" : "Extra Working\nHours" },
-          { ...cols[2], text: isHourly ? "Payment/Hour\n(Tk.)" : "Hourly Payment" },
-          { ...cols[3], text: "Amount (Taka)" },
-          { ...cols[4], text: "Amount (Taka)" },
-        ], { bold: true, height: 26, fill: "#f0f0f0" });
+        // ── Employee particulars ─────────────────────────────────────────────
+        const rightX = 330;
+        const infoY  = 100;
 
-        const addRow = (label, col2, col3, col4, col5, opts = {}) => {
-          y = this.drawRow(doc, y, [
-            { ...cols[0], text: label },
-            { ...cols[1], text: col2 ?? "" },
-            { ...cols[2], text: col3 ?? "" },
-            { ...cols[3], text: col4 ?? "" },
-            { ...cols[4], text: col5 ?? "" },
-          ], opts);
-        };
+        model.particulars.left.forEach(([label, value], i) => {
+          this.drawField(doc, label, value, x, infoY + i * 16, 112, { width: 160 });
+        });
+        model.particulars.right.forEach(([label, value, bold], i) => {
+          this.drawField(doc, label, value, rightX, infoY + i * 16, 112, { width: 99, bold });
+        });
 
-        const addTotal = (label, col5) => {
-          y = this.drawRow(doc, y, [
-            { ...cols[0], text: label },
-            { ...cols[1], text: "" },
-            { ...cols[2], text: "" },
-            { ...cols[3], text: "" },
-            { ...cols[4], text: col5 },
-          ], { bold: true, fill: "#ebebeb" });
-        };
+        // ── Earnings & deductions ────────────────────────────────────────────
+        //
+        // The printed slip rules its five columns top-to-bottom but leaves the
+        // item rows unseparated — only the header and the total rows carry a
+        // horizontal rule. So rows are laid out first and the grid is stroked
+        // once at the end, over the full table height.
+        const tableTop  = 172;
+        const rowHeight = 14;
+        const colWidths = [190, 68, 74, 77, 78];
+        const colX      = [];
+        colWidths.reduce((left, width, i) => { colX[i] = left; return left + width; }, x);
 
-        // Earnings section heading
-        this.drawText(doc, isHourly ? "Earnings - Salary" : "Earnings:", x, y + 3, { bold: true });
-        y += 16;
+        let y = tableTop;
 
-        if (isHourly) {
-          addRow("AFC",                          payroll.workingDays || 0, this.formatPlainMoney(payroll.baseSalary), this.formatMoney(payroll.baseSalary), "");
-          addRow("AUW",                          0,   "–",   "–", "");
-          addRow("Private Class",                0, "550",   "–", "");
-          addRow("DELF Exam Duty",               0,   "–",   "–", "");
-          addRow("DELF Answer Script",           "–", "–",   "–", "");
-          addRow("Formation Initiale",           0,   "–",   "–", "");
-          addRow(
-            "Extra Duties- Coordination Training/Animation",
-            "", "", "",
-            this.formatMoney(Number(payroll.allowances || 0) + Number(payroll.bonus || 0)),
+        const cellText = (i, text, cellY, opts = {}) =>
+          this.drawText(doc, text, colX[i] + 5, cellY + 3, {
+            width: colWidths[i] - 10,
+            align: opts.align || (i === 0 ? "left" : i >= 3 ? "right" : "center"),
+            bold: opts.bold,
+            size: 9.5,
+          });
+
+        model.salary.headers.forEach((header, i) =>
+          // Wrapped so a narrow column folds its caption instead of bleeding
+          // across the column rule; 26pt of header height holds two lines.
+          this.drawText(doc, header, colX[i] + 5, y + 4, {
+            width: colWidths[i] - 10, align: "center", bold: true, size: 9, wrap: true,
+          }),
+        );
+        y += 26;
+        this.drawRule(doc, x, x + contentWidth, y);
+
+        const labelWidth = colWidths[0] - 21;
+
+        model.salary.rows.forEach((row) => {
+          if (row.type === "section") {
+            cellText(0, row.label, y, { bold: true });
+            y += rowHeight;
+            return;
+          }
+
+          if (row.type === "total") {
+            this.drawRule(doc, x, x + contentWidth, y);
+            cellText(0, row.label,  y, { bold: true, align: "right" });
+            cellText(4, row.amount, y, { bold: true });
+            y += rowHeight;
+            return;
+          }
+
+          // Line items sit indented under their section heading. A long label
+          // (the hourly "Extra Duties…" line) wraps and grows its own row
+          // rather than running over the column rule.
+          doc.font("Times-Roman").fontSize(9.5);
+          const height = Math.max(
+            rowHeight,
+            doc.heightOfString(String(row.label ?? ""), { width: labelWidth }) + 4,
           );
-        } else {
-          addRow("Basic Salary",                 "", "", this.formatMoney(payroll.baseSalary), "");
-          addRow("House Rent",                   "", "", this.formatMoney(payroll.allowances), "");
-          addRow("Conveyance Allowance",         "", "", this.formatMoney(payroll.bonus),      "");
-          addRow("Extra Duties-",                "", "", "",                                  "");
-          addRow("Coordination External Courses","", "", "–",                                 "");
-          addRow("Extra Working Hour",           payroll.workingDays || 0, "–", "–",          "");
-        }
-
-        addTotal("Total Earnings", this.formatMoney(totalEarnings));
-
-        // Deductions section heading
-        this.drawText(doc, "Deductions:", x, y + 3, { bold: true });
-        y += 16;
-
-        addRow("Tax Deducted at Source", "", "", this.formatMoney(payroll.deductions), "");
-        if (!isHourly && Number(payroll.leaveDeduction)) {
-          addRow("Leave Deduction", payroll.leavesTaken || 0, "", this.formatMoney(payroll.leaveDeduction), "");
-        }
-        addTotal("Total Deductions", this.formatMoney(totalDeductions));
-        addTotal("Net Pay",          this.formatMoney(netSalary));
-
-        // ── In Words / Mode of Payment ───────────────────────────────────────────
-        y += 10;
-        this.drawText(doc, "In Words:",        x, y,      { bold: true });
-        this.drawText(doc, this.numberToWords(netSalary), x + 62, y, { width: 426 });
-        y += 16;
-        this.drawText(doc, "Mode of Payment:", x, y,      { bold: true });
-        this.drawText(
-          doc,
-          payroll.paymentMode ||
-            `Bank Transfer/Salary Account#${emp.bankAccountNumber || org.bankAccountForPayment}/${emp.bankName || org.bankNameForPayment}`,
-          x + 104, y, { width: 384 },
-        );
-
-        // ── Leave Status ─────────────────────────────────────────────────────────
-        y += 28;
-        this.drawText(doc, `Leave Status (${org.leaveYearLabel})`, 150, y, {
-          bold: true, width: 300, align: "center",
-        });
-        y += 16;
-
-        const leaveCols = [
-          { x,          width: 160 },
-          { x: x + 160, width: 80,  align: "center" },
-          { x: x + 240, width: 100, align: "center" },
-          { x: x + 340, width: 120, align: "center" },
-        ];
-        y = this.drawRow(doc, y, [
-          { ...leaveCols[0], text: "Leave Type"      },
-          { ...leaveCols[1], text: "Total"           },
-          { ...leaveCols[2], text: "Leave Taken"     },
-          { ...leaveCols[3], text: "Remaining Leave" },
-        ], { bold: true, fill: "#f0f0f0" });
-
-        ["Annual", "Sick"].forEach((type) => {
-          const taken = type === "Annual" ? payroll.leavesTaken || 0 : 0;
-          y = this.drawRow(doc, y, [
-            { ...leaveCols[0], text: type         },
-            { ...leaveCols[1], text: "0"          },
-            { ...leaveCols[2], text: String(taken)},
-            { ...leaveCols[3], text: "0"          },
-          ]);
+          this.drawText(doc, row.label, colX[0] + 16, y + 3, { width: labelWidth, size: 9.5, wrap: true });
+          cellText(1, row.hours,  y);
+          cellText(2, row.rate,   y);
+          cellText(3, row.amount, y);
+          y += height;
         });
 
-        // ── Health Fund Status ───────────────────────────────────────────────────
-        y += 12;
-        this.drawText(doc, "Health Fund Status", 150, y, {
-          bold: true, width: 300, align: "center",
+        // Outer box + column rules, stroked once over the finished table.
+        const tableBottom = y;
+        doc.rect(x, tableTop, contentWidth, tableBottom - tableTop).lineWidth(0.8).stroke("#333333");
+        colX.slice(1).forEach((lineX) => {
+          doc.moveTo(lineX, tableTop).lineTo(lineX, tableBottom).lineWidth(0.8).stroke("#333333");
         });
+
+        // ── In Words / Mode of Payment ───────────────────────────────────────
+        y = tableBottom + 10;
+        this.drawText(doc, "In Words:", x, y, { bold: true });
+        this.drawText(doc, model.inWords, x + 58, y, { width: 429 });
         y += 16;
+        this.drawText(doc, "Mode of Payment:", x, y, { bold: true });
+        this.drawText(doc, model.paymentMode, x + 96, y, { width: 391 });
 
-        const healthCols = [
-          { x,          width: 186 },
-          { x: x + 186, width: 82,  align: "center" },
-          { x: x + 268, width: 88,  align: "center" },
-          { x: x + 356, width: 92,  align: "center" },
-          { x: x + 448, width: 61,  align: "center" },
-        ];
-        y = this.drawRow(doc, y, [
-          { ...healthCols[0], text: "Health Fund (July'23 - June'26)" },
-          { ...healthCols[1], text: "Total Amount"     },
-          { ...healthCols[2], text: "Amount Taken"     },
-          { ...healthCols[3], text: "Remaining Amount" },
-          { ...healthCols[4], text: "Note"             },
-        ], { bold: true, fill: "#f0f0f0" });
-        y = this.drawRow(doc, y, [
-          { ...healthCols[0], text: "" },
-          { ...healthCols[1], text: "–" },
-          { ...healthCols[2], text: "–" },
-          { ...healthCols[3], text: "–" },
-          { ...healthCols[4], text: "" },
-        ]);
-
-        // ── Life Fund & Retirement Benefit ───────────────────────────────────────
-        y += 12;
-        this.drawText(
-          doc,
-          `Life Fund & Retirement Benefit Status: (${org.benefitPeriodLabel})`,
-          x, y, { bold: true, size: 9 },
-        );
+        // ── Leave Status ─────────────────────────────────────────────────────
+        y += 26;
+        this.drawText(doc, model.leave.heading, x, y, {
+          bold: true, width: contentWidth, align: "center",
+        });
         y += 14;
+        y = this.drawRuledTable(
+          doc, x, y,
+          this.withWidths(model.leave.headers, [195, 97, 97, 98]),
+          model.leave.rows,
+        );
 
-        const lifeCols = [
-          { x,          width: 200 },
-          { x: x + 200, width: 120, align: "right" },
-        ];
-        y = this.drawRow(doc, y, [
-          { ...lifeCols[0], text: "Particulars"   },
-          { ...lifeCols[1], text: "Amount (Taka)" },
-        ], { bold: true, fill: "#f0f0f0" });
-
-        ["Life Fund", "Retirement Benefit"].forEach((label) => {
-          y = this.drawRow(doc, y, [
-            { ...lifeCols[0], text: label },
-            { ...lifeCols[1], text: "–"   },
-          ]);
+        // ── Health Fund Status ───────────────────────────────────────────────
+        y += 14;
+        this.drawText(doc, model.health.heading, x, y, {
+          bold: true, width: contentWidth, align: "center",
         });
-        y = this.drawRow(doc, y, [
-          { ...lifeCols[0], text: "Total Amount (Taka)" },
-          { ...lifeCols[1], text: "–"                   },
-        ], { bold: true, fill: "#ebebeb" });
+        y += 14;
+        y = this.drawRuledTable(
+          doc, x, y,
+          this.withWidths(model.health.headers, [155, 78, 80, 92, 82]),
+          model.health.rows,
+        );
 
-        // ── Authorized Signature ─────────────────────────────────────────────────
-        const sigX = 390;
-        const sigY = y + 18;
-        this.drawText(doc, "Authorized Signature", sigX, sigY, { bold: true, width: 152, align: "center" });
-        doc.moveTo(sigX, sigY + 48).lineTo(sigX + 152, sigY + 48).lineWidth(0.8).stroke("#333333");
-        this.drawText(doc, org.directorName,  sigX, sigY + 52, { bold: true, width: 152, align: "center" });
-        this.drawText(doc, org.directorTitle, sigX, sigY + 66, { width: 152, align: "center", size: 9 });
+        // ── Life Fund & Retirement Benefit ───────────────────────────────────
+        y += 14;
+        const blockTop = y;
+        this.drawText(doc, model.funds.heading, x, y, { bold: true, size: 9.5 });
+        y += 14;
+        y = this.drawRuledTable(
+          doc, x, y,
+          this.withWidths(model.funds.headers, [170, 110], { 1: "right" }),
+          [
+            ...model.funds.rows,
+            model.funds.total.map((text) => ({ text, bold: true, topRule: true })),
+          ],
+        );
 
-        // ── Page footer ──────────────────────────────────────────────────────────
-        const footerY = 776;
-        doc.moveTo(x, footerY - 4).lineTo(543, footerY - 4).lineWidth(0.5).stroke("#cccccc");
-        const contact = `${org.orgPhone}${org.orgEmail ? ` – ${org.orgEmail}` : ""}`;
-        this.drawText(doc, contact,       x, footerY,      { size: 8.5, color: "#444444" });
-        this.drawText(doc, org.orgAddress, x, footerY + 12, { width: 340, size: 8.5, color: "#444444" });
+        // ── Authorized Signature (beside the life fund block) ────────────────
+        const sigX = 341;
+        const sigW = 200;
+        this.drawText(doc, "Authorized Signature", sigX, blockTop, { bold: true, width: sigW, align: "center" });
+        this.drawRule(doc, sigX, sigX + sigW, blockTop + 56);
+        this.drawText(doc, model.org.directorName,  sigX, blockTop + 60, { bold: true, width: sigW, align: "center" });
+        this.drawText(doc, model.org.directorTitle, sigX, blockTop + 74, { width: sigW, align: "center", size: 9.5 });
+
+        // ── Page footer ──────────────────────────────────────────────────────
+        const footerY = 770;
+        this.drawText(doc, model.footer.contact, x, footerY,      { size: 9, bold: true, color: "#222222" });
+        this.drawText(doc, model.footer.address, x, footerY + 12, { width: 400, size: 9, color: "#222222" });
+        this.drawText(doc, model.footer.reference, x, footerY + 26, {
+          width: contentWidth, size: 8, color: "#666666",
+        });
 
         doc.end();
       } catch (error) {
         reject(error);
       }
     });
+  }
+
+  // Pairs the model's column captions with this renderer's point widths.
+  static withWidths(headers, widths, aligns = {}) {
+    return headers.map((label, i) => ({ label, width: widths[i], align: aligns[i] }));
   }
 
   // ─── Financial Report ─────────────────────────────────────────────────────────

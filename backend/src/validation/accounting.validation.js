@@ -1,5 +1,5 @@
 const { z } = require("zod");
-const { TRANSACTION_TYPES } = require("../config/constants");
+const { TRANSACTION_TYPES, SOURCE_MODULES } = require("../config/constants");
 const { objectId, idParam, paginationQuery, requiredDate } = require("./common");
 
 const bookEntrySchema = z
@@ -32,21 +32,31 @@ const createJournalEntryBody = z.object({
   requiresApproval: z.any().optional(),
 });
 
-// accounting.controller.updateEntry already rejects a fixed list of
-// forbidden fields (approvalStatus, status, totalDebit, etc.) with a
-// specific per-field error message — passthrough here so that check
-// still runs against the fields exactly as sent.
+// Edits are narrative-only: a journal entry's amounts, accounts, voucher
+// number, transaction type and approval state are permanently immutable
+// (corrections go through a reversing entry instead). The only line-level
+// field that can change is `description`, so this deliberately does NOT
+// reuse `bookEntrySchema` above — that one requires `account` and would
+// reject a description-only line payload outright.
+//
+// Both levels are `.passthrough()` on purpose: accounting.controller
+// .updateEntry rejects any non-editable field it finds with a specific,
+// actionable message ("... post a reversing entry instead"), which is much
+// more useful than a generic Zod "unrecognized key". Stripping the keys here
+// would hide them from that check and silently drop them — exactly the
+// failure mode this feature is meant to eliminate.
+const updateBookEntrySchema = z
+  .object({
+    description: z.string().trim().optional(),
+  })
+  .passthrough();
+
 const updateEntryBody = z
   .object({
-    voucherNumber: z.string().trim().optional(),
     voucherDate: z.coerce.date().optional(),
-    transactionType: z.enum(Object.values(TRANSACTION_TYPES)).optional(),
     description: z.string().trim().optional(),
     referenceNumber: z.string().trim().optional(),
-    bookEntries: z
-      .array(bookEntrySchema)
-      .min(2, "Journal entry must have at least 2 line items")
-      .optional(),
+    bookEntries: z.array(updateBookEntrySchema).optional(),
     attachments: z.array(z.string()).optional(),
   })
   .passthrough();
@@ -55,13 +65,27 @@ const rejectEntryBody = z.object({
   rejectionReason: z.string().trim().min(1, "Rejection reason is required"),
 });
 
+// sortBy is interpolated straight into a Mongo sort key by getAllEntries, so
+// it is constrained to fields that are actually sortable rather than left as
+// a free string. Nothing shipped passes a value outside this list.
+const SORTABLE_FIELDS = [
+  "voucherDate",
+  "voucherNumber",
+  "totalDebit",
+  "totalCredit",
+  "createdAt",
+];
+
 const getAllEntriesQuery = paginationQuery.extend({
   transactionType: z.enum(Object.values(TRANSACTION_TYPES)).optional(),
   approvalStatus: z.string().optional(),
   status: z.string().optional(),
+  sourceModule: z.enum(Object.values(SOURCE_MODULES)).optional(),
+  // Matches entries having a book-entry line against this account.
+  account: objectId.optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
-  sortBy: z.string().optional(),
+  sortBy: z.enum(SORTABLE_FIELDS).optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
 });
 

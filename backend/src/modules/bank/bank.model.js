@@ -70,18 +70,19 @@ const bankSchema = new mongoose.Schema(
       required: [true, "Please specify account type"],
     },
 
-    // Balance tracking
-    openingBalance: {
-      type: Number,
-      default: 0,
-      // Allow negative opening balance (account might have had prior transactions)
-      validate: {
-        validator: function (value) {
-          return typeof value === "number" && !isNaN(value);
-        },
-        message: "Opening balance must be a valid number",
-      },
-    },
+    // NOTE: there is deliberately no `openingBalance` field here, and the
+    // create payload no longer accepts one either. A bank account's opening
+    // balance belongs to its linked ChartOfAccounts document, where it is
+    // backed by a real OPENING_BALANCE journal entry and edited on the COA
+    // screen. Every balance read here (calculateBankBalance ->
+    // calculateCoaLedgerBalance, and the `currentBalance` virtual below)
+    // derives from that COA ledger alone, so a copy on this document would
+    // only ever drift out of sync with it.
+    //
+    // Some bank documents created before this field was dropped still carry a
+    // stale `openingBalance` value in the database. It is orphaned data: no
+    // code reads it and no screen renders it. Left in place deliberately —
+    // cleaning it up is a separate, reviewed migration.
 
     // Status management
     isActive: {
@@ -90,17 +91,13 @@ const bankSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Reconciliation tracking
-    lastReconciledDate: {
-      type: Date,
-      default: null,
-    },
-    lastReconciledBalance: {
-      type: Number,
-      default: 0,
-    },
-    // FIXED: Store signed difference (positive = over, negative = under)
-    reconciliationDifference: {
+    // Presentation order on the Bank & Cash screen, set by dragging the
+    // cards there. Purely cosmetic — nothing in the ledger depends on it.
+    // Documents created before this field existed default to 0 and therefore
+    // sort together, falling back to the newest-first createdAt tie-break
+    // that was the only ordering before; the first reorder assigns every
+    // account a distinct 1..N value.
+    displayOrder: {
       type: Number,
       default: 0,
     },
@@ -185,5 +182,7 @@ bankSchema.pre("save", async function (next) {
 // Indexes for performance
 bankSchema.index({ bankName: 1, isActive: 1 });
 bankSchema.index({ isActive: 1, deletedAt: 1 });
+// Backs the list query's sort (displayOrder asc, createdAt desc).
+bankSchema.index({ isActive: 1, deletedAt: 1, displayOrder: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Bank", bankSchema);

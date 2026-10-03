@@ -64,6 +64,32 @@ class AccountingController {
     }
   }
 
+  static async getReceiptsPaymentsReport(req, res, next) {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return ApiResponse.badRequest(
+          res,
+          "Start date and end date are required",
+        );
+      }
+
+      const report = await AccountingService.generateReceiptsAndPayments(
+        startDate,
+        endDate,
+      );
+
+      return ApiResponse.success(
+        res,
+        report,
+        "Receipts & Payments Account retrieved successfully",
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getCashFlowReport(req, res, next) {
     try {
       const { startDate, endDate } = req.query;
@@ -196,6 +222,8 @@ class AccountingController {
         transactionType,
         approvalStatus,
         status,
+        sourceModule,
+        account,
         dateFrom,
         dateTo,
         page,
@@ -209,6 +237,8 @@ class AccountingController {
       if (transactionType) filters.transactionType = transactionType;
       if (approvalStatus) filters.approvalStatus = approvalStatus;
       if (status) filters.status = status;
+      if (sourceModule) filters.sourceModule = sourceModule;
+      if (account) filters.account = account;
 
       if (dateFrom || dateTo) {
         filters.dateFrom = dateFrom;
@@ -256,64 +286,73 @@ class AccountingController {
     try {
       const { id } = req.params;
 
-      const forbiddenFields = [
-        "createdBy",
-        "approvedBy",
-        "approvalDate",
-        "approvalStatus",
-        "deletedAt",
-        "deletedBy",
-        "isBalanced",
-        "isLocked",
-        "reversalOf",
-        "status",
-        "totalDebit",
-        "totalCredit",
-      ];
-
-      for (const field of forbiddenFields) {
-        if (req.body[field] !== undefined) {
-          return ApiResponse.badRequest(
-            res,
-            `${field} cannot be updated directly`,
-          );
-        }
-      }
-
-      const allowedFields = [
-        "voucherNumber",
+      // Every field a journal entry edit may touch. Everything absent from
+      // these two lists — amounts, accounts, voucher number, transaction
+      // type, and all approval/lifecycle state — is permanently immutable;
+      // corrections to those go through a reversing entry, never this path.
+      // The window/toggle/finalized-period checks live in the service, which
+      // is the only layer that can see the stored entry.
+      const EDITABLE_FIELDS = [
         "voucherDate",
-        "transactionType",
         "description",
         "referenceNumber",
         "bookEntries",
         "attachments",
       ];
+      const EDITABLE_LINE_FIELDS = ["description"];
+
+      // Reject rather than silently drop. The previous implementation
+      // whitelisted by copying known keys and ignoring the rest, so a client
+      // sending `debit` got a 200 and no change — indistinguishable from a
+      // successful amount edit. Naming the offending fields makes the
+      // immutability rule discoverable from the API alone.
+      const rejectedFields = Object.keys(req.body).filter(
+        (field) => !EDITABLE_FIELDS.includes(field),
+      );
+
+      if (rejectedFields.length > 0) {
+        return ApiResponse.badRequest(
+          res,
+          `${rejectedFields.join(", ")} cannot be edited. Amounts, accounts, and approval fields are permanently locked — post a reversing entry instead.`,
+        );
+      }
+
+      if (req.body.bookEntries !== undefined) {
+        if (!Array.isArray(req.body.bookEntries)) {
+          return ApiResponse.badRequest(res, "bookEntries must be an array");
+        }
+
+        for (let index = 0; index < req.body.bookEntries.length; index += 1) {
+          const line = req.body.bookEntries[index] || {};
+          const rejectedLineFields = Object.keys(line).filter(
+            (field) => !EDITABLE_LINE_FIELDS.includes(field),
+          );
+
+          if (rejectedLineFields.length > 0) {
+            return ApiResponse.badRequest(
+              res,
+              `Line ${index + 1}: ${rejectedLineFields.join(", ")} cannot be edited. Only a line's description can change — post a reversing entry to correct an amount or account.`,
+            );
+          }
+        }
+      }
 
       const updateData = {};
 
-      for (const field of allowedFields) {
+      for (const field of EDITABLE_FIELDS) {
         if (req.body[field] !== undefined) {
           updateData[field] = req.body[field];
         }
       }
 
-      if (
-        updateData.bookEntries !== undefined &&
-        (!Array.isArray(updateData.bookEntries) ||
-          updateData.bookEntries.length < 2)
-      ) {
-        return ApiResponse.badRequest(
-          res,
-          "Journal entry must have at least 2 line items",
-        );
-      }
-
-      const entry = await AccountingService.updateEntry(id, updateData);
-
-      if (!entry) {
-        return ApiResponse.notFound(res, "Journal entry not found");
-      }
+      // req.user (not the payload) is the source of actor identity — userName
+      // and userRole are required+enum on auditLog.model.js, so a payload-fed
+      // value could fail schema validation and lose the change-log row.
+      const entry = await AccountingService.updateEntry(
+        id,
+        updateData,
+        req.user,
+      );
 
       return ApiResponse.success(
         res,

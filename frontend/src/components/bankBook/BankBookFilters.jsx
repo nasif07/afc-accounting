@@ -1,4 +1,5 @@
 import { Download, FileSpreadsheet, Printer, RefreshCw } from "lucide-react";
+import AccountCombobox from "../common/AccountCombobox";
 import Button from "../common/Button";
 import Card from "../common/Card";
 import DatePicker from "../common/DatePicker";
@@ -8,7 +9,7 @@ import { asOptions, paymentMethods, paymentPurposes } from "./bankBookHelpers";
 
 export default function BankBookFilters({
   filters,
-  bankHeadOptions,
+  bankHeadAccounts,
   loading,
   onFilterChange,
   onApply,
@@ -41,11 +42,13 @@ export default function BankBookFilters({
           options={asOptions(paymentMethods)}
           placeholder="All methods"
         />
-        <Select
+        <AccountCombobox
           value={filters.bankHeadId}
-          onChange={(e) => onFilterChange("bankHeadId", e.target.value)}
-          options={bankHeadOptions}
+          onChange={(value) => onFilterChange("bankHeadId", value)}
+          accounts={bankHeadAccounts}
           placeholder="Bank head"
+          panelTitle="Filter by Bank Head"
+          clearLabel="All bank heads"
         />
         <Input
           value={filters.voucherNo}

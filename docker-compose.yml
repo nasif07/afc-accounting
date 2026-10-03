@@ -3,18 +3,33 @@ name: alliance-accounting
 services:
   mongo:
     image: mongo:7
+    # Fixed hostname so the replica set config's member address stays valid
+    # across container recreation — without this, mongo's default hostname
+    # is the container ID, which changes every time and breaks rs0.
+    hostname: mongo
     restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     environment:
       MONGO_INITDB_DATABASE: alliance_accounting
     volumes:
       - mongo_data:/data/db
     networks:
       - accounts_net
+    # Bound to localhost only — connect with Compass via an SSH tunnel
+    # (ssh -L 27018:127.0.0.1:27018 ...), never expose this publicly.
+    # Host port 27018 (not the default 27017) to match docker-compose.prod.yml.
+    ports:
+      - "127.0.0.1:27018:27017"
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 30s
+      # Journal entries use multi-document transactions, which Mongo only
+      # supports on a replica set (not a standalone mongod). This node runs
+      # as a single-member replica set; on first boot rs.status() fails, so
+      # we initiate it here with an explicit, stable member address —
+      # subsequent checks just report status.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo:27017'}]}).ok }"]
+      interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 10
       start_period: 30s
 
   backend:

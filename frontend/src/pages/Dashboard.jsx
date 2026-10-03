@@ -6,8 +6,6 @@ import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Banknote,
-  CheckCircle2,
   FileText,
   Landmark,
   RefreshCcw,
@@ -36,6 +34,7 @@ import {
   SectionSkeleton,
 } from "../components/common/Loaders";
 import KPICard from "../components/reports/KPICard";
+import MaskedAmount from "../components/common/MaskedAmount";
 
 // Navy (new shell primary) + the existing consolidated emerald/red/amber/
 // slate semantic colors, replacing the old ad-hoc teal/purple/cyan/pink set
@@ -76,12 +75,16 @@ function PanelState({ loading, error, empty, children, emptyText }) {
   return children;
 }
 
-function SummaryCard({ title, value, icon, color, href }) {
+// `format="text"` because the value arrives already run through formatMoney,
+// not as a raw number — so `maskable` has to be passed explicitly here. Only
+// the money cards set it; "Pending Approval" is a count and stays visible.
+function SummaryCard({ title, value, icon, color, href, maskable }) {
   return (
     <KPICard
       title={title}
       value={value}
       format="text"
+      maskable={maskable}
       icon={icon}
       color={color}
       footer={
@@ -122,7 +125,16 @@ function NetPositionHero({ value, trendData, loading }) {
               {loading ? (
                 <div className="mt-2 h-8 w-40 animate-pulse rounded bg-white/15 sm:h-9 sm:w-52" />
               ) : (
-                <p className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">{value}</p>
+                // The one balance figure not rendered through KPICard, and the
+                // largest on the screen — masked on the same terms. Button
+                // colours are overridden for the dark gradient behind it.
+                <MaskedAmount
+                  className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl"
+                  buttonClassName="text-white/60 hover:bg-white/15 hover:text-white focus:ring-white/30"
+                  label="net position"
+                  iconSize={18}>
+                  {value}
+                </MaskedAmount>
               )}
               <p className="mt-1 text-xs text-white/50">Bank + petty cash, current balance</p>
             </div>
@@ -222,6 +234,7 @@ export default function Dashboard() {
       {
         title: "Petty Cash",
         value: formatMoney(summary.pettyCash),
+        maskable: true,
         icon: Wallet,
         color: "green",
         href: "/dashboard/petty-cash",
@@ -229,6 +242,7 @@ export default function Dashboard() {
       {
         title: "Bank Balance",
         value: formatMoney(summary.bankBalance),
+        maskable: true,
         icon: Landmark,
         color: "blue",
         href: "/dashboard/bank-cash",
@@ -236,6 +250,7 @@ export default function Dashboard() {
       {
         title: "Monthly Income",
         value: formatMoney(summary.monthlyIncome),
+        maskable: true,
         icon: ArrowUpRight,
         color: "teal",
         href: "/dashboard/reports",
@@ -243,6 +258,7 @@ export default function Dashboard() {
       {
         title: "Monthly Expense",
         value: formatMoney(summary.monthlyExpense),
+        maskable: true,
         icon: ArrowDownRight,
         color: "red",
         href: "/dashboard/reports",
@@ -258,10 +274,21 @@ export default function Dashboard() {
   }, [dashboard, formatMoney]);
 
   const incomeVsExpense = useMemo(() => dashboard?.charts?.incomeVsExpense || [], [dashboard]);
+
+  // The backend always returns one bucket per month, pre-seeded with zeros
+  // (dashboard.service.getIncomeExpenseChart), so this array is never empty
+  // and a `.length === 0` check could never fire the empty state. With no
+  // income/expense journals the chart then rendered flat at zero, and
+  // Recharts' default 0–4 domain made the axis read "0.001k … 0.004k" — which
+  // looks like broken data rather than no data. Check for actual values.
+  const hasIncomeExpenseData = useMemo(
+    () => incomeVsExpense.some((m) => Number(m.income) > 0 || Number(m.expense) > 0),
+    [incomeVsExpense],
+  );
   const expenseByCategory = dashboard?.charts?.expenseByCategory || [];
   const recentJournals = dashboard?.recentJournals || [];
   const recentPettyCash = dashboard?.recentPettyCash || [];
-  const bankAlerts = dashboard?.bankReconciliationAlerts || [];
+  const bankAccounts = dashboard?.bankAccounts || [];
 
   const netPosition = formatMoney(
     (dashboard?.summary?.bankBalance || 0) + (dashboard?.summary?.pettyCash || 0),
@@ -280,7 +307,7 @@ export default function Dashboard() {
           </h1>
           <p className="mt-1 text-xs text-slate-500 sm:text-sm">
             Approved ledger balances, current month performance, and
-            reconciliation signals.
+            recent activity.
           </p>
         </div>
         <Button
@@ -340,7 +367,7 @@ export default function Dashboard() {
             <PanelState
               loading={loading}
               error={error}
-              empty={incomeVsExpense.length === 0}
+              empty={!hasIncomeExpenseData}
               emptyText="No approved income or expense journals yet.">
               <div className="h-[220px] sm:h-[270px] lg:h-[300px] xl:h-80">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -523,55 +550,68 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Where the "Bank Balance" figure actually sits. Built from the
+            same approved journal lines as that card, so the rows add up to
+            it. Amounts are masked one by one, like every balance here —
+            no share-of-total bars, which would leak the proportions. */}
         <Card className="shadow-none">
           <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
             <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
-              Bank Reconciliation Alerts
+              Bank Accounts
             </CardTitle>
             <Link
               to="/dashboard/bank-cash"
               className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
-              Reconcile
+              View all
             </Link>
           </CardHeader>
           <CardContent className="p-0">
             <PanelState
               loading={loading}
               error={error}
-              empty={bankAlerts.length === 0}
-              emptyText="No unreconciled approved bank transactions.">
+              empty={bankAccounts.length === 0}
+              emptyText="No active bank accounts under the Bank head yet.">
               <div className="divide-y divide-slate-100">
-                {bankAlerts.map((alert) => (
-                  <div key={alert.id} className="flex items-start gap-3 p-4">
-                    {alert.type === "mismatch" ? (
-                      <AlertTriangle className="mt-1 h-4 w-4 text-amber-600" />
-                    ) : (
-                      <Banknote className="mt-1 h-4 w-4 text-blue-600" />
-                    )}
+                {bankAccounts.map((account) => (
+                  <div key={account.id} className="flex items-start gap-3 p-4">
+                    <Landmark className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-sm font-semibold text-slate-800">
-                          {alert.voucherNumber}
-                        </p>
-                        <span className="text-sm font-bold text-slate-700">
-                          {formatMoney(alert.amount)}
-                        </span>
+                        <Link
+                          to={`/dashboard/ledger?accountId=${account.id}`}
+                          title="Open this account's ledger"
+                          className="truncate text-sm font-semibold text-slate-800 hover:text-brand-navy hover:underline">
+                          {account.accountName}
+                        </Link>
+                        <MaskedAmount
+                          className={`shrink-0 text-sm font-bold ${
+                            account.balance < 0 ? "text-red-700" : "text-slate-800"
+                          }`}
+                          label={`${account.accountName} balance`}>
+                          {formatMoney(account.balance)}
+                        </MaskedAmount>
                       </div>
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {alert.description || "Reconciliation alert"}
-                      </p>
-                      <p className="mt-1 flex items-center gap-1 text-xs capitalize text-slate-400">
-                        {alert.type === "mismatch" ? (
-                          <AlertTriangle size={12} />
-                        ) : (
-                          <CheckCircle2 size={12} />
-                        )}
-                        {alert.type.replace("-", " ")} ·{" "}
-                        {formatDate(alert.date)}
+                      <p className="mt-1 text-xs text-slate-400">
+                        <span className="font-mono">{account.accountCode}</span>
+                        {" · "}
+                        {account.lastActivity
+                          ? `Last activity ${formatDate(account.lastActivity)}`
+                          : "No approved activity"}
                       </p>
                     </div>
                   </div>
                 ))}
+
+                <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Total
+                  </p>
+                  <MaskedAmount
+                    className="text-sm font-bold text-slate-900"
+                    label="total bank balance">
+                    {formatMoney(dashboard?.summary?.bankBalance)}
+                  </MaskedAmount>
+                </div>
               </div>
             </PanelState>
           </CardContent>

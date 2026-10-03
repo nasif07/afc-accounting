@@ -6,8 +6,7 @@ import { z } from "zod";
 import {
   Plus, Edit2, Trash2, Search, Loader,
   CheckCircle, Users, Wallet, TrendingDown, TrendingUp,
-  FileText, Eye, ChevronLeft, ChevronRight,
-  ChevronsLeft, ChevronsRight, CalendarDays,
+  FileText, FileType, Eye, CalendarDays,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
@@ -19,11 +18,14 @@ import {
 import { selectOrgInfo } from "../store/slices/settingsSlice";
 import { useEmployees } from "../hooks/useEmployees";
 import SectionHeader from "../components/common/SectionHeader";
-import { Modal, Select, Badge } from "../components/common";
+import { Modal, Select, Badge, Table } from "../components/common";
+import { usePaginationParams } from "../hooks/usePaginationParams";
 import { payrollAPI } from "../services/apiMethods";
 import PayslipPreview from "../components/payroll/PayslipPreview";
 import KPICard from "../components/reports/KPICard";
 import { formatCurrency } from "../utils/currency";
+import { resolveEarnings } from "../utils/payslipFields";
+import { cn } from "../utils/cn";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -36,6 +38,11 @@ const NOW          = new Date();
 const CUR_MONTH    = NOW.getMonth() + 1;
 const CUR_YEAR     = NOW.getFullYear();
 const YEARS        = Array.from({ length: 6 }, (_, i) => CUR_YEAR - i);
+
+const DOWNLOAD_MIME = {
+  pdf:  "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
 
 const STATUS_FILTER_OPTIONS = [
   { value: "",         label: "All Status"  },
@@ -82,18 +89,25 @@ const payrollSchema = z.object({
   year: z.coerce.number().int("Enter a valid year").min(2000, "Enter a valid year").max(2100, "Enter a valid year"),
   salaryType: z.enum(SALARY_TYPES),
   baseSalary: baseSalaryGuard,
-  allowances: optionalNonNegative("Allowances"),
+  // The payslip prints these as separate earnings lines. They used to be one
+  // generic "Allowances" input (printed as House Rent) with no input at all
+  // for Conveyance Allowance.
+  houseRent: optionalNonNegative("House rent"),
+  conveyanceAllowance: optionalNonNegative("Conveyance allowance"),
   deductions: optionalNonNegative("Deductions"),
 });
 
 const INITIAL_FORM_DATA = {
   employee: "", month: CUR_MONTH, year: CUR_YEAR,
-  salaryType: "monthly", baseSalary: "", allowances: "", deductions: "",
+  salaryType: "monthly", baseSalary: "", houseRent: "", conveyanceAllowance: "", deductions: "",
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const netSalary = (b, a, d) => (Number(b) || 0) + (Number(a) || 0) - (Number(d) || 0);
+// Earnings are Basic + House Rent + Conveyance Allowance, matching the
+// payslip's earnings lines and the backend's calculateTotals.
+const netSalary = (base, houseRent, conveyance, deductions) =>
+  (Number(base) || 0) + (Number(houseRent) || 0) + (Number(conveyance) || 0) - (Number(deductions) || 0);
 
 const STATUS_BADGE_VARIANT = {
   approved: "success",
@@ -117,23 +131,20 @@ function FieldLabel({ children }) {
   );
 }
 
-function FormInput({ className = "", ...props }) {
-  return (
-    <input
-      {...props}
-      className={`w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none
-        focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all ${className}`}
-    />
-  );
+// Both controls merge through `cn` (tailwind-merge) rather than string
+// concatenation: appending "w-24" to a class list that already carries
+// "w-full" is a coin flip decided by Tailwind's stylesheet order, which is
+// what collapsed the month <select> to just its arrow.
+const FIELD_CLASS = `w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none
+  focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all`;
+
+function FormInput({ className, ...props }) {
+  return <input {...props} className={cn(FIELD_CLASS, className)} />;
 }
 
-function FormSelect({ children, className = "", ...props }) {
+function FormSelect({ children, className, ...props }) {
   return (
-    <select
-      {...props}
-      className={`w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none
-        focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all ${className}`}
-    >
+    <select {...props} className={cn(FIELD_CLASS, className)}>
       {children}
     </select>
   );
@@ -152,8 +163,7 @@ export default function Payroll() {
   // ── URL-driven filter state ──────────────────────────────────────────────────
   const month  = Number(searchParams.get("month")  || CUR_MONTH);
   const year   = Number(searchParams.get("year")   || CUR_YEAR);
-  const page   = Number(searchParams.get("page")   || "1");
-  const limit  = Number(searchParams.get("limit")  || "20");
+  const { page, pageSize: limit, setPage, setPageSize } = usePaginationParams(20);
   const status = searchParams.get("status") || "";
   const searchQ = searchParams.get("search") || "";
 
@@ -177,7 +187,8 @@ export default function Payroll() {
   } = useForm({ resolver: zodResolver(payrollSchema), defaultValues: INITIAL_FORM_DATA });
 
   const watchedBaseSalary  = watch("baseSalary");
-  const watchedAllowances  = watch("allowances");
+  const watchedHouseRent   = watch("houseRent");
+  const watchedConveyance  = watch("conveyanceAllowance");
   const watchedDeductions  = watch("deductions");
 
   // ── Set URL defaults on first load ───────────────────────────────────────────
@@ -253,16 +264,6 @@ export default function Payroll() {
     setSearchParams(p);
   };
 
-  const handlePageChange = (newPage) => {
-    const p = Object.fromEntries(searchParams.entries());
-    setSearchParams({ ...p, page: String(newPage) });
-  };
-
-  const handleLimitChange = (newLimit) => {
-    const p = Object.fromEntries(searchParams.entries());
-    setSearchParams({ ...p, limit: String(newLimit), page: "1" });
-  };
-
   // ── Form helpers ─────────────────────────────────────────────────────────────
   const resetForm = () => {
     reset(INITIAL_FORM_DATA);
@@ -277,7 +278,10 @@ export default function Payroll() {
         year: payroll.year ?? CUR_YEAR,
         salaryType: payroll.salaryType || "monthly",
         baseSalary: payroll.baseSalary ?? "",
-        allowances: payroll.allowances ?? "",
+        // Legacy records carry their earnings in allowances/bonus; resolve so
+        // editing one shows the real figures rather than empty inputs.
+        houseRent: resolveEarnings(payroll).houseRent || "",
+        conveyanceAllowance: resolveEarnings(payroll).conveyanceAllowance || "",
         deductions: payroll.deductions ?? "",
       });
       setEditingId(payroll._id);
@@ -337,19 +341,20 @@ export default function Payroll() {
     }
   };
 
-  const handleDownload = async (payroll) => {
-    setDownloading(true);
+  // "docx" hands the accountant an editable Word copy; "pdf" is the archival one.
+  const handleDownload = async (payroll, format = "pdf") => {
+    setDownloading(format);
     try {
-      const res  = await payrollAPI.generatePayslip(payroll._id);
-      const url  = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const res  = await payrollAPI.generatePayslip(payroll._id, format);
+      const url  = URL.createObjectURL(new Blob([res.data], { type: DOWNLOAD_MIME[format] }));
       const link = document.createElement("a");
       link.href     = url;
-      link.download = `payslip-${payroll.employee?.employeeCode || payroll._id}-${payroll.month}-${payroll.year}.pdf`;
+      link.download = `payslip-${payroll.employee?.employeeCode || payroll._id}-${payroll.month}-${payroll.year}.${format}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      toast.success("Payslip downloaded");
+      toast.success(format === "docx" ? "Word payslip downloaded" : "Payslip downloaded");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to download payslip");
     } finally {
@@ -358,16 +363,171 @@ export default function Payroll() {
   };
 
   // ── Derived stats (from current page items) ──────────────────────────────────
-  const totalNet       = items.reduce((s, p) => s + netSalary(p.baseSalary, p.allowances, p.deductions), 0);
-  const totalAllow     = items.reduce((s, p) => s + (Number(p.allowances) || 0), 0);
+  const totalNet       = items.reduce((s, p) => { const e = resolveEarnings(p); return s + netSalary(p.baseSalary, e.houseRent, e.conveyanceAllowance, p.deductions); }, 0);
+  const totalAllow     = items.reduce((s, p) => { const e = resolveEarnings(p); return s + e.houseRent + e.conveyanceAllowance; }, 0);
   const totalDed       = items.reduce((s, p) => s + (Number(p.deductions) || 0), 0);
   const pendingCount   = items.filter((p) => p.approvalStatus === "pending").length;
 
   const periodLabel    = `${MONTHS[month - 1]} ${year}`;
-  const totalPages     = pagination.totalPages || 1;
   const totalRecords   = pagination.total      || 0;
-  const rangeStart     = totalRecords === 0 ? 0 : (page - 1) * limit + 1;
-  const rangeEnd       = Math.min(page * limit, totalRecords);
+
+  // ── Columns ───────────────────────────────────────────────────────────────────
+  // Shared Table renders these as rows on desktop and as cards on mobile.
+  const payrollColumns = [
+    {
+      key: "employee",
+      label: "Employee",
+      primary: true,
+      wrap: true,
+      render: (employee, row) => (
+        <div className="flex items-center gap-3">
+          <div
+            aria-hidden="true"
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarBg(employee?.name)}`}>
+            {employee?.name?.charAt(0)?.toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-800">
+              {employee?.name}
+            </p>
+            <p className="font-mono text-[11px] uppercase text-slate-400">
+              {employee?.employeeCode} · {row.salaryType}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "period",
+      label: "Period",
+      align: "center",
+      render: (_, row) => (
+        <span className="whitespace-nowrap rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+          {MONTHS[row.month - 1]?.slice(0, 3)} {row.year}
+        </span>
+      ),
+    },
+    {
+      key: "payrollNumber",
+      label: "Payroll No.",
+      mono: true,
+      className: "text-xs text-slate-500",
+      render: (value) => value || "—",
+    },
+    {
+      key: "breakdown",
+      label: "Earnings / Deductions",
+      render: (_, row) => (
+        <div className="space-y-0.5 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 text-slate-400">Base</span>
+            <span className="font-medium text-slate-700">
+              {formatCurrency(row.baseSalary || 0)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 text-emerald-500">Allow</span>
+            <span className="font-medium text-emerald-600">
+              +{formatCurrency(resolveEarnings(row).houseRent + resolveEarnings(row).conveyanceAllowance)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 text-rose-400">Deduct</span>
+            <span className="font-medium text-rose-600">
+              -{formatCurrency(row.deductions || 0)}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "netPay",
+      label: "Net Pay",
+      align: "right",
+      mono: true,
+      className: "text-base font-bold text-slate-900",
+      render: (_, row) =>
+        formatCurrency(netSalary(row.baseSalary, resolveEarnings(row).houseRent, resolveEarnings(row).conveyanceAllowance, row.deductions)),
+    },
+    {
+      key: "approvalStatus",
+      label: "Status",
+      render: (value) => (
+        <Badge
+          variant={STATUS_BADGE_VARIANT[value] ?? STATUS_BADGE_VARIANT.pending}
+          size="sm">
+          {(value || "pending").toUpperCase()}
+        </Badge>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      type: "actions",
+      align: "right",
+      render: (_, row) => (
+        <div className="flex items-center justify-end gap-0.5">
+          {row.approvalStatus === "pending" && (
+            <>
+              <ActionBtn
+                title="Edit"
+                onClick={() => handleOpenModal(row)}
+                hoverCls="hover:text-blue-600 hover:bg-blue-50">
+                <Edit2 size={15} />
+              </ActionBtn>
+              {user?.role === "director" && (
+                <ActionBtn
+                  title="Approve"
+                  onClick={() => handleApprove(row._id)}
+                  hoverCls="hover:text-emerald-600 hover:bg-emerald-50">
+                  <CheckCircle size={15} />
+                </ActionBtn>
+              )}
+              <ActionBtn
+                title="Delete"
+                onClick={() => handleDelete(row._id)}
+                hoverCls="hover:text-red-600 hover:bg-red-50">
+                <Trash2 size={15} />
+              </ActionBtn>
+            </>
+          )}
+          <ActionBtn
+            title="Preview payslip"
+            onClick={() => handlePreview(row)}
+            disabled={previewLoading}
+            hoverCls="hover:text-indigo-600 hover:bg-indigo-50">
+            {previewLoading ? (
+              <Loader size={15} className="animate-spin" />
+            ) : (
+              <Eye size={15} />
+            )}
+          </ActionBtn>
+          <ActionBtn
+            title="Download PDF"
+            onClick={() => handleDownload(row, "pdf")}
+            disabled={!!downloading}
+            hoverCls="hover:text-blue-600 hover:bg-blue-50">
+            {downloading === "pdf" ? (
+              <Loader size={15} className="animate-spin" />
+            ) : (
+              <FileText size={15} />
+            )}
+          </ActionBtn>
+          <ActionBtn
+            title="Download editable Word file"
+            onClick={() => handleDownload(row, "docx")}
+            disabled={!!downloading}
+            hoverCls="hover:text-sky-600 hover:bg-sky-50">
+            {downloading === "docx" ? (
+              <Loader size={15} className="animate-spin" />
+            ) : (
+              <FileType size={15} />
+            )}
+          </ActionBtn>
+        </div>
+      ),
+    },
+  ];
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -410,283 +570,88 @@ export default function Payroll() {
         />
       </div>
 
-      {/* ── Table card ── */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-
-        {/* Toolbar */}
-        <div className="border-b border-slate-100 bg-slate-50/40 px-4 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-
-            {/* Left: Period + Status */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Month */}
-              <div className="flex items-center gap-1.5">
-                <CalendarDays size={14} className="text-slate-400 shrink-0" />
-                <div className="w-36">
-                  <Select
-                    value={month}
-                    onChange={(e) => setParam("month", e.target.value)}
-                    className="min-h-0 py-1.5 rounded-lg font-medium">
-                    {MONTHS.map((m, i) => (
-                      <option key={i} value={i + 1}>{m}</option>
-                    ))}
-                  </Select>
+      <Table
+        columns={payrollColumns}
+        data={items}
+        loading={loading}
+        rowKey={(row) => row._id}
+        page={page}
+        pageSize={limit}
+        totalItems={totalRecords}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        paginationDisabled={loading}
+        itemLabel={`records · ${periodLabel}`}
+        minWidth="min-w-[900px]"
+        emptyIcon={CalendarDays}
+        emptyMessage={`No payroll records for ${periodLabel}`}
+        emptyDescription={
+          [searchQ && `matching "${searchQ}"`, status && `with status "${status}"`]
+            .filter(Boolean)
+            .join(" ") || "Generate payroll for this period to see records here."
+        }
+        toolbar={
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    
+                {/* Left: Period + Status */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Month */}
+                  <div className="flex items-center gap-1.5">
+                    <CalendarDays size={14} className="text-slate-400 shrink-0" />
+                    <div className="w-36">
+                      <Select
+                        value={month}
+                        onChange={(e) => setParam("month", e.target.value)}
+                        className="min-h-0 py-1.5 rounded-lg font-medium">
+                        {MONTHS.map((m, i) => (
+                          <option key={i} value={i + 1}>{m}</option>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
+    
+                  {/* Year */}
+                  <div className="w-24">
+                    <Select
+                      value={year}
+                      onChange={(e) => setParam("year", e.target.value)}
+                      className="min-h-0 py-1.5 rounded-lg font-medium">
+                      {YEARS.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </Select>
+                  </div>
+    
+                  {/* Status */}
+                  <div className="w-36">
+                    <Select
+                      value={status}
+                      onChange={(e) => setParam("status", e.target.value)}
+                      className="min-h-0 py-1.5 rounded-lg">
+                      {STATUS_FILTER_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+    
+                {/* Right: Search */}
+                <div className="relative w-full lg:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  <input
+                    type="text"
+                    placeholder="Search employee…"
+                    value={localSearch}
+                    onChange={(e) => setLocalSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-800
+                      placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  />
                 </div>
               </div>
-
-              {/* Year */}
-              <div className="w-24">
-                <Select
-                  value={year}
-                  onChange={(e) => setParam("year", e.target.value)}
-                  className="min-h-0 py-1.5 rounded-lg font-medium">
-                  {YEARS.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </Select>
-              </div>
-
-              {/* Status */}
-              <div className="w-36">
-                <Select
-                  value={status}
-                  onChange={(e) => setParam("status", e.target.value)}
-                  className="min-h-0 py-1.5 rounded-lg">
-                  {STATUS_FILTER_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            {/* Right: Search */}
-            <div className="relative w-full lg:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-              <input
-                type="text"
-                placeholder="Search employee…"
-                value={localSearch}
-                onChange={(e) => setLocalSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-800
-                  placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-              />
-            </div>
           </div>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-160 text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <th className="px-5 py-3.5">Employee</th>
-                <th className="px-5 py-3.5 text-center">Period</th>
-                <th className="px-5 py-3.5">Payroll No.</th>
-                <th className="px-5 py-3.5">Earnings / Deductions</th>
-                <th className="px-5 py-3.5 text-right">Net Pay</th>
-                <th className="px-5 py-3.5">Status</th>
-                <th className="px-5 py-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    {Array.from({ length: 7 }).map((__, j) => (
-                      <td key={j} className="px-5 py-4">
-                        <div className="h-4 rounded bg-slate-100" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center">
-                    <CalendarDays size={32} className="mx-auto mb-3 text-slate-300" />
-                    <p className="text-sm font-medium text-slate-400">
-                      No payroll records for {periodLabel}
-                      {searchQ && ` matching "${searchQ}"`}
-                      {status && ` with status "${status}"`}
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                items.map((p) => {
-                  const net = netSalary(p.baseSalary, p.allowances, p.deductions);
-                  const badgeVariant = STATUS_BADGE_VARIANT[p.approvalStatus] ?? STATUS_BADGE_VARIANT.pending;
-                  return (
-                    <tr key={p._id} className="group transition-colors hover:bg-slate-50/70">
-                      {/* Employee */}
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarBg(p.employee?.name)}`}>
-                            {p.employee?.name?.charAt(0)?.toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-800">{p.employee?.name}</p>
-                            <p className="font-mono text-[11px] text-slate-400 uppercase">
-                              {p.employee?.employeeCode} · {p.salaryType}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Period */}
-                      <td className="px-5 py-3.5 text-center">
-                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 whitespace-nowrap">
-                          {MONTHS[p.month - 1]?.slice(0, 3)} {p.year}
-                        </span>
-                      </td>
-
-                      {/* Payroll No */}
-                      <td className="px-5 py-3.5">
-                        <span className="font-mono text-xs text-slate-500">{p.payrollNumber || "—"}</span>
-                      </td>
-
-                      {/* Earnings / Deductions */}
-                      <td className="px-5 py-3.5">
-                        <div className="space-y-0.5 text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-14 text-slate-400">Base</span>
-                            <span className="font-medium text-slate-700">{formatCurrency(p.baseSalary || 0)}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-14 text-emerald-500">Allow</span>
-                            <span className="font-medium text-emerald-600">+{formatCurrency(p.allowances || 0)}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-14 text-rose-400">Deduct</span>
-                            <span className="font-medium text-rose-600">-{formatCurrency(p.deductions || 0)}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Net Pay */}
-                      <td className="px-5 py-3.5 text-right">
-                        <span className="text-base font-bold text-slate-900">{formatCurrency(net)}</span>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-5 py-3.5">
-                        <Badge variant={badgeVariant} size="sm">
-                          {(p.approvalStatus || "pending").toUpperCase()}
-                        </Badge>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                          {p.approvalStatus === "pending" && (
-                            <>
-                              <ActionBtn
-                                title="Edit"
-                                onClick={() => handleOpenModal(p)}
-                                hoverCls="hover:text-blue-600 hover:bg-blue-50">
-                                <Edit2 size={15} />
-                              </ActionBtn>
-                              {user?.role === "director" && (
-                                <ActionBtn
-                                  title="Approve"
-                                  onClick={() => handleApprove(p._id)}
-                                  hoverCls="hover:text-emerald-600 hover:bg-emerald-50">
-                                  <CheckCircle size={15} />
-                                </ActionBtn>
-                              )}
-                              <ActionBtn
-                                title="Delete"
-                                onClick={() => handleDelete(p._id)}
-                                hoverCls="hover:text-red-600 hover:bg-red-50">
-                                <Trash2 size={15} />
-                              </ActionBtn>
-                            </>
-                          )}
-                          <ActionBtn
-                            title="Preview payslip"
-                            onClick={() => handlePreview(p)}
-                            disabled={previewLoading}
-                            hoverCls="hover:text-indigo-600 hover:bg-indigo-50">
-                            {previewLoading ? <Loader size={15} className="animate-spin" /> : <Eye size={15} />}
-                          </ActionBtn>
-                          <ActionBtn
-                            title="Download PDF"
-                            onClick={() => handleDownload(p)}
-                            disabled={downloading}
-                            hoverCls="hover:text-blue-600 hover:bg-blue-50">
-                            {downloading ? <Loader size={15} className="animate-spin" /> : <FileText size={15} />}
-                          </ActionBtn>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Pagination bar ── */}
-        <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3
-          sm:flex-row sm:items-center sm:justify-between sm:px-5">
-
-          {/* Left: record info */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
-            <span>
-              <span className="font-semibold text-slate-800">{totalRecords}</span>{" "}
-              {totalRecords === 1 ? "record" : "records"} · {periodLabel}
-            </span>
-            {totalRecords > 0 && (
-              <>
-                <span className="hidden text-slate-300 sm:inline">|</span>
-                <span>
-                  Showing{" "}
-                  <span className="font-semibold text-slate-800">{rangeStart}</span>
-                  {rangeEnd > rangeStart && <>–<span className="font-semibold text-slate-800">{rangeEnd}</span></>}
-                </span>
-                <span className="hidden text-slate-300 sm:inline">|</span>
-                <span>
-                  Page <span className="font-semibold text-slate-800">{page}</span>
-                  {" "}of <span className="font-semibold text-slate-800">{totalPages}</span>
-                </span>
-              </>
-            )}
-          </div>
-
-          {/* Right: rows-per-page + navigation */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="hidden text-xs text-slate-500 sm:inline">Rows</label>
-              <select
-                value={limit}
-                onChange={(e) => handleLimitChange(Number(e.target.value))}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-100">
-                {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-
-            <span className="hidden h-4 w-px bg-slate-200 sm:block" />
-
-            <div className="flex items-center gap-1">
-              {[
-                { icon: ChevronsLeft,  fn: () => handlePageChange(1),            dis: page <= 1,           title: "First" },
-                { icon: ChevronLeft,   fn: () => handlePageChange(page - 1),     dis: page <= 1,           title: "Prev"  },
-                { icon: ChevronRight,  fn: () => handlePageChange(page + 1),     dis: page >= totalPages,  title: "Next"  },
-                { icon: ChevronsRight, fn: () => handlePageChange(totalPages),   dis: page >= totalPages,  title: "Last"  },
-              ].map(({ icon: Icon, fn, dis, title }) => (
-                <button
-                  key={title}
-                  onClick={fn}
-                  disabled={dis}
-                  title={title}
-                  aria-label={title}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500
-                    hover:bg-slate-50 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-40 transition">
-                  <Icon size={13} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Payslip Preview Modal ── */}
       {previewPayroll && (
@@ -695,7 +660,7 @@ export default function Payroll() {
             payroll={previewPayroll}
             orgInfo={orgInfo}
             onClose={() => setPreviewPayroll(null)}
-            onDownload={() => handleDownload(previewPayroll)}
+            onDownload={(format) => handleDownload(previewPayroll, format)}
             downloading={downloading}
           />
         </Modal>
@@ -731,11 +696,14 @@ export default function Payroll() {
                 <div>
                   <FieldLabel>Salary Period</FieldLabel>
                   <div className="flex gap-2">
-                    <FormSelect className="flex-1" {...register("month")}>
+                    {/* min-w-0 lets the select shrink to the flex track instead
+                        of its widest option ("September"), and the year keeps a
+                        fixed track so the month name always stays readable. */}
+                    <FormSelect className="min-w-0 flex-1" {...register("month")}>
                       {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                     </FormSelect>
                     <FormInput
-                      type="number" className="w-24"
+                      type="number" className="w-24 shrink-0"
                       {...register("year")}
                     />
                   </div>
@@ -774,15 +742,28 @@ export default function Payroll() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1.5">
-                      Allowances
+                      House Rent
                     </label>
                     <FormInput
                       type="number" placeholder="0"
                       className="border-emerald-100 bg-emerald-50/40"
-                      {...register("allowances")}
+                      {...register("houseRent")}
                     />
-                    {formErrors.allowances && (
-                      <p className="mt-1 text-xs font-medium text-red-600">{formErrors.allowances.message}</p>
+                    {formErrors.houseRent && (
+                      <p className="mt-1 text-xs font-medium text-red-600">{formErrors.houseRent.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1.5">
+                      Conveyance Allowance
+                    </label>
+                    <FormInput
+                      type="number" placeholder="0"
+                      className="border-emerald-100 bg-emerald-50/40"
+                      {...register("conveyanceAllowance")}
+                    />
+                    {formErrors.conveyanceAllowance && (
+                      <p className="mt-1 text-xs font-medium text-red-600">{formErrors.conveyanceAllowance.message}</p>
                     )}
                   </div>
                   <div>
@@ -808,7 +789,14 @@ export default function Payroll() {
                     Net Payout
                   </p>
                   <p className="text-2xl font-bold mt-0.5">
-                    {formatCurrency(netSalary(watchedBaseSalary, watchedAllowances, watchedDeductions))}
+                    {formatCurrency(
+                      netSalary(
+                        watchedBaseSalary,
+                        watchedHouseRent,
+                        watchedConveyance,
+                        watchedDeductions,
+                      ),
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

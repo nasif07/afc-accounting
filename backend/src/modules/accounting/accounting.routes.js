@@ -62,6 +62,12 @@ router.get(
   AccountingController.getBalanceSheetReport,
 );
 router.get(
+  "/journal-entries/receipts-payments",
+  accountantOrDirector,
+  validate({ query: dateRangeQuery }),
+  AccountingController.getReceiptsPaymentsReport,
+);
+router.get(
   "/journal-entries/cash-flow",
   accountantOrDirector,
   validate({ query: dateRangeQuery }),

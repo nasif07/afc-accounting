@@ -14,14 +14,20 @@ export const fetchJournalEntries = createAsyncThunk(
         if (params.dateTo) searchParams.dateTo = params.dateTo;
         if (params.transactionType) searchParams.transactionType = params.transactionType;
         if (params.approvalStatus) searchParams.approvalStatus = params.approvalStatus;
+        if (params.sourceModule) searchParams.sourceModule = params.sourceModule;
+        if (params.account) searchParams.account = params.account;
+        if (params.sortBy) searchParams.sortBy = params.sortBy;
+        if (params.sortOrder) searchParams.sortOrder = params.sortOrder;
 
         const response = await api.get("/search/journal-entries", { params: searchParams });
         const payload = response?.data?.data ?? response?.data;
 
-        // Search returns plain array of matching entries
+        // Search returns plain array of matching entries. sortEntries() would
+        // re-sort by voucherDate desc and silently undo an explicit sort, so
+        // the server's order is kept whenever one was asked for.
         if (Array.isArray(payload)) {
           return {
-            entries: sortEntries(payload),
+            entries: params.sortBy ? payload : sortEntries(payload),
             pagination: {
               total: payload.length,
               page: 1,
@@ -66,7 +72,7 @@ export const fetchJournalEntries = createAsyncThunk(
       // Fallback for plain array responses
       if (Array.isArray(payload)) {
         return {
-          entries: sortEntries(payload),
+          entries: params.sortBy ? payload : sortEntries(payload),
           pagination: {
             total: payload.length,
             page: 1,

@@ -38,7 +38,7 @@ function RowIconButton({ title, onClick, children, className = "" }) {
         e.stopPropagation();
         onClick?.();
       }}
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 ${className}`}>
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white ${className}`}>
       {children}
     </button>
   );
@@ -71,18 +71,31 @@ const COATreeNode = ({
     node.balanceType || node.currentBalanceType || "debit",
   ).toLowerCase();
 
+  // Three-step tint so a row's role reads at a glance without counting
+  // indentation: parents sit above the page, nested leaves sit recessed below
+  // it, top-level leaves stay flat. Hover is always one step further up from
+  // the row's own base, so it stays distinguishable on every tier.
+  const rowTone = hasChildren
+    ? "bg-slate-100/70 hover:bg-slate-200/70"
+    : level > 0
+      ? "bg-slate-50 hover:bg-slate-100"
+      : "bg-white hover:bg-slate-50";
+
   return (
     <tr
       onClick={() => onView?.(node)}
-      className={`cursor-pointer border-b border-slate-100 transition-colors ${
-        isArchived ? "bg-slate-50/70 opacity-70" : "bg-white hover:bg-slate-50"
+      className={`cursor-pointer border-b border-slate-200 transition-colors ${rowTone} ${
+        isArchived ? "opacity-70" : ""
       }`}>
       <td className="p-0">
         <div className="flex items-stretch">
+          {/* Vertical guide tying a child group back to its parent. The line
+              sits on the right edge of each indent cell, which lands it
+              directly under the parent row's chevron column. */}
           {Array.from({ length: level }).map((_, i) => (
             <span
               key={i}
-              className="w-6 shrink-0 border-r border-slate-200"
+              className="w-6 shrink-0 border-r border-slate-300"
               aria-hidden="true"
             />
           ))}
@@ -96,8 +109,9 @@ const COATreeNode = ({
                     e.stopPropagation();
                     onToggleExpand?.();
                   }}
-                  aria-label={isExpanded ? "Collapse" : "Expand"}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900">
+                  aria-expanded={isExpanded}
+                  aria-label={`${isExpanded ? "Collapse" : "Expand"} ${node.accountName}`}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-300 hover:text-slate-900">
                   {isExpanded ? (
                     <ChevronDown size={15} />
                   ) : (
@@ -105,7 +119,7 @@ const COATreeNode = ({
                   )}
                 </button>
               ) : (
-                <Circle size={5} className="text-slate-300" fill="currentColor" />
+                <Circle size={5} className="text-slate-400" fill="currentColor" />
               )}
             </div>
 
@@ -116,7 +130,7 @@ const COATreeNode = ({
             />
 
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="shrink-0 font-mono text-[11px] text-slate-400">
+              <span className="shrink-0 font-mono text-[11px] text-slate-500">
                 {node.accountCode}
               </span>
               <span
@@ -144,7 +158,7 @@ const COATreeNode = ({
 
       <td className="px-3 py-2.5 text-right align-middle">
         {hasChildren ? (
-          <span className="text-[11px] font-semibold text-slate-400">
+          <span className="text-[11px] font-semibold text-slate-500">
             {childCount} {childCount === 1 ? "sub" : "subs"}
           </span>
         ) : (
@@ -152,7 +166,7 @@ const COATreeNode = ({
             <div className="truncate font-mono text-sm font-semibold text-slate-900">
               {formatCurrency(balance)}
             </div>
-            <div className="text-[10px] font-medium text-slate-400">
+            <div className="text-[10px] font-medium text-slate-500">
               ({balanceType})
             </div>
           </>

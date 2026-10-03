@@ -1,10 +1,24 @@
 import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import { Filter, X } from "lucide-react";
 import { toast } from "sonner";
+import AccountCombobox from "../common/AccountCombobox";
 import Button from "../common/Button";
 import Select from "../common/Select";
 import DatePicker from "../common/DatePicker";
 import { coaAPI } from "../../services/apiMethods";
+import {
+  buildMonthOptions,
+  financialYearOptions,
+  financialYearRange,
+  monthRange,
+} from "../../utils/date";
+
+const PERIOD_OPTIONS = [
+  { value: "month", label: "Month" },
+  { value: "year", label: "Financial Year" },
+  { value: "custom", label: "Custom Range" },
+];
 
 const ReportFilters = ({
   reportType,
@@ -14,22 +28,55 @@ const ReportFilters = ({
   onReset,
   loading = false,
 }) => {
+  const financialYearType =
+    useSelector((state) => state.settings?.data?.financialYearType) ||
+    "july-june";
   const [accounts, setAccounts] = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
 
   const reportOptions = [
     { value: "trial-balance", label: "Trial Balance" },
-    { value: "income-statement", label: "Profit & Loss" },
+    { value: "receipts-payments", label: "Receipts & Payments" },
     { value: "balance-sheet", label: "Balance Sheet" },
     { value: "cash-flow", label: "Cash Flow Statement" },
     { value: "general-ledger", label: "General Ledger" },
   ];
 
   const requiresDateRange = [
-    "income-statement",
+    "receipts-payments",
     "cash-flow",
     "general-ledger",
   ].includes(reportType);
+
+  const period = filters.period || "custom";
+
+  const applyMonth = (monthValue) => {
+    if (!monthValue) return;
+    onFilterChange({ period: "month", periodValue: monthValue, ...monthRange(monthValue) });
+  };
+
+  const applyYear = (startYear) => {
+    if (!startYear) return;
+    onFilterChange({
+      period: "year",
+      periodValue: startYear,
+      ...financialYearRange(startYear, financialYearType),
+    });
+  };
+
+  // Switching the period type lands on its most useful value straight away:
+  // Month → the month the current dates start in, Financial Year → the year in
+  // progress. Custom keeps whatever dates are already there.
+  const handlePeriodChange = (nextPeriod) => {
+    if (nextPeriod === "month") {
+      const fromDates = filters.startDate ? filters.startDate.slice(0, 7) : "";
+      applyMonth(fromDates || buildMonthOptions()[0].value);
+    } else if (nextPeriod === "year") {
+      applyYear(financialYearOptions(financialYearType)[0].value);
+    } else {
+      onFilterChange({ period: "custom", periodValue: "" });
+    }
+  };
 
   const requiresSingleDate = [
     "trial-balance",
@@ -55,16 +102,6 @@ const ReportFilters = ({
     fetchAccounts();
   }, [reportType]);
 
-  const accountOptions = [
-    {
-      value: "",
-      label: loadingAccounts ? "Loading accounts..." : "Select Account",
-    },
-    ...accounts.map((account) => ({
-      value: account._id,
-      label: `${account.accountCode} - ${account.accountName}`,
-    })),
-  ];
 
   return (
     <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
@@ -91,24 +128,73 @@ const ReportFilters = ({
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Account
             </label>
-            <Select
+            <AccountCombobox
               value={filters.accountId || ""}
-              onChange={(e) => onFilterChange("accountId", e.target.value)}
-              options={accountOptions}
+              onChange={(value) => onFilterChange("accountId", value)}
+              accounts={accounts}
               disabled={loading || loadingAccounts}
+              placeholder={
+                loadingAccounts ? "Loading accounts..." : "Select Account"
+              }
             />
           </div>
         )}
 
         {requiresDateRange && (
           <>
+            {/* Month or financial year fills Start/End in one step; editing
+                either date by hand switches the period to Custom Range. */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Period
+              </label>
+              <Select
+                value={period}
+                onChange={(e) => handlePeriodChange(e.target.value)}
+                options={PERIOD_OPTIONS}
+                disabled={loading}
+              />
+            </div>
+
+            {period === "month" && (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Month
+                </label>
+                <Select
+                  value={filters.periodValue || ""}
+                  onChange={(e) => applyMonth(e.target.value)}
+                  options={buildMonthOptions(filters.periodValue)}
+                  placeholder="Select month"
+                  disabled={loading}
+                />
+              </div>
+            )}
+
+            {period === "year" && (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Financial Year
+                </label>
+                <Select
+                  value={filters.periodValue || ""}
+                  onChange={(e) => applyYear(e.target.value)}
+                  options={financialYearOptions(financialYearType)}
+                  placeholder="Select year"
+                  disabled={loading}
+                />
+              </div>
+            )}
+
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Start Date
               </label>
               <DatePicker
                 value={filters.startDate || ""}
-                onChange={(value) => onFilterChange("startDate", value)}
+                onChange={(value) =>
+                  onFilterChange({ startDate: value, period: "custom", periodValue: "" })
+                }
                 disabled={loading}
               />
             </div>
@@ -119,7 +205,9 @@ const ReportFilters = ({
               </label>
               <DatePicker
                 value={filters.endDate || ""}
-                onChange={(value) => onFilterChange("endDate", value)}
+                onChange={(value) =>
+                  onFilterChange({ endDate: value, period: "custom", periodValue: "" })
+                }
                 disabled={loading}
               />
             </div>
@@ -139,7 +227,7 @@ const ReportFilters = ({
           </div>
         )}
 
-        {["general-ledger", "income-statement"].includes(reportType) && (
+        {["general-ledger", "receipts-payments"].includes(reportType) && (
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               View

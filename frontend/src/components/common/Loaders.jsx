@@ -19,6 +19,23 @@ export function PageLoader({ message = "Loading...", className = "" }) {
   );
 }
 
+// Same visual as PageLoader, but sized to sit inside the dashboard's <main>
+// content area (Layout.jsx) instead of covering the full viewport — the
+// sidebar/header stay visible and stable while only the page content area
+// shows this during a route's lazy-chunk load.
+export function ContentLoader({ message = "Loading page...", className = "" }) {
+  return (
+    <div className={`flex min-h-[50vh] items-center justify-center ${className}`}>
+      <div className="text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white ring-1 ring-slate-200">
+          <Loader2 className="h-6 w-6 animate-spin text-red-600" />
+        </div>
+        <p className="mt-4 text-sm font-medium text-slate-600">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 export function SectionSkeleton({ rows = 4, className = "" }) {
   return (
     <div className={`space-y-3 rounded-xl border border-slate-200 bg-white p-4 ${className}`}>

@@ -14,14 +14,7 @@ import {
   initialFormData,
 } from "../components/bankBook/bankBookHelpers";
 import { getErrorMessage } from "../utils/errors";
-import { formatDisplayDate, todayISO, toISODate } from "../utils/date";
-
-const DEFAULT_PAGE_SIZE = 20;
-
-const firstDayOfCurrentMonth = () => {
-  const now = new Date();
-  return toISODate(new Date(now.getFullYear(), now.getMonth(), 1));
-};
+import { formatDisplayDate, todayISO, firstDayOfCurrentMonth } from "../utils/date";
 
 const defaultFilters = () => ({
   dateFrom: firstDayOfCurrentMonth(),
@@ -31,8 +24,6 @@ const defaultFilters = () => ({
   bankHeadId: "",
   voucherNo: "",
   referenceNo: "",
-  page: 1,
-  limit: DEFAULT_PAGE_SIZE,
 });
 
 const defaultSummary = () => ({
@@ -64,7 +55,9 @@ export default function BankBook() {
 
   // ─── Derived options ────────────────────────────────────────────────────────
 
-  const bankHeadOptions = useMemo(() => {
+  // Raw account documents, not {value,label} pairs — AccountCombobox renders
+  // the code and name itself and searches across both.
+  const bankHeadAccounts = useMemo(() => {
     const parentIds = new Set(
       accounts
         .map((a) => (typeof a.parentAccount === "object" ? a.parentAccount?._id : a.parentAccount))
@@ -75,11 +68,10 @@ export default function BankBook() {
       .filter((a) => {
         const parentCode = typeof a.parentAccount === "object" ? a.parentAccount?.accountCode : "";
         return parentCode === "1002" && !parentIds.has(String(a._id)) && a.status === "active";
-      })
-      .map((a) => ({ value: a._id, label: accountLabel(a) }));
+      });
   }, [accounts]);
 
-  const incomeHeadOptions = useMemo(() => {
+  const incomeHeadAccounts = useMemo(() => {
     const parentIds = new Set(
       accounts
         .map((a) => (typeof a.parentAccount === "object" ? a.parentAccount?._id : a.parentAccount))
@@ -90,8 +82,7 @@ export default function BankBook() {
       .filter((a) => {
         const type = String(a.accountType || "").toLowerCase();
         return ["income", "revenue"].includes(type) && !parentIds.has(String(a._id)) && a.status === "active";
-      })
-      .map((a) => ({ value: a._id, label: accountLabel(a) }));
+      });
   }, [accounts]);
 
   const selectedBankHead = accounts.find((a) => a._id === formData.bankHeadId);
@@ -162,7 +153,6 @@ export default function BankBook() {
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadAccounts(); }, []);
 
   // ─── Form handlers ───────────────────────────────────────────────────────────
@@ -215,7 +205,7 @@ export default function BankBook() {
       await bankBookAPI.create({ ...formData, amount });
       toast.success("Student collection saved to journal");
       resetForm();
-      await loadCollections({ ...filters, page: 1 });
+      await loadCollections(filters);
     } catch (error) {
       const msg = getErrorMessage(error, "Failed to save collection");
       setFormError(msg);
@@ -228,10 +218,10 @@ export default function BankBook() {
   // ─── Filter handlers ─────────────────────────────────────────────────────────
 
   const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const applyFilters = () => loadCollections({ ...filters, page: 1 });
+  const applyFilters = () => loadCollections(filters);
 
   const resetFilters = () => {
     const next = { ...defaultFilters(), bankHeadId: filters.bankHeadId };
@@ -298,7 +288,7 @@ export default function BankBook() {
       .sign{margin-top:42px;margin-left:auto;width:260px;text-align:center;font-weight:700}
       .foot{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:space-between;font-size:10px}
     </style></head><body>
-      <div class="brand"><img src="/afc-logo.png"/><div class="center">
+      <div class="brand"><img src="/afc-full-logo.jpg"/><div class="center">
         <h1>Alliance Francaise de Chittagong</h1><h2>Statement of Account</h2>
         <p class="meta">Period: ${filters.dateFrom || "Beginning"} to ${filters.dateTo || "Current"}</p>
       </div><span></span></div>
@@ -321,7 +311,7 @@ export default function BankBook() {
         <tr><td>Total Deposits</td><td class="right">${money(summary.totalDeposits)}</td></tr>
         <tr><td>Total Payments</td><td class="right">${money(summary.totalPayments)}</td></tr>
       </table>
-      <div class="sign"><div>Checked &amp; Approved</div><br/><br/><div>Signature</div></div>
+      <div class="sign"><div>Checked &amp; Approved</div><br/><br/><div>Authorized Signature</div></div>
       <div class="foot"><span>AFC/Statement_of_Account</span><span></span></div>
     </body></html>`);
     printWindow.document.close();
@@ -356,6 +346,7 @@ export default function BankBook() {
         title="Student Collection"
         description="Simple student payment collection form backed by journal entries"
         buttonText="Refresh"
+        hotkey={false}
         buttonIcon={RefreshCw}
         onButtonClick={() => loadCollections(filters)}
       />
@@ -364,8 +355,8 @@ export default function BankBook() {
         formData={formData}
         formError={formError}
         saving={saving}
-        bankHeadOptions={bankHeadOptions}
-        incomeHeadOptions={incomeHeadOptions}
+        bankHeadAccounts={bankHeadAccounts}
+        incomeHeadAccounts={incomeHeadAccounts}
         selectedBankHead={selectedBankHead}
         selectedIncomeHead={selectedIncomeHead}
         amount={amount}
@@ -380,7 +371,7 @@ export default function BankBook() {
 
       <BankBookFilters
         filters={filters}
-        bankHeadOptions={bankHeadOptions}
+        bankHeadAccounts={bankHeadAccounts}
         loading={loading}
         onFilterChange={handleFilterChange}
         onApply={applyFilters}

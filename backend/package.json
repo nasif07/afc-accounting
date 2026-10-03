@@ -8,6 +8,9 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node src/seed/seed.js",
+    "configure:r2-cors": "node scripts/configure-r2-cors.js",
+    "sync:reconciliation-dates": "node scripts/sync-reconciliation-line-dates.js",
+    "normalize:reconciliation-periods": "node scripts/normalize-reconciliation-periods.js",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -21,9 +24,12 @@
   "license": "ISC",
   "description": "Professional School Accounting & Financial Management System",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1116.0",
+    "@aws-sdk/s3-request-presigner": "^3.1116.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "docx": "^9.7.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-fileupload": "^1.5.2",
@@ -35,9 +41,11 @@
     "mongodb": "^6.13.0",
     "mongoose": "^8.10.0",
     "mongoose-lean-getters": "^2.3.1",
+    "nodemailer": "^9.0.5",
     "pdfkit": "^0.13.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
+    "sanitize-html": "^2.17.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {

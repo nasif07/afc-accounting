@@ -11,6 +11,8 @@ class PayrollController {
         year,
         salaryType,
         baseSalary,
+        houseRent,
+        conveyanceAllowance,
         allowances,
         bonus,
         deductions,
@@ -31,6 +33,8 @@ class PayrollController {
         year,
         salaryType: salaryType || 'monthly',
         baseSalary,
+        houseRent: houseRent || 0,
+        conveyanceAllowance: conveyanceAllowance || 0,
         allowances: allowances || 0,
         bonus: bonus || 0,
         deductions: deductions || 0,
@@ -175,9 +179,14 @@ class PayrollController {
   static async generatePayslip(req, res, next) {
     try {
       const { id } = req.params;
-      const pdfPath = await PayrollService.generatePayslip(id);
-      
-      res.download(pdfPath, `payslip-${id}.pdf`);
+      const format = req.query.format === 'docx' ? 'docx' : 'pdf';
+
+      const { filepath, payroll } = await PayrollService.generatePayslip(id, format);
+
+      // A name the accountant can file without renaming: who, which period.
+      const employeeCode = payroll.employee?.employeeCode || id;
+      const period = `${payroll.month}-${payroll.year}`;
+      res.download(filepath, `payslip-${employeeCode}-${period}.${format}`);
     } catch (error) {
       next(error);
     }

@@ -135,11 +135,22 @@ class COAController {
     try {
       const { id } = req.params;
 
-      const account = await COAService.getAccountById(id);
+      const existing = await COAService.getAccountById(id);
 
-      if (!account) {
+      if (!existing) {
         return ApiResponse.notFound(res, "Account not found");
       }
+
+      // currentBalance is a cache: it's only ever recalculated when a
+      // journal entry is approved through the app. Anything that alters the
+      // ledger outside that path (a reversed/deleted entry, direct DB
+      // changes) leaves it stale with no way to self-correct. Recomputing
+      // from the actual journal entries on every "view account details"
+      // request keeps this specific screen always correct, independent of
+      // how the cache got out of sync.
+      await COAService.recalculateCurrentBalanceFromJournals(id);
+
+      const account = await COAService.getAccountById(id);
 
       return ApiResponse.success(
         res,
@@ -246,27 +257,42 @@ class COAController {
         );
       }
 
-      // IMPORTANT: allow opening fields update only before transactions
-      if (existing.hasTransactions) {
-        if (updateData.openingBalance !== undefined) {
-          return ApiResponse.badRequest(
-            res,
-            "Opening balance cannot be updated after transactions exist",
-          );
-        }
+      // IMPORTANT: allow opening fields update only before *real* (non
+      // opening-balance) transactions exist. existing.hasTransactions is
+      // true the moment the account has its own opening-balance journal —
+      // which every account with a non-zero opening balance now has (see
+      // COAService.setOpeningBalance) — so that cached flag alone would
+      // block editing an opening balance from its second edit onward. Check
+      // live, excluding the account's own opening entry.
+      if (
+        updateData.openingBalance !== undefined ||
+        updateData.openingBalanceType !== undefined ||
+        updateData.openingDate !== undefined
+      ) {
+        const hasNonOpeningTransactions =
+          await COAService.hasNonOpeningTransactions(id);
 
-        if (updateData.openingBalanceType !== undefined) {
-          return ApiResponse.badRequest(
-            res,
-            "Opening balance type cannot be updated after transactions exist",
-          );
-        }
+        if (hasNonOpeningTransactions) {
+          if (updateData.openingBalance !== undefined) {
+            return ApiResponse.badRequest(
+              res,
+              "Opening balance cannot be updated after transactions exist",
+            );
+          }
 
-        if (updateData.openingDate !== undefined) {
-          return ApiResponse.badRequest(
-            res,
-            "Opening date cannot be updated after transactions exist",
-          );
+          if (updateData.openingBalanceType !== undefined) {
+            return ApiResponse.badRequest(
+              res,
+              "Opening balance type cannot be updated after transactions exist",
+            );
+          }
+
+          if (updateData.openingDate !== undefined) {
+            return ApiResponse.badRequest(
+              res,
+              "Opening date cannot be updated after transactions exist",
+            );
+          }
         }
       }
 
@@ -418,11 +444,14 @@ class COAController {
   // =============================
   static async getLeafNodes(req, res, next) {
     try {
-      const { accountType } = req.query;
+      const { accountType, parentAccountCode } = req.query;
 
       const filters = {};
 
       if (accountType) filters.accountType = String(accountType).toLowerCase();
+      if (parentAccountCode) {
+        filters.parentAccountCode = String(parentAccountCode).trim();
+      }
 
       const leafNodes = await COAService.getLeafNodes(filters);
 

@@ -1,14 +1,16 @@
 import React from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, Controller } from "react-hook-form";
 import { Trash2, AlertCircle, Landmark, FileText, Banknote } from "lucide-react";
 import Input from "../common/Input";
-import Select from "../common/Select";
+import AccountCombobox from "../common/AccountCombobox";
 import Button from "../common/Button";
 
-const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
+const BookEntryRow = ({ index, leafAccounts, onRemove, readOnly = false }) => {
   const {
+    control,
     register,
     setValue,
+    watch,
     formState: { errors },
   } = useFormContext();
 
@@ -20,27 +22,100 @@ const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
   ].filter(Boolean);
   const hasError = rowErrorMessages.length > 0;
 
-  const accountOptions = (leafAccounts || []).map((account) => ({
-    value: account._id,
-    label: `${account.accountCode} - ${account.accountName}`,
-  }));
+  // Read-only mode (editing an existing entry): a line's account and its
+  // debit/credit amounts are permanently immutable — corrections go through a
+  // reversing entry. These are rendered as plain text rather than disabled
+  // inputs on purpose: a disabled input is still a form control someone can
+  // re-enable in devtools, and it reads as "temporarily unavailable" when the
+  // truth is "never editable". Only the description stays a real input.
+  if (readOnly) {
+    const accountId = watch(`bookEntries.${index}.account`);
+    const account = (leafAccounts || []).find((item) => item._id === accountId);
+    const accountLabel = account
+      ? `${account.accountCode} - ${account.accountName}`
+      : accountId || "—";
+    const debit = watch(`bookEntries.${index}.debit`);
+    const credit = watch(`bookEntries.${index}.credit`);
+    const amount = (value) =>
+      value === "" || value == null || Number(value) === 0
+        ? "—"
+        : Number(value).toLocaleString("en-BD", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+
+    return (
+      <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+          <div className="md:col-span-4">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Account (locked)
+            </p>
+            <p className="text-sm font-semibold text-slate-700">{accountLabel}</p>
+          </div>
+
+          <div className="md:col-span-4">
+            <Input
+              label="Description"
+              type="text"
+              icon={FileText}
+              placeholder="Row description"
+              {...register(`bookEntries.${index}.description`)}
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Debit (locked)
+            </p>
+            <p className="font-mono text-sm font-bold text-slate-700">
+              {amount(debit)}
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Credit (locked)
+            </p>
+            <p className="font-mono text-sm font-bold text-slate-700">
+              {amount(credit)}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
+    // data-book-entry-row lets the Alt+D shortcut in DynamicJournalForm work
+    // out which row the focused field belongs to.
     <div
+      data-book-entry-row={index}
       className={`mb-3 rounded-xl border p-3 sm:p-4 ${
         hasError ? "border-red-300 bg-red-50/60" : "border-slate-200 bg-white"
       }`}
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
         <div className="md:col-span-3">
-          <Select
-            label="Account"
-            icon={Landmark}
-            options={accountOptions}
-            placeholder="Select Account"
-            required
-            className={rowErrors.account ? "border-red-300" : ""}
-            {...register(`bookEntries.${index}.account`)}
+          <Controller
+            name={`bookEntries.${index}.account`}
+            control={control}
+            render={({ field }) => (
+              <AccountCombobox
+                label="Account"
+                icon={Landmark}
+                name={field.name}
+                accounts={leafAccounts || []}
+                value={field.value || ""}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                required
+                // The row already surfaces account errors in its own summary
+                // banner below, so only the red border is wanted here — same
+                // as the Select this replaces.
+                invalid={!!rowErrors.account}
+              />
+            )}
           />
         </div>
 
@@ -99,6 +174,7 @@ const BookEntryRow = ({ index, leafAccounts, onRemove }) => {
             type="button"
             variant="outline"
             onClick={onRemove}
+            title="Remove this line (Alt + D)"
             className="w-full border-red-200 text-red-600 hover:bg-red-50"
             icon={Trash2}
           >

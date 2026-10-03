@@ -3,6 +3,7 @@ const mongooseLeanGetters = require("mongoose-lean-getters");
 const {
   TRANSACTION_TYPES,
   APPROVAL_STATUS,
+  SOURCE_MODULES,
 } = require("../../config/constants");
 const generateVoucherNumber = require("../../utils/generateVoucherNumber");
 
@@ -131,17 +132,8 @@ const journalEntrySchema = new mongoose.Schema(
 
     sourceModule: {
       type: String,
-      enum: [
-        "manual",
-        "bank_book",
-        "student_collection",
-        "petty_cash",
-        "payroll",
-        "receipt",
-        "expense",
-        "OPENING_BALANCE",
-      ],
-      default: "manual",
+      enum: Object.values(SOURCE_MODULES),
+      default: SOURCE_MODULES.MANUAL,
     },
 
     requiresApproval: {
@@ -254,46 +246,6 @@ const journalEntrySchema = new mongoose.Schema(
       },
     },
 
-    bankReconciliations: {
-      type: [
-        {
-          account: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "ChartOfAccounts",
-            required: true,
-          },
-          status: {
-            type: String,
-            enum: ["unreconciled", "reconciled"],
-            default: "unreconciled",
-          },
-          isReconciled: {
-            type: Boolean,
-            default: false,
-          },
-          reconciledAt: {
-            type: Date,
-            default: null,
-          },
-          reconciledBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            default: null,
-          },
-          reconciliationId: {
-            type: String,
-            trim: true,
-            default: "",
-          },
-          statementRef: {
-            type: String,
-            trim: true,
-            default: "",
-          },
-        },
-      ],
-      default: [],
-    },
   },
   {
     timestamps: true,

@@ -7,7 +7,7 @@ import { Card, CardContent, Button } from "../components/common";
 import KPICard from "../components/reports/KPICard";
 import ReportFilters from "../components/reports/ReportFilters";
 import TrialBalanceReport from "../components/reports/TrialBalanceReport";
-import IncomeStatementReport from "../components/reports/IncomeStatementReport";
+import ReceiptsPaymentsReport from "../components/reports/ReceiptsPaymentsReport";
 import BalanceSheetReport from "../components/reports/BalanceSheetReport";
 import CashFlowReport from "../components/reports/CashFlowReport";
 import GeneralLedgerReport from "../components/reports/GeneralLedgerReport"; // ✅ add this
@@ -15,30 +15,61 @@ import { toast } from "sonner";
 import api from "../services/api";
 import SectionHeader from "../components/common/SectionHeader";
 import { SectionSkeleton, ErrorState } from "../components/common/Loaders";
-import { formatDisplayDate, todayISO } from "../utils/date";
+import {
+  formatDisplayDate,
+  monthRange,
+  previousMonthValue,
+  todayISO,
+} from "../utils/date";
 import { useGeneralLedgerReport } from "../hooks/useGeneralLedgerReport";
 import { openPrintWindow } from "../utils/printWindow";
+import { usePaginationParams } from "../hooks/usePaginationParams";
+import { REPORT_LOGO } from "../constants/branding";
 
-const LEDGER_LIMIT = 50;
+const LEDGER_DEFAULT_PAGE_SIZE = 50;
+// The ledger endpoint clamps `limit` at 200 (accounting.service.js).
+const LEDGER_PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+
+// Period reports open on the previous month — the one normally being closed
+// and reported on — rather than on blank dates.
+const defaultFilters = () => {
+  const month = previousMonthValue();
+  return {
+    period: "month",
+    periodValue: month,
+    ...monthRange(month),
+    asOfDate: todayISO(),
+    viewType: "detailed",
+    accountId: "",
+  };
+};
+
+const REPORT_TITLES = {
+  "trial-balance": "Trial Balance",
+  "receipts-payments": "Receipts & Payments Account",
+  "balance-sheet": "Balance Sheet",
+  "cash-flow": "Cash Flow Statement",
+  "general-ledger": "General Ledger",
+};
 
 export default function Reports() {
   const printRef = useRef(null);
 
   const [reportType, setReportType] = useState("trial-balance");
-  const [filters, setFilters] = useState({
-    startDate: "",
-    endDate: "",
-    asOfDate: todayISO(),
-    viewType: "detailed",
-    accountId: "",
-  });
+  const [filters, setFilters] = useState(defaultFilters);
 
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
 
   // ── General Ledger: React Query-driven (page/limit live in the query key) ──
-  const [ledgerPage, setLedgerPage] = useState(1);
+  const {
+    page: ledgerPage,
+    pageSize: ledgerPageSize,
+    setPage: setLedgerPage,
+    setPageSize: setLedgerPageSize,
+    resetPage: resetLedgerPage,
+  } = usePaginationParams(LEDGER_DEFAULT_PAGE_SIZE, { maxPageSize: 200 });
   const [ledgerSubmitted, setLedgerSubmitted] = useState(false);
   const isLedger = reportType === "general-ledger";
   const ledgerQuery = useGeneralLedgerReport(
@@ -47,7 +78,7 @@ export default function Reports() {
       startDate: filters.startDate,
       endDate: filters.endDate,
       page: ledgerPage,
-      limit: LEDGER_LIMIT,
+      limit: ledgerPageSize,
     },
     { enabled: isLedger && ledgerSubmitted && !!filters.accountId },
   );
@@ -58,7 +89,7 @@ export default function Reports() {
         toast.error("Please select an account for General Ledger report");
         return;
       }
-      setLedgerPage(1);
+      resetLedgerPage();
       if (ledgerSubmitted) {
         // Query is already enabled for this account — force a fresh fetch.
         ledgerQuery.refetch();
@@ -83,8 +114,8 @@ export default function Reports() {
           if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
 
-        case "income-statement":
-          endpoint += "/income-statement";
+        case "receipts-payments":
+          endpoint += "/receipts-payments";
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
@@ -119,11 +150,12 @@ export default function Reports() {
     }
   };
 
-  const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+  // Takes (key, value) for one field, or an object to patch several at once —
+  // picking a month sets the period and both dates in a single update.
+  const handleFilterChange = (keyOrPatch, value) => {
+    const patch =
+      typeof keyOrPatch === "object" ? keyOrPatch : { [keyOrPatch]: value };
+    setFilters((prev) => ({ ...prev, ...patch }));
   };
 
   const handleReportTypeChange = (type) => {
@@ -131,21 +163,15 @@ export default function Reports() {
     setReportData(null);
     setError(null);
     setLedgerSubmitted(false);
-    setLedgerPage(1);
+    resetLedgerPage();
   };
 
   const handleReset = () => {
-    setFilters({
-      startDate: "",
-      endDate: "",
-      asOfDate: todayISO(),
-      viewType: "detailed",
-      accountId: "",
-    });
+    setFilters(defaultFilters());
     setReportData(null);
     setError(null);
     setLedgerSubmitted(false);
-    setLedgerPage(1);
+    resetLedgerPage();
   };
 
   const handlePrint = () => {
@@ -172,22 +198,22 @@ export default function Reports() {
     if (!effectiveReportData) return [];
 
     switch (reportType) {
-      case "income-statement":
+      case "receipts-payments":
         return [
           {
-            title: "Total Revenue",
-            value: effectiveReportData.totalRevenue || 0,
+            title: "Total Receipts",
+            value: effectiveReportData.totalReceipts || 0,
             color: "green",
           },
           {
-            title: "Total Expenses",
-            value: effectiveReportData.totalExpenses || 0,
+            title: "Total Payments",
+            value: effectiveReportData.totalPayments || 0,
             color: "red",
           },
           {
-            title: "Net Income",
-            value: effectiveReportData.netIncome || 0,
-            color: effectiveReportData.netIncome >= 0 ? "green" : "red",
+            title: "Closing Cash & Bank",
+            value: effectiveReportData.totalClosing || 0,
+            color: "blue",
           },
         ];
 
@@ -283,6 +309,7 @@ export default function Reports() {
         title="Financial Reports"
         description="Generate and analyze comprehensive financial statements"
         buttonText="Generate Report"
+        hotkey={false}
         onButtonClick={fetchReport}
         buttonIcon={BarChart3}
         isLoading={effectiveLoading}
@@ -331,6 +358,14 @@ export default function Reports() {
           <Card className="border-t-4 border-red-600 shadow-xl">
             <CardContent className="pt-8" ref={printRef}>
               <div className="mb-8 border-b-2 border-slate-900 pb-6 text-center">
+                {/* h-auto with a capped height keeps the landscape full logo
+                    (758x564) undistorted. printWindow waits for images before
+                    printing, so it can't be dropped from the output. */}
+                <img
+                  src={REPORT_LOGO}
+                  alt="Alliance Française de Chittagong"
+                  className="mx-auto mb-4 h-16 w-auto"
+                />
                 <h1 className="text-2xl font-bold uppercase tracking-wider text-slate-900">
                   Alliance Française
                 </h1>
@@ -341,18 +376,13 @@ export default function Reports() {
                 {/* ✅ Changed: wrap in flex div instead of inline-block */}
                 <div className="mt-6 flex justify-center">
                   <div className="rounded-full bg-slate-900 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white">
-                    {reportType === "trial-balance" && "Trial Balance"}
-                    {reportType === "income-statement" &&
-                      "Profit & Loss Statement"}
-                    {reportType === "balance-sheet" && "Balance Sheet"}
-                    {reportType === "cash-flow" && "Cash Flow Statement"}
-                    {reportType === "general-ledger" && "General Ledger"}
+                    {REPORT_TITLES[reportType]}
                   </div>
                 </div>
 
                 <div className="mt-4 flex flex-col items-center gap-1">
                   {(filters.startDate || filters.endDate) &&
-                    (reportType === "income-statement" ||
+                    (reportType === "receipts-payments" ||
                       reportType === "cash-flow" ||
                       reportType === "general-ledger") && (
                       <p className="text-sm text-slate-600">
@@ -386,11 +416,14 @@ export default function Reports() {
                   />
                 )}
 
-                {reportType === "income-statement" && (
-                  <IncomeStatementReport
+                {reportType === "receipts-payments" && (
+                  <ReceiptsPaymentsReport
                     data={reportData}
                     startDate={filters.startDate}
                     endDate={filters.endDate}
+                    // Display toggle only — the vouchers are already in the
+                    // response, so switching View doesn't refetch.
+                    viewType={filters.viewType}
                   />
                 )}
 
@@ -414,8 +447,15 @@ export default function Reports() {
                     data={effectiveReportData}
                     startDate={filters.startDate}
                     endDate={filters.endDate}
+                    page={ledgerPage}
+                    pageSize={ledgerPageSize}
                     onPageChange={setLedgerPage}
+                    onPageSizeChange={setLedgerPageSize}
+                    pageSizeOptions={LEDGER_PAGE_SIZE_OPTIONS}
                     isFetching={ledgerQuery.isFetching}
+                    // Purely a display toggle — the contra lines are already
+                    // in the response, so switching View doesn't refetch.
+                    viewType={filters.viewType}
                   />
                 )}
               </div>

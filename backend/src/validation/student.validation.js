@@ -11,6 +11,13 @@ const parentSchema = z
   })
   .optional();
 
+const financialsSchema = z
+  .object({
+    totalPayable: z.coerce.number().min(0, "Must be 0 or greater").optional(),
+    totalPaid: z.coerce.number().min(0, "Must be 0 or greater").optional(),
+  })
+  .optional();
+
 const createStudentBody = z.object({
   rollNumber: z.string().trim().min(1, "Roll number is required"),
   name: z.string().trim().min(1, "Name is required"),
@@ -25,6 +32,7 @@ const createStudentBody = z.object({
   dateOfBirth: z.coerce.date().optional(),
   admissionDate: z.coerce.date().optional(),
   status: z.enum(STATUS_VALUES).optional(),
+  financials: financialsSchema,
   notes: z.string().trim().optional(),
 });
 
@@ -38,6 +46,9 @@ const updateStudentBody = z.object({
   phone: z.string().trim().optional(),
   status: z.enum(STATUS_VALUES).optional(),
   address: z.string().trim().optional(),
+  parent: parentSchema,
+  financials: financialsSchema,
+  notes: z.string().trim().optional(),
 });
 
 const getAllStudentsQuery = paginationQuery.extend({

@@ -143,6 +143,17 @@ export default function Login() {
               </div>
             </div>
 
+            {/* The Settings page also offers this, but only to someone already
+                signed in — which is the one situation where you do not need
+                it. The link belongs where people actually get stuck. */}
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-xs font-semibold text-slate-500 transition hover:text-[#ED1C24] hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+
             <Button
               type="submit"
               fullWidth

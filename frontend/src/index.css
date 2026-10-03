@@ -131,6 +131,102 @@
   animation: heartbeat 1.2s ease-in-out infinite;
 }
 
+/* ── Top bar page-navigation loader (components/common/TopBarLoader.jsx) ── */
+@keyframes topbar-loader {
+  0%   { transform: translateX(-100%); width: 40%; }
+  50%  { transform: translateX(60%);   width: 60%; }
+  100% { transform: translateX(200%);  width: 40%; }
+}
+
+.animate-topbar-loader {
+  animation: topbar-loader 1.1s ease-in-out infinite;
+}
+
+/* ── Rich text (TipTap) ──────────────────────────────────────────────────── */
+/* One class shared by the editor surface (RichTextEditor.jsx) and the read-only
+   renderer (RichTextView.jsx), so a description looks identical while it is
+   being written and after it is saved. Written by hand rather than pulled in
+   with @tailwindcss/typography: prose's defaults are tuned for article pages
+   (large headings, generous vertical rhythm) and would have needed overriding
+   on almost every element to sit inside a modal at this app's text scale.
+
+   Tailwind's preflight resets margins and list markers to nothing, so every
+   rule below is restoring something the reset removed — not overriding a
+   browser default. */
+.rich-text {
+  font-size: 0.875rem;      /* text-sm — matches the surrounding form controls */
+  line-height: 1.65;
+  color: #334155;           /* slate-700 */
+  overflow-wrap: anywhere;  /* a pasted URL must not widen the modal */
+}
+
+.rich-text > :first-child { margin-top: 0; }
+.rich-text > :last-child  { margin-bottom: 0; }
+
+.rich-text p { margin: 0 0 0.75em; }
+
+/* The editor represents a blank line as an empty paragraph. Without a height
+   it collapses, and the author's spacing silently disappears on save. */
+.rich-text p:empty::before { content: ""; display: inline-block; }
+
+.rich-text h2,
+.rich-text h3 {
+  font-weight: 700;
+  color: #0f172a;           /* slate-900 */
+  line-height: 1.35;
+  margin: 1.25em 0 0.5em;
+}
+.rich-text h2 { font-size: 1.0625rem; }
+.rich-text h3 { font-size: 0.9375rem; }
+
+.rich-text ul,
+.rich-text ol { margin: 0 0 0.75em; padding-left: 1.4em; }
+.rich-text ul { list-style: disc; }
+.rich-text ol { list-style: decimal; }
+.rich-text li { margin: 0.2em 0; }
+.rich-text li > p { margin: 0; }          /* TipTap wraps list content in <p> */
+.rich-text li::marker { color: #94a3b8; } /* slate-400 */
+
+.rich-text blockquote {
+  margin: 0 0 0.75em;
+  padding: 0.15em 0 0.15em 0.9em;
+  border-left: 3px solid var(--color-brand-navy-light);
+  color: #475569;           /* slate-600 */
+  font-style: italic;
+}
+
+.rich-text a {
+  color: var(--color-brand-navy);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich-text a:hover { color: var(--color-brand-navy-dark); }
+
+.rich-text code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: #f1f5f9;      /* slate-100 */
+  padding: 0.12em 0.35em;
+  border-radius: 0.3rem;
+}
+
+.rich-text hr {
+  margin: 1.1em 0;
+  border: 0;
+  border-top: 1px solid #e2e8f0;  /* slate-200 */
+}
+
+/* Placeholder for the empty editor. TipTap's Placeholder extension puts the
+   text on a data attribute of the first node; it has to be drawn as generated
+   content so it never becomes part of the document's value. */
+.rich-text p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: #94a3b8;           /* slate-400 — same as input placeholders */
+}
+
 /* ── Print quality (Reports.jsx / PettyCashReportPage.jsx print windows) ──── */
 /* These popups clone the app's own stylesheets (see utils/printWindow.js),
    so these rules apply there exactly as they would on the main document. */

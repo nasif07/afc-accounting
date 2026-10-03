@@ -39,6 +39,7 @@ const getAllAccountsQuery = z.object({
 
 const getLeafNodesQuery = z.object({
   accountType: z.string().optional(),
+  parentAccountCode: z.string().trim().optional(),
 });
 
 const getAccountTreeQuery = z.object({

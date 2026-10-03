@@ -32,6 +32,82 @@ const getAccessTokenClearOptions = () => cookieSecurityOptions();
 const getRefreshTokenClearOptions = () => ({ ...cookieSecurityOptions(), path: "/api/auth" });
 
 class AuthController {
+  // ── Passwords ─────────────────────────────────────────────────────────
+
+  /**
+   * Changes a signed-in user's password, then clears their session.
+   *
+   * Every other refresh token was revoked by the service, so this browser's
+   * cookies are stale too — clearing them here returns the user to the login
+   * screen deliberately, rather than letting them discover it on their next
+   * request as a confusing forced logout.
+   */
+  static async changePassword(req, res) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+
+      await AuthService.changePassword(
+        req.user.userId || req.user.id,
+        currentPassword,
+        newPassword,
+      );
+
+      res.clearCookie('token', getAccessTokenClearOptions());
+      res.clearCookie('refreshToken', getRefreshTokenClearOptions());
+
+      return ApiResponse.success(
+        res,
+        null,
+        'Password changed. Please sign in again with your new password.',
+      );
+    } catch (error) {
+      // These are user-correctable input problems ("your current password is
+      // incorrect"), not server faults — a 500 would be both wrong and
+      // unhelpful in the form.
+      return ApiResponse.badRequest(res, error.message);
+    }
+  }
+
+  /**
+   * Emails a reset link.
+   *
+   * Always answers 200 with the same message, whether or not the address has
+   * an account. Anything else — a different status, different wording, even a
+   * conspicuously different response time — turns this into a way to test
+   * which addresses are registered here. The log is where the real outcome is
+   * recorded; failures are swallowed for the same reason.
+   */
+  static async forgotPassword(req, res) {
+    try {
+      await AuthService.requestPasswordReset(req.body.email, {
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+    } catch (error) {
+      logger.error({ err: error }, 'Password reset request failed');
+    }
+
+    return ApiResponse.success(
+      res,
+      null,
+      'If that email address has an account, a reset link is on its way.',
+    );
+  }
+
+  static async resetPassword(req, res) {
+    try {
+      await AuthService.resetPassword(req.body.token, req.body.password);
+      return ApiResponse.success(
+        res,
+        null,
+        'Password updated. You can now sign in with your new password.',
+      );
+    } catch (error) {
+      return ApiResponse.badRequest(res, error.message);
+    }
+  }
+
+
   static async register(req, res, next) {
     try {
       const { name, email, password } = req.body;

@@ -1,8 +1,8 @@
-const Bank = require("../bank/bank.model");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const COAService = require("../chartOfAccounts/coa.service");
 const JournalEntry = require("../accounting/accounting.model");
 const PettyCashService = require("../pettycash/pettycash.service");
+const { formatReferenceNumber } = require("../../utils/reference");
 
 const PETTY_CASH_ACCOUNT_CODE = "1001";
 const BANK_PARENT_ACCOUNT_CODE = "1002";
@@ -188,8 +188,17 @@ class DashboardService {
         limit: 5,
       });
 
+      // getJournalBackedTransactions returns balance as an unsigned
+      // magnitude plus a separate balanceType (matching the COA "Current
+      // Balance" display convention) — reconstruct the signed figure here
+      // since this value gets summed with bankBalance elsewhere
+      // (getBankAccountIds usage below) where a credit/overdrawn petty cash
+      // position must subtract, not add.
+      const magnitude = Number(result.summary?.balance || 0);
+      const balanceType = result.summary?.balanceType || "debit";
+
       return {
-        balance: result.summary?.balance || 0,
+        balance: balanceType === "credit" ? -magnitude : magnitude,
         recent: result.transactions || [],
       };
     } catch (error) {
@@ -201,7 +210,9 @@ class DashboardService {
     }
   }
 
-  static async getBankAccountIds() {
+  // Returns the account documents (not just ids) — the per-account balances
+  // below need the code/name to label themselves.
+  static async getBankAccounts() {
     const bankParent = await ChartOfAccounts.findOne({
       accountCode: BANK_PARENT_ACCOUNT_CODE,
       deletedAt: null,
@@ -209,26 +220,26 @@ class DashboardService {
 
     if (!bankParent) return [];
 
-    const childAccounts = await ChartOfAccounts.find({
+    return await ChartOfAccounts.find({
       parentAccount: bankParent._id,
       status: "active",
       deletedAt: null,
-    }).select("_id");
-
-    const childIds = childAccounts.map((account) => account._id);
-
-    return childIds;
+    })
+      .select("_id accountCode accountName")
+      .sort({ accountCode: 1 });
   }
 
-  static async getBankBalanceAndAlerts() {
-    const bankAccountIds = await this.getBankAccountIds();
+  // Total bank balance plus the per-account breakdown behind it, from the
+  // same approved journal lines — so the accounts always add up to the
+  // "Bank Balance" card.
+  static async getBankBalances() {
+    const bankAccounts = await this.getBankAccounts();
 
-    if (bankAccountIds.length === 0) {
-      return {
-        balance: 0,
-        alerts: [],
-      };
+    if (bankAccounts.length === 0) {
+      return { balance: 0, accounts: [] };
     }
+
+    const bankAccountIds = bankAccounts.map((account) => account._id);
 
     await Promise.all(
       bankAccountIds.map((accountId) =>
@@ -240,61 +251,41 @@ class DashboardService {
       "bookEntries.account": { $in: bankAccountIds },
     });
 
-    let balance = 0;
-    const alerts = [];
+    const byAccount = new Map(
+      bankAccounts.map((account) => [
+        String(account._id),
+        {
+          id: String(account._id),
+          accountCode: account.accountCode,
+          accountName: account.accountName,
+          balance: 0,
+          lastActivity: null,
+        },
+      ]),
+    );
 
     for (const entry of entries) {
       const jsonEntry = entry.toJSON();
 
-      for (const accountId of bankAccountIds) {
-        const line = this.getLineForAccount(jsonEntry, accountId);
+      for (const account of bankAccounts) {
+        const line = this.getLineForAccount(jsonEntry, account._id);
         if (!line) continue;
 
-        const debit = Number(line.debit || 0);
-        const credit = Number(line.credit || 0);
-        balance += debit - credit;
+        const row = byAccount.get(String(account._id));
+        row.balance += Number(line.debit || 0) - Number(line.credit || 0);
 
-        const reconciliation = (jsonEntry.bankReconciliations || []).find(
-          (item) => String(item.account) === String(accountId),
-        );
-
-        if (reconciliation?.status !== "reconciled") {
-          alerts.push({
-            id: `${jsonEntry._id}-${accountId}`,
-            type: "unreconciled",
-            date: jsonEntry.voucherDate,
-            voucherNumber: jsonEntry.voucherNumber,
-            referenceNumber: jsonEntry.referenceNumber || "",
-            description: line.description || jsonEntry.description || "",
-            amount: debit - credit,
-          });
+        const voucherDate = new Date(jsonEntry.voucherDate);
+        if (!row.lastActivity || voucherDate > row.lastActivity) {
+          row.lastActivity = voucherDate;
         }
       }
     }
 
-    const mismatchBanks = await Bank.find({
-      coaAccount: { $in: bankAccountIds },
-      isActive: true,
-      deletedAt: null,
-      reconciliationDifference: { $ne: 0 },
-    }).select("bankName reconciliationDifference lastReconciledDate");
-
-    for (const bank of mismatchBanks) {
-      alerts.push({
-        id: `bank-mismatch-${bank._id}`,
-        type: "mismatch",
-        date: bank.lastReconciledDate,
-        voucherNumber: "Reconciliation",
-        description: `${bank.bankName} reconciliation difference`,
-        amount: Number(bank.reconciliationDifference || 0),
-      });
-    }
+    const accounts = [...byAccount.values()];
 
     return {
-      balance,
-      alerts: alerts
-        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-        .slice(0, 8),
+      balance: accounts.reduce((sum, row) => sum + row.balance, 0),
+      accounts,
     };
   }
 
@@ -311,7 +302,7 @@ class DashboardService {
         voucherNumber: jsonEntry.voucherNumber,
         voucherDate: jsonEntry.voucherDate,
         description: jsonEntry.description,
-        referenceNumber: jsonEntry.referenceNumber || "",
+        referenceNumber: formatReferenceNumber(jsonEntry),
         status: jsonEntry.approvalStatus,
         postingStatus: jsonEntry.status,
         totalDebit: jsonEntry.totalDebit,
@@ -331,7 +322,7 @@ class DashboardService {
       recentJournals,
     ] = await Promise.all([
       this.getPettyCashSummary(),
-      this.getBankBalanceAndAlerts(),
+      this.getBankBalances(),
       this.getMonthlyIncomeExpense(),
       this.getIncomeExpenseChart(),
       this.getExpenseByCategory(),
@@ -356,7 +347,7 @@ class DashboardService {
       },
       recentJournals,
       recentPettyCash: pettyCash.recent,
-      bankReconciliationAlerts: bank.alerts,
+      bankAccounts: bank.accounts,
       warnings: {
         pettyCash: pettyCash.warning || "",
       },

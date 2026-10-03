@@ -5,6 +5,8 @@ const JournalEntry = require("../accounting/accounting.model");
 const AccountingService = require("../accounting/accounting.service");
 const ChartOfAccounts = require("../chartOfAccounts/coa.model");
 const generateVoucherNumber = require("../../utils/generateVoucherNumber");
+const { formatReferenceNumber } = require("../../utils/reference");
+const { resolveReportLogoPath } = require("../../utils/reportLogo");
 const { createAuditLog } = require("../../middleware/auditLog");
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -211,7 +213,7 @@ class BankBookService {
         (typeof creditLine?.account === "object" ? creditLine.account?._id : creditLine?.account),
       chequeNumber: jsonEntry.bankBook?.chequeNumber || "",
       chequeDate: jsonEntry.bankBook?.chequeDate || null,
-      referenceNo: jsonEntry.referenceNumber || "",
+      referenceNo: formatReferenceNumber(jsonEntry),
       note: jsonEntry.description || "",
       status: jsonEntry.status,
       journalStatus: jsonEntry.status,
@@ -658,7 +660,7 @@ class BankBookService {
         transactionDetails:
           jsonEntry.bankBook?.paymentPurpose ||
           jsonEntry.description ||
-          jsonEntry.referenceNumber ||
+          formatReferenceNumber(jsonEntry) ||
           jsonEntry.transactionType ||
           "Journal transaction",
         paymentPurpose: jsonEntry.bankBook?.paymentPurpose || "",
@@ -669,9 +671,9 @@ class BankBookService {
         amount: deposit || payment,
         balance: runningBalance,
         runningBalance,
-        referenceNo: jsonEntry.referenceNumber || "",
+        referenceNo: formatReferenceNumber(jsonEntry),
         note: jsonEntry.description || "",
-        remarks: jsonEntry.description || jsonEntry.referenceNumber || "",
+        remarks: jsonEntry.description || formatReferenceNumber(jsonEntry),
         status: jsonEntry.bankBook?.status || jsonEntry.status,
         journalStatus: jsonEntry.status,
         approvalStatus: jsonEntry.approvalStatus,
@@ -850,7 +852,7 @@ class BankBookService {
   static async exportStatementExcel(filters) {
     const [statement, orgInfo] = await Promise.all([
       this.getStatement(filters),
-      SettingsService.getOrgInfo(),
+      SettingsService.getOrgInfo({ withLogo: true }),
     ]);
     return {
       filename: `bank-statement-${Date.now()}.xls`,
@@ -861,7 +863,7 @@ class BankBookService {
   static async exportStatementPdf(filters, stream) {
     const [statement, orgInfo] = await Promise.all([
       this.getStatement(filters),
-      SettingsService.getOrgInfo(),
+      SettingsService.getOrgInfo({ withLogo: true }),
     ]);
     const doc = new PDFDocument({
       margin: 42,
@@ -893,12 +895,14 @@ class BankBookService {
     const movementMoney = (value) => (Number(value || 0) ? money(value) : "");
 
     const drawHeader = () => {
-      const defaultLogoPath = path.resolve(__dirname, "../../../../frontend/public/afc-logo.png");
-      const logoPath = (orgInfo.orgLogo && fs.existsSync(orgInfo.orgLogo))
-        ? orgInfo.orgLogo
-        : defaultLogoPath;
-      if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, left, top - 8, { width: 88 });
+      // Width only — the full logo is landscape, so a fixed height would
+      // stretch it. `doc.image` keeps the aspect ratio from the width alone.
+      // orgInfo carries the resolved bytes when it was fetched with
+      // { withLogo: true }; the path lookup stays as the fallback for any
+      // caller that has not opted in.
+      const logo = orgInfo.logoImage || resolveReportLogoPath(orgInfo.orgLogo);
+      if (logo) {
+        doc.image(logo, left, top - 8, { width: 88 });
       }
 
       doc
@@ -1006,7 +1010,10 @@ class BankBookService {
       y += rowHeight;
     });
 
-    if (y + rowHeight * 6 > pageHeight - bottom) {
+    // Closing row → totals box → signature block, measured end to end so the
+    // block cannot spill onto the page footer at pageHeight - 60.
+    const closingSectionHeight = rowHeight + 10 + rowHeight * 2 + 18 + 54 + 12;
+    if (y + closingSectionHeight > pageHeight - 68) {
       addPage();
     }
 
@@ -1041,9 +1048,21 @@ class BankBookService {
       });
     });
     y += rowHeight * 2 + 18;
-    doc.text("Checked & Approved", left + 540, y);
+
+    // Mirrors the .sign block in the browser print view (BankBook.jsx): a
+    // 260pt column flush with the table's right edge, both captions bold and
+    // centered, with the signing gap between them.
+    const sigWidth = 260;
+    const sigX = left + tableWidth - sigWidth;
+    doc.font("Times-Bold").fontSize(10).text("Checked & Approved", sigX, y, {
+      width: sigWidth,
+      align: "center",
+    });
     y += 54;
-    doc.font("Times-Roman").text("Signature", left + 560, y);
+    doc.text("Authorized Signature", sigX, y, {
+      width: sigWidth,
+      align: "center",
+    });
 
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i += 1) {

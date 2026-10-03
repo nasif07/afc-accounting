@@ -19,6 +19,7 @@ import SectionHeader from "../components/common/SectionHeader";
 import Button from "../components/common/Button";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
+import AccountCombobox from "../components/common/AccountCombobox";
 import DatePicker from "../components/common/DatePicker";
 import Modal from "../components/common/Modal";
 import { toISODate } from "../utils/date";
@@ -183,8 +184,12 @@ export default function Accounts() {
     );
   }, [normalizedAccounts, statusFilter]);
 
-  const parentOptions = useMemo(() => {
-    const options = normalizedAccounts
+  // Same eligibility rule as before — same account type, active, never
+  // itself. Only the shape changed: AccountCombobox takes account records and
+  // formats "code - name" itself, so the {value,label} mapping moved into the
+  // component rather than being repeated at every account field.
+  const parentAccountOptions = useMemo(() => {
+    return normalizedAccounts
       .filter((acc) => acc.accountType === watchedAccountType)
       .filter((acc) => acc.status === "active")
       .filter((acc) => !editingAccount || acc._id !== editingAccount._id)
@@ -193,13 +198,7 @@ export default function Accounts() {
           numeric: true,
           sensitivity: "base",
         }),
-      )
-      .map((acc) => ({
-        value: acc._id,
-        label: `${acc.accountCode} - ${acc.accountName}`,
-      }));
-
-    return options;
+      );
   }, [normalizedAccounts, watchedAccountType, editingAccount]);
 
   const onSubmit = async (data) => {
@@ -327,12 +326,16 @@ export default function Accounts() {
         title="Chart of Accounts"
         description="Maintain account structure, parent-child relationships, and account status in a clear and simple way."
         iconBg="bg-brand-navy-light"
-        iconColor="text-brand-navy">
+        iconColor="text-brand-navy"
+        // No buttonText, so SectionHeader renders no button of its own — this
+        // only binds the Alt+N shortcut to the custom button below.
+        onButtonClick={openCreateForm}>
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={openCreateForm}
+          title="Create Account (Alt + N)"
           icon={Plus}
           className="w-full border-brand-navy bg-brand-navy text-white hover:bg-brand-navy-dark hover:border-brand-navy-dark focus:ring-brand-navy-light md:w-auto">
           Create Account
@@ -406,11 +409,27 @@ export default function Accounts() {
                 })}
               />
 
-              <Select
-                label="Parent Account"
-                options={parentOptions}
-                placeholder="No Parent Account"
-                {...register("parentAccount")}
+              <Controller
+                name="parentAccount"
+                control={control}
+                render={({ field }) => (
+                  <AccountCombobox
+                    label="Parent Account"
+                    name={field.name}
+                    accounts={parentAccountOptions}
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    placeholder="No Parent Account"
+                    panelTitle="Select Parent Account"
+                    // parentAccount is optional and the update path treats
+                    // null as "clear the parent", so this must stay un-settable
+                    // the way the native placeholder option allowed.
+                    clearLabel="No Parent Account"
+                    error={errors.parentAccount?.message}
+                    touched={!!errors.parentAccount}
+                  />
+                )}
               />
             </div>
 

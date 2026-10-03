@@ -11,7 +11,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button, Modal, Input, Select } from "../common";
+import { Button, Modal, Input, Select, Textarea } from "../common";
 
 // ── Template config ────────────────────────────────────────────────────────────
 const TEMPLATE_COLUMNS = [
@@ -44,14 +44,6 @@ const downloadTemplate = () => {
 // the Email or Parent Email field left blank currently 400s). The preprocess
 // below fixes that by treating "" as "not provided", matching what "optional"
 // was always meant to mean.
-//
-// Known separate issue, NOT fixed here (would require a backend schema
-// change, out of scope for this validation-layer conversion): the backend's
-// createStudentBody/updateStudentBody schemas don't declare a `financials`
-// field at all, so the parsed body silently drops it — the Total Payable Fee
-// and Amount Already Paid inputs on this form do not currently persist
-// anything server-side, on create or edit. Confirmed directly against the
-// schema. Flagging for a follow-up decision rather than fixing inline.
 const blankToUndefined = (v) => (v === "" || v == null ? undefined : v);
 const optionalEmail = z.preprocess(
   blankToUndefined,
@@ -91,8 +83,8 @@ const initialFormData = {
   parentPhone: "",
   address: "",
   status: "active",
-  totalPayable: 0,
-  totalPaid: 0,
+  totalPayable: "",
+  totalPaid: "",
   notes: "",
 };
 
@@ -322,6 +314,25 @@ const StudentFormModal = ({
                 <Input label="Parent Phone" {...register("parentPhone")} />
               </div>
 
+              {/* Address & Notes */}
+              <SectionTitle title="Address & Notes" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Textarea
+                  label="Residential Address"
+                  rows={2}
+                  error={errors.address?.message}
+                  touched={!!errors.address}
+                  {...register("address")}
+                />
+                <Textarea
+                  label="Administrative Notes"
+                  rows={2}
+                  error={errors.notes?.message}
+                  touched={!!errors.notes}
+                  {...register("notes")}
+                />
+              </div>
+
               {/* Financials */}
               <SectionTitle title="Financial Records" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50/50 p-4 rounded-xl border border-amber-100">
@@ -329,6 +340,7 @@ const StudentFormModal = ({
                   label="Total Payable Fee"
                   type="number"
                   step="0.01"
+                  placeholder="0.00"
                   error={errors.totalPayable?.message}
                   touched={!!errors.totalPayable}
                   {...register("totalPayable")}
@@ -337,6 +349,7 @@ const StudentFormModal = ({
                   label="Amount Already Paid"
                   type="number"
                   step="0.01"
+                  placeholder="0.00"
                   error={errors.totalPaid?.message}
                   touched={!!errors.totalPaid}
                   {...register("totalPaid")}

@@ -21,6 +21,20 @@ class COAService {
     }));
   }
 
+  // Like hasRealTransactions, but excludes the account's own system-managed
+  // opening-balance journal. Used to gate opening-balance edits specifically:
+  // an account's own opening entry shouldn't lock out further corrections to
+  // that same opening balance, only genuine business activity should.
+  static async hasNonOpeningTransactions(accountId) {
+    return !!(await JournalEntry.exists({
+      "bookEntries.account": accountId,
+      deletedAt: null,
+      status: "posted",
+      approvalStatus: "approved",
+      sourceModule: { $ne: OPENING_BALANCE_SOURCE },
+    }));
+  }
+
   static isDebitOpeningAccount(accountType) {
     return ["asset", "expense"].includes(String(accountType).toLowerCase());
   }
@@ -292,6 +306,63 @@ class COAService {
   }
 
   /**
+   * Replace an account's opening-balance journal with one reflecting its
+   * current openingBalance/openingBalanceType/openingDate fields, instead
+   * of overwriting currentBalance directly on the account document.
+   *
+   * A bare field overwrite (the old behavior) was only ever visible to COA
+   * itself — Petty Cash, trial balance, the general ledger view, and every
+   * other consumer that derives its numbers from JournalEntry never saw the
+   * change, and the Opening Balance Equity account was left unbalanced
+   * against it. Routing edits through the same journal-write path account
+   * creation already uses means every one of those readers picks up the
+   * change automatically, with no special-casing.
+   *
+   * `account` must already have the new openingBalance/openingBalanceType/
+   * openingDate values assigned (and saved) — this only handles retiring
+   * the old journal and posting the new one.
+   */
+  static async setOpeningBalance(account, updatedBy) {
+    const existingJournals = await this.getOpeningBalanceJournals(account._id);
+    const affectedAccountIds = new Set([account._id.toString()]);
+
+    existingJournals.forEach((journal) => {
+      (journal.bookEntries || []).forEach((line) =>
+        affectedAccountIds.add(line.account.toString()),
+      );
+    });
+
+    if (existingJournals.length > 0) {
+      await JournalEntry.updateMany(
+        { _id: { $in: existingJournals.map((journal) => journal._id) } },
+        {
+          $set: {
+            status: "deleted",
+            deletedAt: new Date(),
+            deletedBy: updatedBy || null,
+          },
+        },
+      );
+    }
+
+    // createOpeningBalanceJournal re-checks for an existing journal first
+    // (deduplicateOpeningBalanceJournals) — since we just retired every one
+    // above, it will always proceed to post a fresh entry when amount > 0,
+    // or do nothing when the opening balance was cleared to 0.
+    const newJournal = await this.createOpeningBalanceJournal(account, updatedBy);
+
+    if (newJournal) {
+      (newJournal.bookEntries || []).forEach((line) =>
+        affectedAccountIds.add(String(line.account?._id || line.account)),
+      );
+    }
+
+    for (const accountId of affectedAccountIds) {
+      await this.recalculateCurrentBalanceFromJournals(accountId);
+    }
+  }
+
+  /**
    * Check if setting parentAccount would create a circular reference
    * @param {ObjectId|string} accountId
    * @param {ObjectId|string|null} newParentId
@@ -480,47 +551,53 @@ class COAService {
       }
     }
 
-    if (hasTransactions) {
-      if (updateData.openingBalance !== undefined) {
+    // Opening balance/type/date are backed by the account's own
+    // system-managed opening journal (see setOpeningBalance), not by real
+    // business activity — so editing them should only be blocked once the
+    // account has *other* transactions, not merely its own opening entry.
+    const editingOpeningFields =
+      updateData.openingBalance !== undefined ||
+      updateData.openingBalanceType !== undefined ||
+      updateData.openingDate !== undefined;
+
+    if (editingOpeningFields) {
+      const hasNonOpeningTransactions =
+        await this.hasNonOpeningTransactions(accountId);
+
+      if (hasNonOpeningTransactions) {
         throw new Error(
           "Opening balance cannot be updated after transactions exist",
         );
       }
-
-      if (updateData.openingBalanceType !== undefined) {
-        throw new Error(
-          "Opening balance type cannot be updated after transactions exist",
-        );
-      }
-
-      if (updateData.openingDate !== undefined) {
-        throw new Error(
-          "Opening date cannot be updated after transactions exist",
-        );
-      }
     }
 
-    const nextOpeningBalance =
-      updateData.openingBalance !== undefined
-        ? Number(updateData.openingBalance)
-        : Number(account.openingBalance || 0);
+    const {
+      openingBalance,
+      openingBalanceType,
+      openingDate,
+      ...restUpdateData
+    } = updateData;
 
-    const nextOpeningBalanceType =
-      updateData.openingBalanceType !== undefined
-        ? updateData.openingBalanceType
-        : account.openingBalanceType;
-
-    Object.assign(account, updateData);
+    Object.assign(account, restUpdateData);
     account.updatedBy = userId;
 
-    // If no approved transactions yet, keep current balance aligned with opening balance
-    if (!hasTransactions) {
-      account.currentBalance = nextOpeningBalance;
-      account.currentBalanceType = nextOpeningBalanceType;
-      account.hasTransactions = false;
+    if (editingOpeningFields) {
+      if (openingBalance !== undefined) {
+        account.openingBalance = Number(openingBalance);
+      }
+      if (openingBalanceType !== undefined) {
+        account.openingBalanceType = openingBalanceType;
+      }
+      if (openingDate !== undefined) {
+        account.openingDate = openingDate;
+      }
     }
 
     await account.save();
+
+    if (editingOpeningFields) {
+      await this.setOpeningBalance(account, userId);
+    }
 
     return await ChartOfAccounts.findById(account._id)
       .populate("createdBy", "name email")
@@ -623,6 +700,13 @@ class COAService {
   /**
    * Get only leaf accounts
    * Used for journal entry account selection
+   *
+   * `parentAccountCode` is an opt-in narrowing for callers that can only
+   * accept children of one specific head — the bank-account form passes
+   * "1002", mirroring the check bank.service.createBankAccount already
+   * enforces at submit (parent resolved by accountCode among non-deleted
+   * accounts, child's parentAccount must equal it). Callers that omit it
+   * (journal entry, ledger) keep getting every leaf account.
    */
   static async getLeafNodes(filters = {}) {
     const query = {
@@ -632,6 +716,19 @@ class COAService {
 
     if (filters.accountType) {
       query.accountType = filters.accountType;
+    }
+
+    if (filters.parentAccountCode) {
+      const parentAccount = await ChartOfAccounts.findOne({
+        accountCode: String(filters.parentAccountCode),
+        deletedAt: null,
+      }).select("_id");
+
+      // No such head account means no account can legally be a child of it.
+      // Return nothing rather than falling back to the unfiltered list.
+      if (!parentAccount) return [];
+
+      query.parentAccount = parentAccount._id;
     }
 
     const parentAccountIds = await ChartOfAccounts.distinct("parentAccount", {

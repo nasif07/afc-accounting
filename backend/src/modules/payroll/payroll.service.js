@@ -1,7 +1,9 @@
 const Payroll = require('./payroll.model');
 const PDFGenerator = require('../../utils/pdfGenerator');
+const DocxGenerator = require('../../utils/docxGenerator');
 const generateVoucherNumber = require('../../utils/generateVoucherNumber');
 const SettingsService = require('../settings/settings.service');
+const { resolveEarnings } = require('../../utils/payslipFields');
 
 // Approval/financial-outcome fields that must never be settable through the
 // generic update path — they're only ever set by approvePayroll/rejectPayroll
@@ -33,10 +35,19 @@ class PayrollService {
     return this.calculateTotals(payrollData).netSalary;
   }
 
+  // Re-exported so callers that already reach for the service keep working;
+  // the rule itself lives in utils/payslipFields so the payslip renderers
+  // share exactly one implementation of it.
+  static resolveEarnings(payrollData = {}) {
+    return resolveEarnings(payrollData);
+  }
+
   static calculateTotals(payrollData) {
-    const { baseSalary, allowances = 0, bonus = 0, deductions = 0, leaveDeduction = 0 } = payrollData;
-    
-    const totalEarnings = Number(baseSalary || 0) + Number(allowances || 0) + Number(bonus || 0);
+    const { baseSalary, deductions = 0, leaveDeduction = 0 } = payrollData;
+    const { houseRent, conveyanceAllowance } = this.resolveEarnings(payrollData);
+
+    const totalEarnings =
+      Number(baseSalary || 0) + houseRent + conveyanceAllowance;
     const totalDeductions = Number(deductions || 0) + Number(leaveDeduction || 0);
     const netSalary = totalEarnings - totalDeductions;
 
@@ -93,7 +104,32 @@ class PayrollService {
       delete updateData[field];
     }
 
-    if (updateData.baseSalary || updateData.allowances || updateData.bonus || updateData.deductions || updateData.leaveDeduction) {
+    // Editing through the named earnings fields migrates the record off the
+    // generic ones, so a stale legacy value can never resurface through
+    // resolveEarnings' fallback (e.g. clearing House Rent to 0 on a record
+    // that still carried allowances).
+    const touchesNamedEarnings =
+      updateData.houseRent !== undefined ||
+      updateData.conveyanceAllowance !== undefined;
+
+    if (touchesNamedEarnings) {
+      updateData.allowances = 0;
+      updateData.bonus = 0;
+    }
+
+    // `!== undefined` rather than truthiness: setting any of these to 0 is a
+    // real change that has to trigger a recalculation.
+    const AMOUNT_FIELDS = [
+      "baseSalary",
+      "houseRent",
+      "conveyanceAllowance",
+      "allowances",
+      "bonus",
+      "deductions",
+      "leaveDeduction",
+    ];
+
+    if (AMOUNT_FIELDS.some((field) => updateData[field] !== undefined)) {
       const current = await Payroll.findById(payrollId).lean();
       const totals = this.calculateTotals({ ...current, ...updateData });
       updateData.totalEarnings = totals.totalEarnings;
@@ -164,13 +200,20 @@ class PayrollService {
       .sort({ employee: 1 });
   }
 
-  static async generatePayslip(payrollId) {
+  // `format` picks the renderer: 'pdf' for the archival copy, 'docx' for an
+  // editable Word file. Both render the same payslip model, so the figures
+  // are identical either way.
+  static async generatePayslip(payrollId, format = 'pdf') {
     const [payroll, orgInfo] = await Promise.all([
       this.getPayrollById(payrollId),
-      SettingsService.getOrgInfo(),
+      SettingsService.getOrgInfo({ withLogo: true }),
     ]);
     if (!payroll) throw new Error('Payroll not found');
-    return PDFGenerator.generatePayslip(payroll, null, orgInfo);
+
+    const generator = format === 'docx' ? DocxGenerator : PDFGenerator;
+    const filepath = await generator.generatePayslip(payroll, null, orgInfo);
+
+    return { filepath, payroll };
   }
 
   static async getPendingApprovals() {

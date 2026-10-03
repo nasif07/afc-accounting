@@ -9,6 +9,7 @@ const {
   rejectPayrollBody,
   markPayrollAsPaidBody,
   getAllPayrollQuery,
+  payslipQuery,
   idParam,
 } = require('../../validation/payroll.validation');
 
@@ -68,7 +69,7 @@ router.put(
 );
 router.get(
   '/:id/payslip',
-  validate({ params: idParam }),
+  validate({ params: idParam, query: payslipQuery }),
   PayrollController.generatePayslip,
 );
 

@@ -1,15 +1,5 @@
 ﻿import { useState, useEffect } from "react";
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Users,
-} from "lucide-react";
+import { Plus, Edit2, Trash2, Eye, Users, GraduationCap } from "lucide-react";
 import { useSearchParams } from "react-router";
 
 import {
@@ -21,8 +11,7 @@ import {
 } from "../hooks/useStudents";
 
 import { Table, Badge, Button, Modal } from "../components/common";
-import { SectionSkeleton } from "../components/common/Loaders";
-import EmptyState from "../components/EmptyState";
+import { usePaginationParams } from "../hooks/usePaginationParams";
 import { formatCurrency } from "../utils/currency";
 import StudentFormModal from "../components/students/StudentFormModal";
 import StudentDetailsModal from "../components/students/StudentDetailsModal";
@@ -31,8 +20,12 @@ import SectionHeader from "../components/common/SectionHeader";
 export default function Students() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const page = Number(searchParams.get("page") || "1");
-  const limit = Number(searchParams.get("limit") || "10");
+  const {
+    page,
+    pageSize: limit,
+    setPage,
+    setPageSize,
+  } = usePaginationParams(10);
   const searchTerm = searchParams.get("search") || "";
 
   const [localSearch, setLocalSearch] = useState(searchTerm);
@@ -75,16 +68,6 @@ export default function Students() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams read inside timeout intentionally; adding it would reset the debounce on every navigation
   }, [localSearch, setSearchParams]);
 
-  const handlePageChange = (newPage) => {
-    const p = Object.fromEntries(searchParams.entries());
-    setSearchParams({ ...p, page: String(newPage) });
-  };
-
-  const handleLimitChange = (newLimit) => {
-    const p = Object.fromEntries(searchParams.entries());
-    setSearchParams({ ...p, limit: String(newLimit), page: "1" });
-  };
-
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingStudent(null);
@@ -120,6 +103,7 @@ export default function Students() {
     {
       key: "rollNumber",
       label: "Roll #",
+      mono: true,
       render: (val) => (
         <span className="font-mono font-medium text-slate-600">
           {val || "—"}
@@ -129,6 +113,8 @@ export default function Students() {
     {
       key: "name",
       label: "Student Info",
+      primary: true,
+      wrap: true,
       render: (_, row) => (
         <div>
           <p className="font-semibold text-slate-900">{row?.name || "—"}</p>
@@ -144,6 +130,8 @@ export default function Students() {
     {
       key: "financials",
       label: "Pending Fees",
+      align: "right",
+      mono: true,
       render: (val) => {
         const pending = val?.pending || 0;
         return (
@@ -168,6 +156,8 @@ export default function Students() {
     {
       key: "_id",
       label: "Actions",
+      type: "actions",
+      align: "center",
       render: (id, row) => (
         <div className="flex items-center gap-1">
           <Button
@@ -213,141 +203,23 @@ export default function Students() {
         buttonIcon={Plus}
       />
 
-      <div>
-        {isLoading ? (
-          <SectionSkeleton rows={6} />
-        ) : students.length > 0 ? (
-          <>
-            <Table
-              columns={columns}
-              data={students}
-              searchable={false}
-              paginated={false}
-            />
-
-            {/* ── Pagination bar ── */}
-            {(() => {
-              const totalPages = pagination.totalPages || 1;
-              const total = pagination.total || 0;
-              const rangeStart = total === 0 ? 0 : (page - 1) * limit + 1;
-              const rangeEnd = Math.min(page * limit, total);
-              return (
-                <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                  {/* Left — record counts */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
-                    <span>
-                      <span className="font-semibold text-slate-800">
-                        {total}
-                      </span>{" "}
-                      {total === 1 ? "record" : "records"}
-                    </span>
-                    <span className="hidden text-slate-300 sm:inline">|</span>
-                    <span>
-                      Showing{" "}
-                      <span className="font-semibold text-slate-800">
-                        {rangeStart}
-                      </span>
-                      {rangeEnd > rangeStart && (
-                        <>
-                          –
-                          <span className="font-semibold text-slate-800">
-                            {rangeEnd}
-                          </span>
-                        </>
-                      )}
-                    </span>
-                    <span className="hidden text-slate-300 sm:inline">|</span>
-                    <span>
-                      Page{" "}
-                      <span className="font-semibold text-slate-800">
-                        {page}
-                      </span>{" "}
-                      of{" "}
-                      <span className="font-semibold text-slate-800">
-                        {totalPages}
-                      </span>
-                    </span>
-                  </div>
-
-                  {/* Right — rows-per-page + navigation */}
-                  <div className="flex items-center gap-3">
-                    {/* Rows per page */}
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="rows-per-page"
-                        className="hidden text-xs text-slate-500 sm:inline">
-                        Rows per page
-                      </label>
-                      <select
-                        id="rows-per-page"
-                        value={limit}
-                        onChange={(e) =>
-                          handleLimitChange(Number(e.target.value))
-                        }
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100">
-                        {[10, 25, 50, 100].map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Divider */}
-                    <span
-                      className="hidden h-5 w-px bg-slate-200 sm:block"
-                      aria-hidden="true"
-                    />
-
-                    {/* Page navigation */}
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        disabled={page <= 1}
-                        onClick={() => handlePageChange(1)}
-                        title="First page"
-                        aria-label="First page">
-                        <ChevronsLeft size={14} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        disabled={page <= 1}
-                        onClick={() => handlePageChange(page - 1)}
-                        aria-label="Previous page">
-                        <ChevronLeft size={14} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        disabled={page >= totalPages}
-                        onClick={() => handlePageChange(page + 1)}
-                        aria-label="Next page">
-                        <ChevronRight size={14} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        disabled={page >= totalPages}
-                        onClick={() => handlePageChange(totalPages)}
-                        title="Last page"
-                        aria-label="Last page">
-                        <ChevronsRight size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </>
-        ) : (
-          <EmptyState
-            title={searchTerm ? "No results found" : "No students yet"}
-            description="Try adjusting your search or add a new student."
-          />
-        )}
-      </div>
+      {/* Loading, empty and paginated states all live inside Table now, so
+          this page no longer branches between three different shells. */}
+      <Table
+        columns={columns}
+        data={students}
+        loading={isLoading}
+        searchable={false}
+        page={page}
+        pageSize={limit}
+        totalItems={pagination.total || 0}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        itemLabel="records"
+        emptyIcon={GraduationCap}
+        emptyMessage={searchTerm ? "No results found" : "No students yet"}
+        emptyDescription="Try adjusting your search or add a new student."
+      />
 
       {/* Delete confirmation modal */}
       <Modal

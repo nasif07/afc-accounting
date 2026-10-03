@@ -26,10 +26,6 @@ const TYPE_CONFIG = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Bare number (no ৳ symbol) for table cells whose column header already
-// shows "(৳)" — same shared formatter as formatCurrency, just without the symbol.
-const numFmt = (n) => formatCurrency(n, { showSymbol: false });
-
 const fmtDate = (d) => (d ? formatDisplayDate(d, { locale: "en-US" }) : "—");
 
 const totalDebit  = (e) => e?.bookEntries?.reduce((s, b) => s + (b.debit  || 0), 0) || 0;
@@ -145,6 +141,7 @@ export default function JournalEntryApprovals() {
         title="Journal Entry Approvals"
         description="Review pending double-entry submissions and post them to the ledger."
         buttonText="Refresh"
+        hotkey={false}
         onButtonClick={fetchPendingEntries}
         buttonIcon={RefreshCcw}
         buttonVariant="outline"
@@ -326,71 +323,21 @@ export default function JournalEntryApprovals() {
 
                 {/* ── Expanded: line items only ── */}
                 {isExpanded && (
-                  <div className="border-t border-slate-100">
-                    {/* Line items table */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50/80">
-                            <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                              Account
-                            </th>
-                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-brand-navy">
-                              Debit (৳)
-                            </th>
-                            <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                              Credit (৳)
-                            </th>
-                            <th className="hidden px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 sm:table-cell">
-                              Narration
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {entry.bookEntries?.map((be, idx) => (
-                            <tr key={idx} className="transition-colors hover:bg-slate-50/60">
-                              <td className="px-5 py-3.5">
-                                <p className="font-semibold text-slate-800">{be.account?.accountName || "—"}</p>
-                                <p className="font-mono text-[11px] text-slate-400">{be.account?.accountCode}</p>
-                              </td>
-                              <td className="px-5 py-3.5 text-right">
-                                {be.debit
-                                  ? <span className="font-semibold text-brand-navy">{numFmt(be.debit)}</span>
-                                  : <span className="text-slate-300">—</span>}
-                              </td>
-                              <td className="px-5 py-3.5 text-right">
-                                {be.credit
-                                  ? <span className="font-semibold text-slate-700">{numFmt(be.credit)}</span>
-                                  : <span className="text-slate-300">—</span>}
-                              </td>
-                              <td className="hidden px-5 py-3.5 text-slate-500 sm:table-cell">
-                                {be.description || "—"}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t-2 border-slate-200 bg-slate-50">
-                            <td className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                              Total
-                            </td>
-                            <td className="px-5 py-3 text-right text-sm font-bold text-brand-navy">{numFmt(tD)}</td>
-                            <td className="px-5 py-3 text-right text-sm font-bold text-slate-700">{numFmt(tC)}</td>
-                            <td className="hidden px-5 py-3 sm:table-cell">
-                              {isBalanced ? (
-                                <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-navy">
-                                  <CheckCircle2 size={12} /> Balanced
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600">
-                                  <AlertCircle size={12} /> Off by {formatCurrency(diff)}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                  <div className="border-t border-slate-100 p-4">
+                    <BookEntryLinesTable
+                      lines={entry.bookEntries || []}
+                      footerNote={
+                        isBalanced ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-navy">
+                            <CheckCircle2 size={12} /> Balanced
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600">
+                            <AlertCircle size={12} /> Off by {formatCurrency(diff)}
+                          </span>
+                        )
+                      }
+                    />
                   </div>
                 )}
               </div>

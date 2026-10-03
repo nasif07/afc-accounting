@@ -99,6 +99,9 @@ class StudentController {
         "phone",
         "status",
         "address",
+        "parent",
+        "financials",
+        "notes",
       ];
       const updateData = {};
 

@@ -1,95 +1,84 @@
 import React from "react";
+import Table from "../common/Table";
 import { formatCurrency } from "../../utils/currency";
 import { formatDisplayDate } from "../../utils/date";
 
+const columns = [
+  { key: "accountCode", label: "Account Code", mono: true },
+  { key: "accountName", label: "Account Name", primary: true, wrap: true },
+  {
+    key: "accountType",
+    label: "Account Type",
+    className: "font-medium capitalize text-slate-900",
+  },
+  {
+    key: "debit",
+    label: "Debit",
+    align: "right",
+    mono: true,
+    className: "font-medium text-slate-900",
+    render: (value) => (value > 0 ? formatCurrency(value) : "-"),
+  },
+  {
+    key: "credit",
+    label: "Credit",
+    align: "right",
+    mono: true,
+    className: "font-medium text-slate-900",
+    render: (value) => (value > 0 ? formatCurrency(value) : "-"),
+  },
+];
+
 const TrialBalanceReport = ({ data, asOfDate }) => {
-  if (!data || !data.balances) {
-    return (
-      <div className="text-center py-8 text-slate-500">
-        No data available for the selected period.
-      </div>
-    );
-  }
+  const balances = data?.balances || [];
+  const isBalanced = Boolean(data?.isBalanced);
 
   return (
-    <div className="space-y-6">
-      <div className="text-center pb-6 border-b-2 border-slate-900">
+    <div className="space-y-4">
+      <div className="border-b-2 border-slate-900 pb-6 text-center">
         <h2 className="text-2xl font-bold text-slate-900">Trial Balance</h2>
         {asOfDate && (
-          <p className="text-sm text-slate-600 mt-2">
+          <p className="mt-2 text-sm text-slate-600">
             As of {formatDisplayDate(asOfDate)}
           </p>
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b-2 border-slate-900">
-              <th className="text-left py-3 px-4 font-semibold text-slate-900">
-                Account Code
-              </th>
-              <th className="text-left py-3 px-4 font-semibold text-slate-900">
-                Account Name
-              </th>
-              <th className="text-left py-3 px-4 font-semibold text-slate-900">
-                Account Type
-              </th>
-              <th className="text-right py-3 px-4 font-semibold text-slate-900">
-                Debit
-              </th>
-              <th className="text-right py-3 px-4 font-semibold text-slate-900">
-                Credit
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.balances.map((balance, idx) => (
-              <tr
-                key={idx}
-                className="border-b border-slate-200 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-700">
-                  {balance.accountCode}
-                </td>
-                <td className="py-3 px-4 text-slate-700">
-                  {balance.accountName}
-                </td>
-                <td className="py-3 px-4 font-medium text-slate-900 capitalize">
-                  {balance.accountType}
-                </td>
-                <td className="py-3 px-4 text-right font-medium text-slate-900">
-                  {balance.debit > 0 ? formatCurrency(balance.debit) : "-"}
-                </td>
-                <td className="py-3 px-4 text-right font-medium text-slate-900">
-                  {balance.credit > 0 ? formatCurrency(balance.credit) : "-"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="bg-slate-100 border-t-2 border-slate-900">
-              <td colSpan="3" className="py-3 px-4 font-bold text-slate-900">
+      <Table
+        columns={columns}
+        data={balances}
+        rowKey={(row, index) => row.accountCode || index}
+        paginated={false}
+        minWidth="min-w-[720px]"
+        emptyMessage="No data available"
+        emptyDescription="Nothing was posted in the selected period."
+        footer={
+          <>
+            <tr className="border-t-2 border-slate-900 bg-slate-100">
+              <td colSpan={3} className="px-4 py-3 font-bold text-slate-900">
                 Total
               </td>
-              <td className="py-3 px-4 text-right font-bold text-slate-900">
-                {formatCurrency(data.totalDebits)}
+              <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-slate-900">
+                {formatCurrency(data?.totalDebits || 0)}
               </td>
-              <td className="py-3 px-4 text-right font-bold text-slate-900">
-                {formatCurrency(data.totalCredits)}
+              <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-slate-900">
+                {formatCurrency(data?.totalCredits || 0)}
               </td>
             </tr>
-            <tr className={data.isBalanced ? "bg-emerald-50" : "bg-red-50"}>
+            <tr className={isBalanced ? "bg-emerald-50" : "bg-red-50"}>
               <td
-                colSpan="5"
-                className={`py-3 px-4 text-center font-semibold ${data.isBalanced ? "text-emerald-700" : "text-red-700"}`}>
-                {data.isBalanced
+                colSpan={5}
+                className={`px-4 py-3 text-center font-semibold ${
+                  isBalanced ? "text-emerald-700" : "text-red-700"
+                }`}>
+                {isBalanced
                   ? "✓ Trial Balance is Balanced"
                   : "✗ Trial Balance is NOT Balanced"}
               </td>
             </tr>
-          </tfoot>
-        </table>
-      </div>
+          </>
+        }
+      />
     </div>
   );
 };

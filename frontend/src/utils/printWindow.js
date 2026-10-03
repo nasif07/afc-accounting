@@ -68,7 +68,29 @@ export function openPrintWindow(
       )
     : Promise.resolve();
 
-  whenStylesReady.then(() => {
+  // Images need the same treatment as stylesheets. Reports carry the
+  // organisation logo in their header, and a clone starts fetching its images
+  // fresh — printing before they decode drops the logo from the output.
+  const imgEls = Array.from(printWindow.document.querySelectorAll("img"));
+  const whenImagesReady = imgEls.length
+    ? Promise.all(
+        imgEls.map(
+          (img) =>
+            new Promise((resolve) => {
+              // `complete` covers a cached image that resolved before we got here.
+              if (img.complete) {
+                resolve();
+                return;
+              }
+              img.addEventListener("load", resolve, { once: true });
+              // Resolve on error too: a missing logo must not block the print.
+              img.addEventListener("error", resolve, { once: true });
+            }),
+        ),
+      )
+    : Promise.resolve();
+
+  Promise.all([whenStylesReady, whenImagesReady]).then(() => {
     requestAnimationFrame(() => {
       printWindow.focus();
       printWindow.print();
