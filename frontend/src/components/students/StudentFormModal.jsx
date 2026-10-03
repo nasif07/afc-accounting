@@ -1,13 +1,73 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
-  X,
   UserPlus,
   AlertCircle,
   CheckCircle2,
-  FileSpreadsheet,
   Save,
-  ChevronDown,
+  Download,
+  Upload,
+  Info,
 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Button, Modal, Input, Select, Textarea } from "../common";
+
+// ── Template config ────────────────────────────────────────────────────────────
+const TEMPLATE_COLUMNS = [
+  "rollNumber", "name", "class", "section",
+  "email", "phone", "nationality", "profession",
+  "parentName", "parentEmail", "parentPhone",
+  "address", "status", "totalPayable", "totalPaid", "notes",
+];
+
+const REQUIRED_COLUMNS = ["rollNumber", "name", "class"];
+const STATUS_OPTIONS = ["active", "inactive", "suspended"];
+
+const downloadTemplate = () => {
+  const rows   = [TEMPLATE_COLUMNS];
+  const csv    = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+  const blob   = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url    = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href     = url;
+  anchor.download = "student-import-template.csv";
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Mirrors backend/src/validation/student.validation.js. That schema uses bare
+// `.optional()` for email (both the student's own and parent.email), which —
+// since this form always sends "" rather than omitting an untouched field —
+// actually rejects blank values today (a live bug: admitting a student with
+// the Email or Parent Email field left blank currently 400s). The preprocess
+// below fixes that by treating "" as "not provided", matching what "optional"
+// was always meant to mean.
+const blankToUndefined = (v) => (v === "" || v == null ? undefined : v);
+const optionalEmail = z.preprocess(
+  blankToUndefined,
+  z.string().trim().email("Enter a valid email address").optional(),
+);
+
+const studentSchema = z.object({
+  rollNumber: z.string().trim().min(1, "Roll number is required"),
+  name: z.string().trim().min(1, "Name is required"),
+  class: z.string().trim().min(1, "Class is required"),
+  section: z.string().trim().optional(),
+  email: optionalEmail,
+  phone: z.string().trim().optional(),
+  nationality: z.string().trim().optional(),
+  profession: z.string().trim().optional(),
+  parentName: z.string().trim().optional(),
+  parentEmail: optionalEmail,
+  parentPhone: z.string().trim().optional(),
+  address: z.string().trim().optional(),
+  status: z.enum(STATUS_OPTIONS).optional(),
+  totalPayable: z.coerce.number().min(0, "Must be 0 or greater").optional(),
+  totalPaid: z.coerce.number().min(0, "Must be 0 or greater").optional(),
+  notes: z.string().trim().optional(),
+});
 
 const initialFormData = {
   rollNumber: "",
@@ -23,8 +83,8 @@ const initialFormData = {
   parentPhone: "",
   address: "",
   status: "active",
-  totalPayable: 0,
-  totalPaid: 0,
+  totalPayable: "",
+  totalPaid: "",
   notes: "",
 };
 
@@ -37,14 +97,21 @@ const StudentFormModal = ({
   isSubmitting = false,
 }) => {
   const [activeTab, setActiveTab] = useState("single");
-  const [formData, setFormData] = useState(initialFormData);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [bulkError, setBulkError] = useState("");
   const fileInputRef = useRef(null);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(studentSchema), defaultValues: initialFormData });
 
   useEffect(() => {
     if (student) {
-      setFormData({
+      reset({
         rollNumber: student.rollNumber || "",
         name: student.name || "",
         class: student.class || "",
@@ -63,22 +130,20 @@ const StudentFormModal = ({
         notes: student.notes || "",
       });
     } else {
-      setFormData(initialFormData);
+      reset(initialFormData);
     }
-    setErrors({});
+    setBulkError("");
     setSelectedFile(null);
-  }, [student, open]);
+  }, [student, open, reset]);
 
-  if (!open) return null;
-
-  // --- CSV Logic ---
+  // --- CSV Logic (unrelated to the RHF single-entry form above) ---
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file && (file.type === "text/csv" || file.name.endsWith(".csv"))) {
       setSelectedFile(file);
-      setErrors({});
+      setBulkError("");
     } else {
-      setErrors({ bulk: "Please upload a valid CSV file." });
+      setBulkError("Please upload a valid CSV file.");
     }
   };
 
@@ -114,106 +179,116 @@ const StudentFormModal = ({
   };
 
   // --- Single Entry Logic ---
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (activeTab === "bulk") return handleBulkSubmit();
-
-    // Map Flat State to Schema Structure
+  const onSubmitSingle = async (data) => {
     const payload = {
-      rollNumber: formData.rollNumber,
-      name: formData.name,
-      class: formData.class,
-      section: formData.section,
-      email: formData.email,
-      phone: formData.phone,
-      nationality: formData.nationality,
-      profession: formData.profession,
-      address: formData.address,
-      status: formData.status,
-      notes: formData.notes,
+      rollNumber: data.rollNumber,
+      name: data.name,
+      class: data.class,
+      section: data.section,
+      email: data.email,
+      phone: data.phone,
+      nationality: data.nationality,
+      profession: data.profession,
+      address: data.address,
+      status: data.status,
+      notes: data.notes,
       parent: {
-        name: formData.parentName,
-        email: formData.parentEmail,
-        phone: formData.parentPhone,
+        name: data.parentName,
+        email: data.parentEmail,
+        phone: data.parentPhone,
       },
       financials: {
-        totalPayable: Number(formData.totalPayable) || 0,
-        totalPaid: Number(formData.totalPaid) || 0,
+        totalPayable: Number(data.totalPayable) || 0,
+        totalPaid: Number(data.totalPaid) || 0,
       },
     };
 
-    await onSubmit(payload);
+    try {
+      await onSubmit(payload);
+    } catch (err) {
+      // useStudents.js's mutationFn normalizes thrown errors to
+      // { message, errors? } — same shape as every Redux slice's
+      // rejectWithValue. Backend validation failures (errorMiddleware.js)
+      // come back as errors: [{ field, message }] — map each to its form
+      // field. Field names here are flat (e.g. "email"), matching the
+      // backend's top-level fields; a nested "parent.email" failure would
+      // need path-based mapping if the backend ever starts emitting one (it
+      // currently strips unrecognized nested issues the same as any other
+      // unknown field).
+      const fieldErrors = err?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      }
+    }
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (activeTab === "bulk") return handleBulkSubmit();
+    return handleSubmit(onSubmitSingle)(e);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl my-auto rounded-2xl bg-white shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-neutral-900">
-              {student ? "Edit Student Profile" : "New Student Admission"}
-            </h2>
-            <p className="text-xs text-neutral-500">
-              Ensure all mandatory fields are filled.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white rounded-full transition">
-            <X size={20} />
-          </button>
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      title={student ? "Edit Student Profile" : "New Student Admission"}
+      description="Ensure all mandatory fields are filled."
+      size="3xl"
+    >
+      {/* Tabs */}
+      {!student && (
+        <div className="flex px-6 border-b border-slate-100 bg-slate-50/50 mb-3">
+          <TabBtn
+            active={activeTab === "single"}
+            onClick={() => setActiveTab("single")}
+            label="Single Entry"
+          />
+          <TabBtn
+            active={activeTab === "bulk"}
+            onClick={() => setActiveTab("bulk")}
+            label="Bulk CSV Upload"
+          />
         </div>
+      )}
 
-        {/* Tabs */}
-        {!student && (
-          <div className="flex px-6 border-b border-neutral-100 bg-neutral-50/50">
-            <TabBtn
-              active={activeTab === "single"}
-              onClick={() => setActiveTab("single")}
-              label="Single Entry"
-            />
-            <TabBtn
-              active={activeTab === "bulk"}
-              onClick={() => setActiveTab("bulk")}
-              label="Bulk CSV Upload"
-            />
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="p-6">
+      <form onSubmit={handleFormSubmit} noValidate>
           {activeTab === "single" ? (
             <div className="space-y-6">
               {/* Personal Info */}
               <SectionTitle title="Basic Information" />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input
-                  label="Roll Number *"
-                  value={formData.rollNumber}
-                  onChange={(v) => setFormData({ ...formData, rollNumber: v })}
+                  label="Roll Number"
+                  required
                   placeholder="e.g. S101"
+                  error={errors.rollNumber?.message}
+                  touched={!!errors.rollNumber}
+                  {...register("rollNumber")}
                 />
+                <div className="md:col-span-2">
+                  <Input
+                    label="Full Name"
+                    required
+                    error={errors.name?.message}
+                    touched={!!errors.name}
+                    {...register("name")}
+                  />
+                </div>
                 <Input
-                  label="Full Name *"
-                  className="md:col-span-2"
-                  value={formData.name}
-                  onChange={(v) => setFormData({ ...formData, name: v })}
+                  label="Class"
+                  required
+                  error={errors.class?.message}
+                  touched={!!errors.class}
+                  {...register("class")}
                 />
-                <Input
-                  label="Class *"
-                  value={formData.class}
-                  onChange={(v) => setFormData({ ...formData, class: v })}
-                />
-                <Input
-                  label="Section"
-                  value={formData.section}
-                  onChange={(v) => setFormData({ ...formData, section: v })}
-                />
+                <Input label="Section" {...register("section")} />
                 <Select
                   label="Status"
-                  value={formData.status}
-                  onChange={(v) => setFormData({ ...formData, status: v })}
-                  options={["active", "inactive", "suspended"]}
+                  options={STATUS_OPTIONS.map((o) => ({ value: o, label: o.charAt(0).toUpperCase() + o.slice(1) }))}
+                  {...register("status")}
                 />
               </div>
 
@@ -223,23 +298,38 @@ const StudentFormModal = ({
                 <Input
                   label="Email Address"
                   type="email"
-                  value={formData.email}
-                  onChange={(v) => setFormData({ ...formData, email: v })}
+                  error={errors.email?.message}
+                  touched={!!errors.email}
+                  {...register("email")}
                 />
+                <Input label="Phone Number" {...register("phone")} />
+                <Input label="Parent/Guardian Name" {...register("parentName")} />
                 <Input
-                  label="Phone Number"
-                  value={formData.phone}
-                  onChange={(v) => setFormData({ ...formData, phone: v })}
+                  label="Parent Email"
+                  type="email"
+                  error={errors.parentEmail?.message}
+                  touched={!!errors.parentEmail}
+                  {...register("parentEmail")}
                 />
-                <Input
-                  label="Parent/Guardian Name"
-                  value={formData.parentName}
-                  onChange={(v) => setFormData({ ...formData, parentName: v })}
+                <Input label="Parent Phone" {...register("parentPhone")} />
+              </div>
+
+              {/* Address & Notes */}
+              <SectionTitle title="Address & Notes" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Textarea
+                  label="Residential Address"
+                  rows={2}
+                  error={errors.address?.message}
+                  touched={!!errors.address}
+                  {...register("address")}
                 />
-                <Input
-                  label="Parent Phone"
-                  value={formData.parentPhone}
-                  onChange={(v) => setFormData({ ...formData, parentPhone: v })}
+                <Textarea
+                  label="Administrative Notes"
+                  rows={2}
+                  error={errors.notes?.message}
+                  touched={!!errors.notes}
+                  {...register("notes")}
                 />
               </div>
 
@@ -247,18 +337,22 @@ const StudentFormModal = ({
               <SectionTitle title="Financial Records" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50/50 p-4 rounded-xl border border-amber-100">
                 <Input
-                  label="Total Payable Fee ($)"
+                  label="Total Payable Fee"
                   type="number"
-                  value={formData.totalPayable}
-                  onChange={(v) =>
-                    setFormData({ ...formData, totalPayable: v })
-                  }
+                  step="0.01"
+                  placeholder="0.00"
+                  error={errors.totalPayable?.message}
+                  touched={!!errors.totalPayable}
+                  {...register("totalPayable")}
                 />
                 <Input
-                  label="Amount Already Paid ($)"
+                  label="Amount Already Paid"
                   type="number"
-                  value={formData.totalPaid}
-                  onChange={(v) => setFormData({ ...formData, totalPaid: v })}
+                  step="0.01"
+                  placeholder="0.00"
+                  error={errors.totalPaid?.message}
+                  touched={!!errors.totalPaid}
+                  {...register("totalPaid")}
                 />
                 <div className="md:col-span-2 text-xs text-amber-700 font-medium">
                   Note: Pending balance is calculated automatically.
@@ -266,11 +360,65 @@ const StudentFormModal = ({
               </div>
             </div>
           ) : (
-            /* Bulk CSV UI */
-            <div className="space-y-4 py-8 text-center">
+            /* ── Bulk CSV UI ── */
+            <div className="space-y-4">
+
+              {/* Instructions panel */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Info size={15} className="text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-sm font-bold text-blue-900">
+                      CSV Format Instructions
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  Upload a <span className="font-semibold">.csv</span> file where
+                  the <span className="font-semibold">first row is the header</span>.
+                  Columns marked <span className="font-semibold text-blue-900">bold</span> are
+                  required — all others are optional.
+                  Use the template above to get the exact column order and sample data.
+                </p>
+
+                {/* Column tags */}
+                <div className="flex flex-wrap gap-1.5">
+                  {TEMPLATE_COLUMNS.map((col) => {
+                    const required = REQUIRED_COLUMNS.includes(col);
+                    return (
+                      <span
+                        key={col}
+                        className={`rounded-md border px-2 py-0.5 font-mono text-[11px] ${
+                          required
+                            ? "border-blue-300 bg-blue-100 font-bold text-blue-800"
+                            : "border-slate-200 bg-white text-slate-500"
+                        }`}>
+                        {col}
+                        {required && <span className="ml-0.5 text-blue-500">*</span>}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[11px] text-blue-500">
+                  <span className="font-semibold">status</span> must be one of:{" "}
+                  <code className="rounded bg-blue-100 px-1">active</code>,{" "}
+                  <code className="rounded bg-blue-100 px-1">inactive</code>,{" "}
+                  <code className="rounded bg-blue-100 px-1">suspended</code>.{" "}
+                  <span className="font-semibold">totalPayable</span> and{" "}
+                  <span className="font-semibold">totalPaid</span> must be numbers.
+                </p>
+              </div>
+
+              {/* Drop zone */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center cursor-pointer transition ${selectedFile ? "border-emerald-500 bg-emerald-50" : "border-neutral-200 hover:border-neutral-900 bg-neutral-50"}`}>
+                className={`flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed p-10 transition ${
+                  selectedFile
+                    ? "border-emerald-400 bg-emerald-50"
+                    : "border-slate-200 bg-slate-50 hover:border-slate-400 hover:bg-white"
+                }`}>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -279,105 +427,93 @@ const StudentFormModal = ({
                   className="hidden"
                 />
                 <div
-                  className={`p-4 rounded-full mb-4 ${selectedFile ? "bg-emerald-500 text-white" : "bg-white text-neutral-400 shadow-sm"}`}>
-                  {selectedFile ? (
-                    <CheckCircle2 size={32} />
-                  ) : (
-                    <FileSpreadsheet size={32} />
-                  )}
+                  className={`mb-3 rounded-full p-3 ${
+                    selectedFile
+                      ? "bg-emerald-500 text-white"
+                      : "bg-white text-slate-400 shadow-sm"
+                  }`}>
+                  {selectedFile ? <CheckCircle2 size={28} /> : <Upload size={28} />}
                 </div>
-                <p className="font-bold text-neutral-900">
-                  {selectedFile
-                    ? selectedFile.name
-                    : "Click to select CSV File"}
+                <p className="font-bold text-slate-900">
+                  {selectedFile ? selectedFile.name : "Click to select a CSV file"}
                 </p>
-                <p className="text-sm text-neutral-500 mt-1">
-                  Expected columns: rollNumber, name, class, section, email...
+                <p className="mt-1 text-xs text-slate-400">
+                  {selectedFile
+                    ? "File ready — click Import CSV below to upload"
+                    : "Only .csv files are accepted"}
                 </p>
               </div>
-              {errors.bulk && (
-                <p className="text-red-500 text-sm">{errors.bulk}</p>
+
+              {bulkError && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
+                  <AlertCircle size={14} className="shrink-0" />
+                  {bulkError}
+                </div>
               )}
+
             </div>
           )}
 
           {/* Footer Actions */}
-          <div className="mt-8 flex items-center justify-end gap-3 border-t border-neutral-100 pt-6">
-            <button
+          <div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-6">
+            <Button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 text-sm font-bold text-neutral-500 hover:text-neutral-900 transition">
+              variant="secondary"
+              size="sm"
+            >
               Cancel
-            </button>
-            <button
+            </Button>
+
+            {/* Download Template — shown in footer only on bulk tab */}
+            {activeTab === "bulk" && (
+              <Button
+                type="button"
+                onClick={downloadTemplate}
+                variant="outline"
+                size="sm"
+              >
+                <Download size={12} />
+                Download Template
+              </Button>
+            )}
+
+            <Button
               type="submit"
               disabled={isSubmitting || (activeTab === "bulk" && !selectedFile)}
-              className="flex items-center gap-2 bg-neutral-900 text-white px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-neutral-800 disabled:opacity-50 transition shadow-lg shadow-neutral-200">
+              variant="default"
+              size="sm"
+            >
               {isSubmitting ? (
-                "Processing..."
+                "Processing…"
               ) : student ? (
-                <>
-                  <Save size={18} /> Update Record
-                </>
+                <><Save size={18} /> Update Record</>
+              ) : activeTab === "bulk" ? (
+                <><Upload size={18} /> Import CSV</>
               ) : (
-                <>
-                  <UserPlus size={18} /> Admission Done
-                </>
+                <><UserPlus size={18} /> Admission Done</>
               )}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 
 // --- Sub-components ---
 const SectionTitle = ({ title }) => (
-  <h4 className="text-[10px] uppercase tracking-[2px] font-black text-neutral-400 mb-2">
+  <h4 className="text-[10px] uppercase tracking-[2px] font-black text-slate-400 mb-2">
     {title}
   </h4>
 );
 
 const TabBtn = ({ active, onClick, label }) => (
   <button
+    type="button"
     onClick={onClick}
-    className={`px-6 py-4 text-sm font-bold transition-all border-b-2 ${active ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-400 hover:text-neutral-600"}`}>
+    className={`px-6 py-4 text-sm font-bold transition-all border-b-2 ${active ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
     {label}
   </button>
-);
-
-const Input = ({ label, className = "", onChange, ...props }) => (
-  <div className={`flex flex-col gap-1.5 ${className}`}>
-    <label className="text-xs font-bold text-neutral-600 ml-1">{label}</label>
-    <input
-      {...props}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-neutral-900 focus:ring-4 focus:ring-neutral-100 transition"
-    />
-  </div>
-);
-
-const Select = ({ label, value, onChange, options }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-bold text-neutral-600 ml-1">{label}</label>
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-neutral-900 transition">
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt.charAt(0).toUpperCase() + opt.slice(1)}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        size={14}
-        className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"
-      />
-    </div>
-  </div>
 );
 
 export default StudentFormModal;

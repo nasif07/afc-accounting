@@ -1,14 +1,141 @@
-import React, { useState } from "react";
-import { Plus, Loader, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Plus,
+  X,
+  ShieldCheck,
+  Repeat,
+  FileText,
+  AlertCircle,
+  Hash,
+  Lock,
+} from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { useForm, useFieldArray, FormProvider, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { fetchLeafAccounts } from "../../store/slices/accountSlice";
 import BookEntryRow from "./BookEntryRow";
 import BalanceSummary from "./BalanceSummary";
-import { useQuery } from "@tanstack/react-query";
-import api from "../../services/api";
 import { toast } from "sonner";
 
 import Input from "../common/Input";
 import Select from "../common/Select";
 import Button from "../common/Button";
+import DatePicker from "../common/DatePicker";
+import Modal from "../common/Modal";
+import { SectionSkeleton } from "../common/Loaders";
+import { useHotkeys, MOD_LABEL } from "../../hooks/useHotkeys";
+import { todayISO, toISODate, formatDisplayDate } from "../../utils/date";
+import { formatCurrency } from "../../utils/currency";
+
+// ── Rounding helper ──────────────────────────────────────────────────────────
+// Flagged in docs/frontendreport.md: debit/credit inputs were raw, unrounded
+// strings, and the overall balance check used a blunt <0.01 tolerance — so a
+// genuine 1-cent mismatch (e.g. totals of 100.00 vs 100.005, which is really
+// 100.01 once rounded) could be silently accepted as "balanced". Fixed by
+// rounding every line to exactly 2 decimals before any comparison or
+// submission, and tightening the balance tolerance to <0.001 — once every
+// line is pre-rounded, only floating-point representation noise should
+// remain, never real currency amounts. The `+ Number.EPSILON` guards against
+// a separate, well-known Math.round quirk (Math.round(1.005 * 100) naively
+// yields 100 instead of 101 due to binary float representation).
+const roundToCents = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const toAmount = (v) => (v === "" || v == null ? 0 : roundToCents(v));
+const BALANCE_EPSILON = 0.001;
+
+const bookEntrySchema = z
+  .object({
+    account: z.string().min(1, "Account is required"),
+    description: z.string().trim().optional(),
+    debit: z.preprocess(toAmount, z.number().min(0, "Debit cannot be negative")),
+    credit: z.preprocess(toAmount, z.number().min(0, "Credit cannot be negative")),
+  })
+  .refine((entry) => !(entry.debit > 0 && entry.credit > 0), {
+    message: "Cannot have both debit and credit",
+    path: ["credit"],
+  })
+  .refine((entry) => entry.debit > 0 || entry.credit > 0, {
+    message: "Must have either debit or credit",
+    path: ["debit"],
+  });
+
+const journalSchema = z
+  .object({
+    voucherDate: z.string().min(1, "Voucher date is required"),
+    transactionType: z.enum(["journal-entry", "receipt", "payment", "transfer"]),
+    description: z.string().trim().optional(),
+    referenceNumber: z.string().trim().optional(),
+    requiresApproval: z.boolean().optional(),
+    bookEntries: z
+      .array(bookEntrySchema)
+      .min(2, "Journal entry must have at least 2 line items"),
+  })
+  .superRefine((data, ctx) => {
+    const totalDebit = roundToCents(
+      data.bookEntries.reduce((sum, e) => sum + e.debit, 0),
+    );
+    const totalCredit = roundToCents(
+      data.bookEntries.reduce((sum, e) => sum + e.credit, 0),
+    );
+    const balanced =
+      Math.abs(totalDebit - totalCredit) < BALANCE_EPSILON &&
+      totalDebit > 0 &&
+      totalCredit > 0;
+
+    if (!balanced) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bookEntries"],
+        message:
+          totalDebit === 0
+            ? "Journal entry cannot be empty"
+            : "Journal entry must be balanced",
+      });
+    }
+  });
+
+const blankRow = { account: "", debit: "", credit: "", description: "" };
+
+// Fields an edit may change, per the backend whitelist in
+// accounting.controller.js's updateEntry. Anything else in the payload is
+// rejected with a 400 rather than silently dropped, so the edit submission
+// has to be built explicitly instead of forwarding the whole form state.
+const toEditPayload = (data) => ({
+  voucherDate: data.voucherDate,
+  description: data.description || "",
+  referenceNumber: data.referenceNumber || "",
+  bookEntries: (data.bookEntries || []).map((line) => ({
+    description: line.description || "",
+  })),
+});
+
+// initialData's bookEntries.account is a populated object ({_id, accountCode,
+// accountName, accountType} — see accounting.service.js's .populate() calls),
+// not a plain id string. The old code spread it through unchanged, so
+// editing an existing entry silently left every Account <select> unmatched
+// (comparing a string option value against an object), and re-submitting
+// without touching those dropdowns would have sent the raw populated object
+// back as `account`, which the backend's objectId schema rejects outright.
+// Normalizing to a plain id string here — matching the same populated-ref
+// pattern already handled in Accounts.jsx's parentAccount — fixes this.
+const buildDefaultValues = (initialData) => ({
+  voucherDate: toISODate(initialData?.voucherDate) || todayISO(),
+  transactionType: initialData?.transactionType || "journal-entry",
+  description: initialData?.description || "",
+  referenceNumber: initialData?.referenceNumber || "",
+  requiresApproval: initialData ? initialData.approvalStatus === "pending" : false,
+  bookEntries: initialData?.bookEntries?.length
+    ? initialData.bookEntries.map((e) => ({
+        account:
+          typeof e.account === "object" && e.account !== null
+            ? e.account?._id || ""
+            : e.account || "",
+        description: e.description || "",
+        debit: e.debit || "",
+        credit: e.credit || "",
+      }))
+    : [blankRow, blankRow],
+});
 
 const DynamicJournalForm = ({
   onSubmit,
@@ -16,246 +143,506 @@ const DynamicJournalForm = ({
   isLoading: isSubmitting = false,
   initialData = null,
 }) => {
-  const [voucherDate, setVoucherDate] = useState(
-    initialData?.voucherDate || new Date().toISOString().split("T")[0],
-  );
-  const [transactionType, setTransactionType] = useState(
-    initialData?.transactionType || "journal-entry",
-  );
-  const [description, setDescription] = useState(
-    initialData?.description || "",
-  );
-  const [bookEntries, setBookEntries] = useState(
-    initialData?.bookEntries || [
-      { account: "", debit: 0, credit: 0, description: "" },
-      { account: "", debit: 0, credit: 0, description: "" },
-    ],
-  );
-  const [errors, setErrors] = useState({});
+  const dispatch = useDispatch();
 
-  const { data: leafAccounts = [], isLoading: isLoadingAccounts } = useQuery({
-    queryKey: ["leafAccounts"],
-    queryFn: async () => {
-      const response = await api.get("/accounts/leaf-nodes");
-      return response.data.data || [];
-    },
+  const { leafAccounts, isLoading: isLoadingAccounts } = useSelector(
+    (state) => state.accounts,
+  );
+
+  // Fetch leaf accounts
+  useEffect(() => {
+    dispatch(fetchLeafAccounts());
+  }, [dispatch]);
+
+  // ==============================
+  // FORM STATE (react-hook-form)
+  // ==============================
+
+  const methods = useForm({
+    resolver: zodResolver(journalSchema),
+    defaultValues: buildDefaultValues(initialData),
   });
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    control,
+    watch,
+    setError,
+    formState: { errors },
+  } = methods;
 
-  const totalDebit = bookEntries.reduce(
-    (sum, entry) => sum + (parseFloat(entry.debit) || 0),
-    0,
+  const { fields, append, remove } = useFieldArray({ control, name: "bookEntries" });
+
+  const [confirmPayload, setConfirmPayload] = useState(null);
+
+  // Editing an existing entry is narrative-only: amounts, accounts, line
+  // count, transaction type and approval routing are all immutable.
+  const isEditMode = !!initialData;
+
+  // Backend rejections that aren't field-scoped (edit window closed, editing
+  // disabled by the director, voucher date inside a finalized reconciliation)
+  // need to stay on screen next to the form — a toast disappears before the
+  // user has finished reading why their edit didn't take.
+  const [formError, setFormError] = useState("");
+
+  // ==============================
+  // BALANCE CALCULATION (live, mirrors the schema's superRefine exactly so
+  // the UI hint never disagrees with what submission will actually enforce)
+  // ==============================
+
+  const watchedBookEntries = watch("bookEntries");
+
+  const totalDebit = roundToCents(
+    (watchedBookEntries || []).reduce((sum, e) => sum + (parseFloat(e.debit) || 0), 0),
   );
-  const totalCredit = bookEntries.reduce(
-    (sum, entry) => sum + (parseFloat(entry.credit) || 0),
-    0,
+  const totalCredit = roundToCents(
+    (watchedBookEntries || []).reduce((sum, e) => sum + (parseFloat(e.credit) || 0), 0),
   );
 
   const isBalanced =
-    Math.abs(totalDebit - totalCredit) < 0.01 &&
+    Math.abs(totalDebit - totalCredit) < BALANCE_EPSILON &&
     totalDebit > 0 &&
     totalCredit > 0;
 
-  const validateForm = () => {
-    const newErrors = {};
-    let isValid = true;
-
-    if (bookEntries.length < 2) {
-      toast.error("Journal entry must have at least 2 line items");
-      return false;
-    }
-
-    bookEntries.forEach((entry, idx) => {
-      const entryErrors = [];
-
-      if (!entry.account) {
-        entryErrors.push("Account is required");
-        isValid = false;
-      }
-
-      const d = parseFloat(entry.debit) || 0;
-      const c = parseFloat(entry.credit) || 0;
-
-      if (d > 0 && c > 0) {
-        entryErrors.push("Cannot have both debit and credit");
-        isValid = false;
-      }
-
-      if (d === 0 && c === 0) {
-        entryErrors.push("Must have either debit or credit");
-        isValid = false;
-      }
-
-      if (entryErrors.length > 0) {
-        newErrors[idx] = entryErrors;
-      }
-    });
-
-    if (!isBalanced) {
-      if (totalDebit === 0) {
-        toast.error("Journal entry cannot be empty");
-      } else {
-        toast.error("Journal entry must be balanced (Debits = Credits)");
-      }
-      return false;
-    }
-
-    setErrors(newErrors);
-    return isValid;
-  };
-
-  const handleRowUpdate = (rowIndex, updatedEntry) => {
-    const newEntries = [...bookEntries];
-    newEntries[rowIndex] = updatedEntry;
-    setBookEntries(newEntries);
-  };
+  // ==============================
+  // ROW HANDLERS
+  // ==============================
 
   const handleRowRemove = (rowIndex) => {
-    if (bookEntries.length <= 2) {
+    if (fields.length <= 2) {
       toast.error("Journal entry must have at least 2 line items");
       return;
     }
-    setBookEntries(bookEntries.filter((_, idx) => idx !== rowIndex));
+
+    remove(rowIndex);
   };
+
+  // Index of a row whose account picker should take focus once it renders —
+  // adding a line by keyboard should leave the caret in the new line, not
+  // back where it was.
+  const focusRowRef = useRef(null);
 
   const handleAddRow = () => {
-    setBookEntries([
-      ...bookEntries,
-      { account: "", debit: 0, credit: 0, description: "" },
-    ]);
+    focusRowRef.current = fields.length;
+    append(blankRow);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  useEffect(() => {
+    if (focusRowRef.current === null) return;
+    const index = focusRowRef.current;
+    focusRowRef.current = null;
+    // The account combobox trigger is the first button in the row.
+    document
+      .querySelector(`[data-book-entry-row="${index}"] button`)
+      ?.focus();
+  }, [fields.length]);
 
-    const payload = {
-      voucherDate,
-      transactionType,
-      description,
-      bookEntries,
-    };
-
-    await onSubmit(payload);
+  // Alt+A / Alt+D — the repetitive part of multi-line entry. Alt combos are
+  // allowed to fire from inside a field (that's where the user will be), and
+  // Alt+D acts on whichever row currently holds focus, falling back to the
+  // last row when focus is elsewhere in the form.
+  const removeFocusedRow = () => {
+    const row = document.activeElement?.closest?.("[data-book-entry-row]");
+    const parsed = Number(row?.dataset.bookEntryRow);
+    handleRowRemove(Number.isInteger(parsed) ? parsed : fields.length - 1);
   };
+
+  useHotkeys(
+    [
+      { combo: "alt+a", handler: handleAddRow },
+      { combo: "alt+d", handler: removeFocusedRow },
+    ],
+    { enabled: !isEditMode },
+  );
+
+  // ==============================
+  // SUBMIT
+  // ==============================
+
+  const applyServerErrors = (err) => {
+    const fieldErrors = err?.errors;
+    if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+      setFormError("");
+      fieldErrors.forEach(({ field, message }) => {
+        if (field) setError(field, { type: "server", message });
+      });
+    } else {
+      // Business-rule rejections (BadRequestError) carry no `errors[]`, so
+      // they'd previously vanish into a toast. Pin them to the form instead.
+      setFormError(err?.message || "Failed to save journal entry");
+    }
+  };
+
+  const onInvalid = (formErrors) => {
+    // The array-level balance/empty/min-length message lives either at
+    // bookEntries.message (no per-line errors) or bookEntries.root.message
+    // (per-line errors also present) — confirmed empirically against
+    // zodResolver's actual output shape. Per-line errors are already shown
+    // inline via BookEntryRow, matching the pre-conversion UX exactly.
+    const arrayError = formErrors.bookEntries;
+    const message =
+      arrayError?.root?.message ||
+      (typeof arrayError?.message === "string" ? arrayError.message : undefined);
+    if (message) toast.error(message);
+    if (formErrors.voucherDate) toast.error(formErrors.voucherDate.message);
+  };
+
+  const onValid = async (data) => {
+    if (!isEditMode) {
+      setConfirmPayload(data);
+      return;
+    }
+
+    setFormError("");
+
+    try {
+      await onSubmit(toEditPayload(data));
+    } catch (err) {
+      applyServerErrors(err);
+    }
+  };
+
+  const handleConfirm = async () => {
+    try {
+      await onSubmit(confirmPayload);
+      setConfirmPayload(null);
+    } catch (err) {
+      setConfirmPayload(null);
+      applyServerErrors(err);
+    }
+  };
+
+  const getAccountName = (accountId) => {
+    const acc = leafAccounts.find((a) => a._id === accountId);
+    if (!acc) return accountId;
+    return acc.accountCode ? `${acc.accountCode} - ${acc.accountName}` : acc.accountName;
+  };
+
+  // ==============================
+  // LOADING
+  // ==============================
 
   if (isLoadingAccounts) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader className="animate-spin text-red-600" size={20} />
-        <span className="ml-2 text-sm text-slate-600">
-          Loading accounts...
-        </span>
-      </div>
-    );
+    return <SectionSkeleton rows={6} />;
   }
 
+  // ==============================
+  // UI
+  // ==============================
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 relative">
+    <FormProvider {...methods}>
+    <form onSubmit={handleFormSubmit(onValid, onInvalid)} noValidate className="relative space-y-4">
+      {/* Close Button */}
       {onCancel && (
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={onCancel}
-          className="absolute right-2 top-2"
-        >
+          className="absolute right-2 top-2">
           <X size={16} />
         </Button>
       )}
 
-      {/* Voucher Section */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <h2 className="text-sm font-bold text-slate-900 mb-3">
-          Voucher Details
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Input
-            label="Voucher Date"
-            type="date"
-            value={voucherDate}
-            onChange={(e) => setVoucherDate(e.target.value)}
-            required
-          />
-
-          <Select
-            label="Transaction Type"
-            value={transactionType}
-            onChange={(e) => setTransactionType(e.target.value)}
-            required
-            options={[
-              { value: "journal-entry", label: "Journal Entry" },
-              { value: "receipt", label: "Receipt" },
-              { value: "payment", label: "Payment" },
-              { value: "transfer", label: "Transfer" },
-            ]}
-          />
-
-          <Input
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter description"
-          />
+      {/* Non-field backend rejections (edit window closed, editing disabled,
+          date inside a finalized reconciliation) */}
+      {formError && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
+          <p>{formError}</p>
         </div>
-      </div>
+      )}
 
-      {/* Entries */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <h2 className="text-sm font-bold text-slate-900 mb-3">
-          Book Entries
-        </h2>
+      {isEditMode && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <Lock size={18} className="mt-0.5 shrink-0 text-amber-500" />
+          <p>
+            Amounts, accounts and transaction type are permanently locked. You
+            can change the voucher date, reference, and descriptions for 3 days
+            after the entry was created — to correct an amount, post a
+            reversing entry instead.
+          </p>
+        </div>
+      )}
 
-        <div className="space-y-1">
-          {bookEntries.map((entry, idx) => (
-            <BookEntryRow
-              key={idx}
-              rowIndex={idx}
-              entry={entry}
-              leafAccounts={leafAccounts}
-              onUpdate={handleRowUpdate}
-              onRemove={handleRowRemove}
-              errors={errors}
+      {/* Voucher Details */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-bold">Voucher Details</h2>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <Controller
+            name="voucherDate"
+            control={control}
+            render={({ field }) => (
+              <DatePicker
+                label="Voucher Date"
+                value={field.value}
+                onChange={field.onChange}
+                required
+                disabled={isSubmitting}
+                error={errors.voucherDate?.message}
+              />
+            )}
+          />
+
+          {isEditMode ? (
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Transaction Type (locked)
+              </p>
+              <p className="text-sm font-semibold capitalize text-slate-700">
+                {(initialData?.transactionType || "").replace(/-/g, " ") || "—"}
+              </p>
+            </div>
+          ) : (
+            <Select
+              label="Transaction Type"
+              icon={Repeat}
+              options={[
+                {
+                  value: "journal-entry",
+                  label: "Journal Entry",
+                },
+                {
+                  value: "receipt",
+                  label: "Receipt",
+                },
+                {
+                  value: "payment",
+                  label: "Payment",
+                },
+                {
+                  value: "transfer",
+                  label: "Transfer",
+                },
+              ]}
+              {...register("transactionType")}
             />
-          ))}
-        </div>
+          )}
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAddRow}
-          className="mt-3"
-          icon={Plus}
-        >
-          Add Row
-        </Button>
+          <Input label="Description" icon={FileText} {...register("description")} />
+
+          <Input
+            label="Reference Number"
+            icon={Hash}
+            {...register("referenceNumber")}
+          />
+        </div>
       </div>
 
+      {/* Book Entries */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-bold">Book Entries</h2>
+
+        {fields.map((field, idx) => (
+          <BookEntryRow
+            key={field.id}
+            index={idx}
+            leafAccounts={leafAccounts}
+            onRemove={() => handleRowRemove(idx)}
+            readOnly={isEditMode}
+          />
+        ))}
+
+        {/* Adding or removing a line changes the entry's structure, which an
+            edit can never do — the backend rejects a differing line count. */}
+        {!isEditMode && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddRow}
+              title="Add a line (Alt + A)"
+              className="border-brand-navy text-brand-navy hover:bg-brand-navy-light focus:ring-brand-navy-light"
+              icon={Plus}>
+              Add Row
+            </Button>
+
+            <p className="text-xs text-slate-400">
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-500">
+                Alt A
+              </kbd>{" "}
+              add line ·{" "}
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-500">
+                Alt D
+              </kbd>{" "}
+              remove ·{" "}
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-500">
+                {MOD_LABEL} ↵
+              </kbd>{" "}
+              save
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Approval Settings — creation only. An edit never changes approval
+          routing (approvalStatus is immutable), so showing the toggle here
+          would promise something the backend rejects. */}
+      {!isEditMode && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck size={18} className="text-brand-navy" />
+
+            <h2 className="text-sm font-bold">Approval Settings</h2>
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4"
+              {...register("requiresApproval")}
+            />
+
+            <div>
+              <p className="text-sm font-medium text-slate-700">
+                Require Director Approval
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                If enabled, this journal entry will be sent for director approval
+                before posting. Otherwise it will be automatically approved and
+                posted instantly.
+              </p>
+            </div>
+          </label>
+        </div>
+      )}
+
+      {/* Balance Summary */}
       <BalanceSummary
         totalDebit={totalDebit}
         totalCredit={totalCredit}
         isBalanced={isBalanced}
       />
 
-      {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-2 justify-end">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-
+      {/* Submit */}
+      <div className="flex justify-end gap-2">
         <Button
           type="submit"
-          variant="primary"
           disabled={!isBalanced || isSubmitting}
           loading={isSubmitting}
-        >
-          Create Journal Entry
+          className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light disabled:bg-slate-300">
+          {isSubmitting ? "Saving..." : "Save Entry"}
         </Button>
       </div>
     </form>
+
+    {/* ── Confirmation Modal (new entries only) ── */}
+    <Modal
+      isOpen={!!confirmPayload}
+      onClose={() => setConfirmPayload(null)}
+      title="Confirm Journal Entry"
+      description="Review all details carefully before creating this entry."
+      size="lg"
+    >
+      {confirmPayload && (
+        <div className="space-y-5">
+          {/* Meta */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Date</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">
+                {formatDisplayDate(confirmPayload.voucherDate)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Transaction Type</p>
+              <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
+                {confirmPayload.transactionType?.replace(/-/g, " ")}
+              </p>
+            </div>
+            {confirmPayload.description && (
+              <div className="col-span-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Description</p>
+                <p className="mt-1 text-sm text-slate-700">{confirmPayload.description}</p>
+              </div>
+            )}
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Debit entries */}
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-brand-navy">
+              Debit Accounts
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-100">
+              {confirmPayload.bookEntries
+                .filter((e) => parseFloat(e.debit) > 0)
+                .map((e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between border-b border-slate-50 px-4 py-2.5 last:border-0">
+                    <span className="text-sm text-slate-700">{getAccountName(e.account)}</span>
+                    <span className="font-mono text-sm font-semibold text-slate-900">
+                      {formatCurrency(e.debit)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Credit entries */}
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Credit Accounts
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-100">
+              {confirmPayload.bookEntries
+                .filter((e) => parseFloat(e.credit) > 0)
+                .map((e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between border-b border-slate-50 px-4 py-2.5 last:border-0">
+                    <span className="text-sm text-slate-700">{getAccountName(e.account)}</span>
+                    <span className="font-mono text-sm font-semibold text-slate-900">
+                      {formatCurrency(e.credit)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Totals */}
+          <div className="flex justify-between rounded-xl bg-slate-50 px-5 py-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Debit</p>
+              <p className="mt-0.5 font-mono text-base font-bold text-slate-900">
+                {formatCurrency(totalDebit)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Credit</p>
+              <p className="mt-0.5 font-mono text-base font-bold text-slate-900">
+                {formatCurrency(totalCredit)}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-1">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmPayload(null)}
+              disabled={isSubmitting}
+              className="border-slate-300 text-slate-700 hover:bg-slate-50">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              loading={isSubmitting}
+              className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light">
+              Confirm &amp; Create
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+    </FormProvider>
   );
 };
 

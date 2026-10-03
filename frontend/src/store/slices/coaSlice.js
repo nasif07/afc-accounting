@@ -1,191 +1,161 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { coaAPI } from '../../services/apiMethods';
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { coaAPI } from "../../services/apiMethods";
+import { getErrorMessage } from "../../utils/errors";
+
+const getPayloadData = (payload) => payload?.data || payload;
+
+// ==================== ASYNC THUNKS ====================
 
 export const fetchCoa = createAsyncThunk(
-  'coa/fetchCoa',
+  "coa/fetchCoa",
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await coaAPI.getAll(params);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch coa');
+      return rejectWithValue(getErrorMessage(error, "Failed to fetch COA"));
     }
-  }
+  },
 );
 
 export const fetchCoaById = createAsyncThunk(
-  'coa/fetchCoaById',
+  "coa/fetchCoaById",
   async (id, { rejectWithValue }) => {
     try {
       const response = await coaAPI.getById(id);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch coa');
+      return rejectWithValue(getErrorMessage(error, "Failed to fetch COA"));
     }
-  }
-);
-
-export const createCoa = createAsyncThunk(
-  'coa/createCoa',
-  async (data, { rejectWithValue }) => {
-    try {
-      const response = await coaAPI.create(data);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create coa');
-    }
-  }
-);
-
-export const updateCoa = createAsyncThunk(
-  'coa/updateCoa',
-  async ({ id, data }, { rejectWithValue }) => {
-    try {
-      const response = await coaAPI.update(id, data);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update coa');
-    }
-  }
+  },
 );
 
 export const deleteCoa = createAsyncThunk(
-  'coa/deleteCoa',
+  "coa/deleteCoa",
   async (id, { rejectWithValue }) => {
     try {
-      await coaAPI.delete(id);
+      await coaAPI.archive(id);
       return id;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete coa');
+      return rejectWithValue(getErrorMessage(error, "Failed to delete COA"));
     }
-  }
+  },
 );
 
 export const getCoaBalance = createAsyncThunk(
-  'coa/getCoaBalance',
+  "coa/getCoaBalance",
   async (id, { rejectWithValue }) => {
     try {
       const response = await coaAPI.getBalance(id);
-      return response.data.data || response.data;
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch balance');
+      return rejectWithValue(getErrorMessage(error, "Failed to fetch balance"));
     }
-  }
+  },
 );
 
+// ==================== INITIAL STATE ====================
 
 const initialState = {
   items: [],
   item: null,
+  balance: null,
+
   loading: false,
   error: null,
   success: false,
 };
 
+// ==================== COMMON HANDLERS ====================
+
+const handlePending = (state) => {
+  state.loading = true;
+  state.error = null;
+};
+
+const handleRejected = (state, action) => {
+  state.loading = false;
+  state.error = action.payload;
+};
+
+// ==================== SLICE ====================
+
 const coaSlice = createSlice({
-  name: 'coa',
+  name: "coa",
   initialState,
+
   reducers: {
     clearError: (state) => {
       state.error = null;
     },
+
     clearSuccess: (state) => {
       state.success = false;
     },
+
     clearItem: (state) => {
       state.item = null;
     },
+
+    clearBalance: (state) => {
+      state.balance = null;
+    },
+
+    resetCoaState: () => initialState,
   },
+
   extraReducers: (builder) => {
     builder
-      .addCase(fetchCoa.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+      // Fetch all COA
+      .addCase(fetchCoa.pending, handlePending)
       .addCase(fetchCoa.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.data || action.payload;
+
+        const data = getPayloadData(action.payload);
+        state.items = Array.isArray(data) ? data : [];
       })
-      .addCase(fetchCoa.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(fetchCoaById.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+      .addCase(fetchCoa.rejected, handleRejected)
+
+      // Fetch COA by ID
+      .addCase(fetchCoaById.pending, handlePending)
       .addCase(fetchCoaById.fulfilled, (state, action) => {
         state.loading = false;
-        state.item = action.payload.data || action.payload;
+        state.item = getPayloadData(action.payload);
       })
-      .addCase(fetchCoaById.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(createCoa.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(createCoa.fulfilled, (state, action) => {
-        state.loading = false;
-        state.success = true;
-        state.items.push(action.payload.data || action.payload);
-      })
-      .addCase(createCoa.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(updateCoa.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(updateCoa.fulfilled, (state, action) => {
-        state.loading = false;
-        state.success = true;
-        const index = state.items.findIndex(item => item._id === action.payload.data._id);
-        if (index !== -1) {
-          state.items[index] = action.payload.data;
-        }
-      })
-      .addCase(updateCoa.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(deleteCoa.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+      .addCase(fetchCoaById.rejected, handleRejected)
+
+      // Delete COA
+      .addCase(deleteCoa.pending, handlePending)
       .addCase(deleteCoa.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        state.items = state.items.filter(item => item._id !== action.payload);
+
+        state.items = state.items.filter((item) => item._id !== action.payload);
+
+        if (state.item?._id === action.payload) {
+          state.item = null;
+        }
       })
-      .addCase(deleteCoa.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(getCoaBalance.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+      .addCase(deleteCoa.rejected, handleRejected)
+
+      // Get COA balance
+      .addCase(getCoaBalance.pending, handlePending)
       .addCase(getCoaBalance.fulfilled, (state, action) => {
         state.loading = false;
-        state.item = action.payload;
+        state.balance = getPayloadData(action.payload);
       })
-      .addCase(getCoaBalance.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
+      .addCase(getCoaBalance.rejected, handleRejected);
   },
 });
 
-export const { clearError, clearSuccess, clearItem } = coaSlice.actions;
+// ==================== ACTIONS ====================
 
-// Selectors
-export const selectCoaItems = (state) => state.coa.items;
-export const selectCoaItem = (state) => state.coa.item;
-export const selectCoaLoading = (state) => state.coa.loading;
-export const selectCoaError = (state) => state.coa.error;
-export const selectCoaSuccess = (state) => state.coa.success;
+export const {
+  clearError,
+  clearSuccess,
+  clearItem,
+  clearBalance,
+  resetCoaState,
+} = coaSlice.actions;
 
 export default coaSlice.reducer;

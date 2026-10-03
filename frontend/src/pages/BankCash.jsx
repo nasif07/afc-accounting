@@ -1,39 +1,47 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Landmark,
   CreditCard,
+  Building2,
   Wallet,
-  Edit2,
-  Trash2,
-  CheckCircle,
-  History,
-  Loader,
+  GripVertical,
   RefreshCw,
+  FileText,
 } from "lucide-react";
+import { Link } from "react-router";
+import { useSelector } from "react-redux";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import { bankAPI } from "../services/apiMethods";
 import api from "../services/api";
-import { formatCurrency } from "../utils/currency";
 import { toast } from "sonner";
-import Card from "../components/common/Card";
 import Button from "../components/common/Button";
-import Badge from "../components/common/Badge";
 import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
+import AccountCombobox from "../components/common/AccountCombobox";
 import SectionHeader from "../components/common/SectionHeader";
-
-const getErrorMessage = (error, fallback = "Something went wrong") => {
-  if (!error) return fallback;
-  if (typeof error === "string") return error;
-  if (typeof error?.response?.data?.message === "string") {
-    return error.response.data.message;
-  }
-  if (typeof error?.message === "string") {
-    return error.message;
-  }
-  return fallback;
-};
+import { SectionSkeleton } from "../components/common/Loaders";
+import KPICard from "../components/reports/KPICard";
+import SortableBankAccountCard, {
+  BankAccountCard,
+} from "../components/bank/BankAccountCard";
+import FdrSection from "../components/bank/FdrSection";
+import { getErrorMessage } from "../utils/errors";
 
 const initialFormData = {
   bankName: "",
@@ -41,7 +49,6 @@ const initialFormData = {
   accountHolderName: "",
   branchName: "",
   accountType: "savings",
-  openingBalance: 0,
   coaAccount: "",
 };
 
@@ -49,20 +56,45 @@ const BankCash = () => {
   const [bankAccounts, setBankAccounts] = useState([]);
   const [coaAccounts, setCoaAccounts] = useState([]);
   const [totalBalance, setTotalBalance] = useState(0);
+  const [fdrSummary, setFdrSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [coaLoading, setCoaLoading] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const [showReconcileModal, setShowReconcileModal] = useState(false);
-  const [reconcileData, setReconcileData] = useState({
-    reconciledBalance: "",
-    reconciledDate: new Date().toISOString().split("T")[0],
-  });
+  const [activeDragId, setActiveDragId] = useState(null);
 
   const [formData, setFormData] = useState(initialFormData);
+
+  const { user } = useSelector((state) => state.auth);
+
+  // Mirrors the accountantOrDirector guard on POST/PUT/DELETE /bank and
+  // PATCH /bank/reorder — a sub-accountant gets the same cards, read only.
+  const canManage = user?.role === "director" || user?.role === "accountant";
+
+  const accountIds = useMemo(
+    () => bankAccounts.map((account) => account._id),
+    [bankAccounts],
+  );
+
+  const activeDragAccount = activeDragId
+    ? bankAccounts.find((account) => account._id === activeDragId)
+    : null;
+
+  const institutionCount = useMemo(
+    () => new Set(bankAccounts.map((account) => account.bankName)).size,
+    [bankAccounts],
+  );
+
+  const sensors = useSensors(
+    // A small activation distance keeps the grip's own click/focus behaviour
+    // intact and stops an accidental 2px twitch from firing a reorder.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const resetForm = () => {
     setEditingAccount(null);
@@ -72,13 +104,15 @@ const BankCash = () => {
   const fetchBankData = async () => {
     setLoading(true);
     try {
-      const [accountsRes, balanceRes] = await Promise.all([
+      const [accountsRes, balanceRes, fdrRes] = await Promise.all([
         bankAPI.getAll(),
         bankAPI.getTotalBalance(),
+        bankAPI.getFdrSummary(),
       ]);
 
       setBankAccounts(accountsRes?.data?.data || []);
       setTotalBalance(balanceRes?.data?.data?.totalBalance || 0);
+      setFdrSummary(fdrRes?.data?.data || null);
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to load bank data"));
     } finally {
@@ -89,7 +123,13 @@ const BankCash = () => {
   const fetchCOAAccounts = async () => {
     setCoaLoading(true);
     try {
-      const res = await api.get("/accounts/leaf-nodes?accountType=asset");
+      // parentAccountCode=1002 scopes this to children of the "Bank Accounts"
+      // head — the same rule createBankAccount enforces at submit, so every
+      // option offered here is now actually selectable. The remaining local
+      // filter is belt-and-braces; the endpoint already applies it.
+      const res = await api.get(
+        "/accounts/leaf-nodes?accountType=asset&parentAccountCode=1002",
+      );
       const accounts = res?.data?.data || [];
 
       const assetAccounts = accounts.filter(
@@ -128,7 +168,6 @@ const BankCash = () => {
         accountHolderName: account.accountHolderName || "",
         branchName: account.branchName || "",
         accountType: account.accountType || "savings",
-        openingBalance: account.openingBalance || 0,
         coaAccount:
           typeof account.coaAccount === "object"
             ? account.coaAccount?._id || ""
@@ -157,16 +196,20 @@ const BankCash = () => {
     setSubmitting(true);
 
     try {
-      const payload = {
-        ...formData,
-        openingBalance: Number(formData.openingBalance) || 0,
-      };
-
       if (editingAccount) {
-        await bankAPI.update(editingAccount._id, payload);
+        // accountNumber and coaAccount are immutable server-side, and the
+        // controller rejects the entire request if either key is merely
+        // present in the body — not just when its value changed. Send only
+        // the fields an edit is actually allowed to change.
+        await bankAPI.update(editingAccount._id, {
+          bankName: formData.bankName,
+          accountHolderName: formData.accountHolderName,
+          branchName: formData.branchName,
+          accountType: formData.accountType,
+        });
         toast.success("Bank account updated successfully");
       } else {
-        await bankAPI.create(payload);
+        await bankAPI.create(formData);
         toast.success("Bank account created successfully");
       }
 
@@ -194,273 +237,207 @@ const BankCash = () => {
     }
   };
 
-  const handleReconcile = async (e) => {
-    e.preventDefault();
-    if (!editingAccount?._id) {
-      toast.error("No account selected for reconciliation");
-      return;
-    }
+  const handleDragEnd = async ({ active, over }) => {
+    setActiveDragId(null);
 
-    setSubmitting(true);
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = bankAccounts.findIndex((a) => a._id === active.id);
+    const newIndex = bankAccounts.findIndex((a) => a._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Optimistic: the card stays where it was dropped while the write is in
+    // flight, and snaps back only if the server rejects it.
+    const previous = bankAccounts;
+    const reordered = arrayMove(bankAccounts, oldIndex, newIndex);
+    setBankAccounts(reordered);
 
     try {
-      await bankAPI.reconcile(editingAccount._id, {
-        reconciledBalance: Number(reconcileData.reconciledBalance) || 0,
-        reconciledDate: reconcileData.reconciledDate,
-      });
-
-      toast.success("Account reconciled successfully");
-      setShowReconcileModal(false);
-      await fetchBankData();
+      await bankAPI.reorder(reordered.map((account) => account._id));
     } catch (error) {
-      toast.error(getErrorMessage(error, "Reconciliation failed"));
-    } finally {
-      setSubmitting(false);
+      setBankAccounts(previous);
+      toast.error(getErrorMessage(error, "Failed to save the new order"));
     }
   };
-
-  const getAccountIcon = (type) => {
-    switch (type) {
-      case "savings":
-        return <Wallet className="text-red-600" size={20} />;
-      case "current":
-        return <Landmark className="text-red-600" size={20} />;
-      default:
-        return <CreditCard className="text-slate-500" size={20} />;
-    }
-  };
-
-  const coaOptions = coaAccounts.map((acc) => ({
-    value: acc._id,
-    label: `${acc.accountCode} - ${acc.accountName}`,
-  }));
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-10">
       <SectionHeader
         icon={Wallet}
         title="Bank & Cash"
-        description="Manage cash accounts, bank balances, and reconciliations"
-        buttonText="Add Account"
-        onButtonClick={() => handleOpenModal()}
-        buttonIcon={Plus}
-      />
+        description="Manage cash accounts and bank balances"
+        iconBg="bg-brand-navy-light"
+        iconColor="text-brand-navy"
+        // No buttonText, so SectionHeader renders no button of its own — this
+        // only binds the Alt+N shortcut to the custom button below.
+        onButtonClick={canManage ? () => handleOpenModal() : undefined}>
+        <Link
+          to="/dashboard/bank-cash/report"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 md:w-auto">
+          <FileText size={16} />
+          Report
+        </Link>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="rounded-2xl border border-red-200 bg-gradient-to-br from-red-600 to-red-700 p-5 text-white shadow-none">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-100">
-                Total Balance
-              </p>
-              <h2 className="mt-2 text-2xl font-bold md:text-3xl">
-                {formatCurrency(totalBalance)}
-              </h2>
-            </div>
-            <div className="rounded-xl bg-white/15 p-3">
-              <Landmark size={22} />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-sm text-red-100">
-            <RefreshCw size={14} />
-            Synced from ledger
-          </div>
-        </Card>
+        {canManage && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenModal()}
+            icon={Plus}
+            className="w-full border-brand-navy bg-brand-navy text-white hover:bg-brand-navy-dark hover:border-brand-navy-dark focus:ring-brand-navy-light md:w-auto">
+            Add Account
+          </Button>
+        )}
+      </SectionHeader>
 
-        <Card className="rounded-2xl border border-slate-200 p-5 shadow-none">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Active Accounts
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+        <div className="col-span-2 lg:col-span-1">
+          <KPICard
+            title="Total Balance"
+            value={totalBalance}
+            icon={Landmark}
+            color="navy"
+            footer={
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                <RefreshCw size={12} />
+                Synced from ledger
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900 md:text-3xl">
-                {bankAccounts.length}
-              </h2>
-            </div>
-            <div className="rounded-xl bg-red-50 p-3">
-              <CreditCard size={22} className="text-red-600" />
-            </div>
-          </div>
-          <p className="mt-4 text-sm text-slate-500">
-            Across {new Set(bankAccounts.map((a) => a.bankName)).size} institutions
-          </p>
-        </Card>
+            }
+          />
+        </div>
 
-        <Card className="rounded-2xl border border-slate-200 p-5 shadow-none">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Pending Reconciliation
-              </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900 md:text-3xl">
-                {bankAccounts.filter((a) => !a.lastReconciledDate).length}
-              </h2>
-            </div>
-            <div className="rounded-xl bg-red-50 p-3">
-              <History size={22} className="text-red-600" />
-            </div>
-          </div>
-          <p className="mt-4 text-sm text-slate-500">
-            Accounts that still need review
-          </p>
-        </Card>
+        <KPICard
+          title="Active Accounts"
+          value={bankAccounts.length}
+          format="text"
+          icon={CreditCard}
+          color="blue"
+        />
+
+        <KPICard
+          title="Institutions"
+          value={institutionCount}
+          format="text"
+          icon={Building2}
+          color="slate"
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {loading ? (
-          <div className="col-span-full flex justify-center py-20">
-            <Loader className="animate-spin text-red-600" size={34} />
-          </div>
-        ) : bankAccounts.length > 0 ? (
-          bankAccounts.map((account) => (
-            <Card
-              key={account._id}
-              className="group rounded-2xl border border-slate-200 bg-white shadow-none transition-colors hover:border-red-200"
-            >
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 gap-4">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors group-hover:border-red-100 group-hover:bg-red-50">
-                      {getAccountIcon(account.accountType)}
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="truncate text-lg font-semibold text-slate-900">
-                        {account.bankName}
-                      </h3>
-                      <p className="mt-1 font-mono text-sm text-slate-500">
-                        {account.accountNumber}
-                      </p>
-
-                      {account.coaAccount && (
-                        <p className="mt-2 line-clamp-2 text-xs text-slate-500">
-                          Linked COA:{" "}
-                          {typeof account.coaAccount === "object"
-                            ? `${account.coaAccount.accountCode || ""} ${account.coaAccount.accountName || ""}`.trim()
-                            : account.coaAccount}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      onClick={() => handleOpenModal(account)}
-                      className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(account._id)}
-                      className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Current Balance
-                    </p>
-                    <p className="mt-1 text-lg font-bold text-slate-900">
-                      {formatCurrency(account.currentBalance || 0)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Last Reconciled
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-slate-700">
-                      {account.lastReconciledDate
-                        ? new Date(account.lastReconciledDate).toLocaleDateString()
-                        : "Never"}
-                    </p>
-                  </div>
-                </div>
-
-                {account.balanceError && (
-                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {account.balanceError}
-                  </div>
-                )}
-
-                <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={account.isActive ? "success" : "danger"}>
-                      {account.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                    <Badge variant="info" className="capitalize">
-                      {account.accountType}
-                    </Badge>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setEditingAccount(account);
-                      setReconcileData({
-                        reconciledBalance: account.currentBalance || 0,
-                        reconciledDate: new Date().toISOString().split("T")[0],
-                      });
-                      setShowReconcileModal(true);
-                    }}
-                    className="border-red-200 text-red-600 hover:bg-red-50"
-                  >
-                    <CheckCircle size={14} className="mr-1" />
-                    Reconcile
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))
-        ) : (
-          <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-red-200 bg-red-50/40 py-20">
-            <Landmark size={44} className="mb-4 text-red-300" />
-            <h3 className="text-lg font-semibold text-slate-900">No Bank Accounts</h3>
-            <p className="mt-2 max-w-sm text-center text-sm text-slate-500">
-              Add your first bank or cash account to start tracking balances and reconciliations.
-            </p>
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SectionSkeleton rows={5} />
+          <SectionSkeleton rows={5} />
+        </div>
+      ) : bankAccounts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-4 py-16">
+          <Landmark size={40} className="mb-4 text-slate-300" />
+          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+            No bank accounts
+          </h3>
+          <p className="mt-2 max-w-sm text-center text-sm text-slate-500">
+            Add your first bank or cash account to start tracking balances.
+          </p>
+          {canManage && (
             <Button
               variant="primary"
-              className="mt-6 bg-red-600 hover:bg-red-700"
-              onClick={() => handleOpenModal()}
-            >
-              <Plus size={18} className="mr-2" />
+              icon={Plus}
+              className="mt-6 bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light"
+              onClick={() => handleOpenModal()}>
               Add Account
             </Button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      ) : canManage ? (
+        <div className="space-y-3">
+          <p className="flex items-center gap-1.5 text-xs text-slate-500">
+            <GripVertical size={14} className="text-slate-400" />
+            Drag a card by its handle to change the order accounts appear in.
+            The order is saved for everyone.
+          </p>
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={({ active }) => setActiveDragId(active.id)}
+            onDragCancel={() => setActiveDragId(null)}
+            onDragEnd={handleDragEnd}>
+            <SortableContext items={accountIds} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {bankAccounts.map((account) => (
+                  <SortableBankAccountCard
+                    key={account._id}
+                    account={account}
+                    canManage={canManage}
+                    onEdit={handleOpenModal}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+
+            {/* The dragged card is rendered once more here so it can follow
+                the pointer above the grid instead of being clipped by it. */}
+            <DragOverlay>
+              {activeDragAccount ? (
+                <BankAccountCard
+                  account={activeDragAccount}
+                  canManage={canManage}
+                  dragHandleProps={{}}
+                  isOverlay
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {bankAccounts.map((account) => (
+            <BankAccountCard key={account._id} account={account} />
+          ))}
+        </div>
+      )}
+
+      {/* Fixed deposits sit in the Chart of Accounts under the FDR head
+          (1100), not in the Bank collection, so they render as their own
+          block rather than alongside the draggable bank cards. */}
+      <FdrSection summary={fdrSummary} loading={loading} />
 
       <Modal
         isOpen={showModal}
         onClose={handleCloseModal}
         title={editingAccount ? "Edit Bank Account" : "Add Bank Account"}
-      >
+        description="Every bank account maps to one leaf asset account under Bank Accounts (1002); balances are read from that account's ledger."
+        size="2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Bank Name"
-            required
-            value={formData.bankName}
-            onChange={(e) =>
-              setFormData({ ...formData, bankName: e.target.value })
-            }
-            placeholder="e.g. Eastern Bank"
-          />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              label="Bank Name"
+              required
+              value={formData.bankName}
+              onChange={(e) =>
+                setFormData({ ...formData, bankName: e.target.value })
+              }
+              placeholder="e.g. Eastern Bank"
+            />
 
-          <Input
-            label="Account Number"
-            required
-            value={formData.accountNumber}
-            onChange={(e) =>
-              setFormData({ ...formData, accountNumber: e.target.value })
-            }
-            placeholder="Account #"
-          />
+            {/* Immutable once created — the backend rejects any update that
+                even mentions accountNumber, so the edit payload omits it.
+                Disabled here so an edit can't silently discard a change. */}
+            <Input
+              label="Account Number"
+              required
+              value={formData.accountNumber}
+              onChange={(e) =>
+                setFormData({ ...formData, accountNumber: e.target.value })
+              }
+              placeholder="Account #"
+              disabled={!!editingAccount}
+              helperText={
+                editingAccount ? "Account number can't be changed." : ""
+              }
+            />
+          </div>
 
           <Input
             label="Account Holder Name"
@@ -472,15 +449,17 @@ const BankCash = () => {
             placeholder="Name on account"
           />
 
-          <Select
+          {/* Also immutable once created — relinking a bank to a different
+              COA account would strand its ledger history. */}
+          <AccountCombobox
             label="Linked COA Account"
             required
             value={formData.coaAccount}
-            onChange={(e) =>
-              setFormData({ ...formData, coaAccount: e.target.value })
+            onChange={(coaAccount) =>
+              setFormData({ ...formData, coaAccount })
             }
-            options={coaOptions}
-            disabled={coaLoading}
+            accounts={coaAccounts}
+            disabled={coaLoading || !!editingAccount}
           />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -499,38 +478,29 @@ const BankCash = () => {
             />
 
             <Input
-              label="Opening Balance"
-              type="number"
-              value={formData.openingBalance}
+              label="Branch Name"
+              value={formData.branchName}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  openingBalance: Number(e.target.value) || 0,
-                })
+                setFormData({ ...formData, branchName: e.target.value })
               }
-              disabled={!!editingAccount}
+              placeholder="Optional"
             />
           </div>
 
-          <Input
-            label="Branch Name"
-            value={formData.branchName}
-            onChange={(e) =>
-              setFormData({ ...formData, branchName: e.target.value })
-            }
-            placeholder="Optional"
-          />
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={handleCloseModal} type="button">
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end sm:gap-3">
+            <Button
+              variant="outline"
+              onClick={handleCloseModal}
+              type="button"
+              className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 sm:w-auto">
               Cancel
             </Button>
             <Button
               variant="primary"
               type="submit"
               disabled={submitting || coaLoading}
-              className="bg-red-600 hover:bg-red-700"
-            >
+              loading={submitting}
+              className="bg-brand-navy hover:bg-brand-navy-dark focus:ring-brand-navy-light">
               {submitting
                 ? editingAccount
                   ? "Updating..."
@@ -538,64 +508,6 @@ const BankCash = () => {
                 : editingAccount
                   ? "Update Account"
                   : "Save Account"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={showReconcileModal}
-        onClose={() => setShowReconcileModal(false)}
-        title="Reconcile Account"
-      >
-        <form onSubmit={handleReconcile} className="space-y-4">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">
-              Enter the actual balance from your bank statement to match it with the system ledger.
-            </p>
-          </div>
-
-          <Input
-            label="Statement Balance"
-            type="number"
-            required
-            value={reconcileData.reconciledBalance}
-            onChange={(e) =>
-              setReconcileData({
-                ...reconcileData,
-                reconciledBalance: Number(e.target.value) || 0,
-              })
-            }
-          />
-
-          <Input
-            label="Statement Date"
-            type="date"
-            required
-            value={reconcileData.reconciledDate}
-            onChange={(e) =>
-              setReconcileData({
-                ...reconcileData,
-                reconciledDate: e.target.value,
-              })
-            }
-          />
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowReconcileModal(false)}
-              type="button"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              disabled={submitting}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {submitting ? "Processing..." : "Complete Reconciliation"}
             </Button>
           </div>
         </form>

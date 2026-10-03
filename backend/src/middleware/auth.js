@@ -4,13 +4,7 @@ const User = require("../modules/users/user.model");
 
 const auth = async (req, res, next) => {
   try {
-    // Try to get token from cookies first, then fall back to Authorization header
-    let token = req.cookies?.token;
-    
-    if (!token) {
-      // Fallback to Authorization header for backward compatibility
-      token = req.header("Authorization")?.replace("Bearer ", "");
-    }
+    const token = req.cookies?.token;
 
     if (!token) {
       return res.status(StatusCodes.UNAUTHORIZED).json({
@@ -21,8 +15,7 @@ const auth = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // FETCH FULL USER OBJECT
-    const user = await User.findById(decoded.userId);
+    const user = await User.findById(decoded.userId, 'name email role status phone department isActive').lean();
     if (!user) {
       return res.status(StatusCodes.UNAUTHORIZED).json({
         success: false,
@@ -30,22 +23,27 @@ const auth = async (req, res, next) => {
       });
     }
 
-    // CHECK STATUS
     if (user.status !== 'approved') {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
-        message: user.status === 'pending' 
-          ? "Account pending Director approval" 
+        message: user.status === 'pending'
+          ? "Account pending Director approval"
           : "Account has been rejected",
       });
     }
 
-    // ATTACH FULL USER OBJECT
+    if (!user.isActive) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Account has been deactivated",
+      });
+    }
+
     req.user = {
       id: user._id,
-      userId: decoded.userId,
-      email: decoded.email,
-      role: decoded.role,
+      userId: user._id,
+      email: user.email,
+      role: user.role,
       name: user.name,
       status: user.status,
       phone: user.phone,

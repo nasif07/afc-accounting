@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { EMAIL_REGEX } = require("../../utils/validators");
 
 const studentSchema = new mongoose.Schema(
   {
@@ -28,7 +29,7 @@ const studentSchema = new mongoose.Schema(
       type: String,
       lowercase: true,
       trim: true,
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, "Please provide a valid email"],
+      match: [EMAIL_REGEX, "Please provide a valid email"],
     },
     phone: {
       type: String,

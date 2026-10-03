@@ -15,7 +15,6 @@ class BankController {
         accountHolderName,
         branchName,
         accountType,
-        openingBalance,
         coaAccount, // FIXED: Extract coaAccount
       } = req.body;
 
@@ -36,18 +35,12 @@ class BankController {
         );
       }
 
-      // Validate opening balance if provided
-      if (openingBalance !== undefined && typeof openingBalance !== "number") {
-        return ApiResponse.badRequest(res, "Opening balance must be a number");
-      }
-
       const bankData = {
         bankName: bankName.trim(),
         accountNumber: accountNumber.trim(),
         accountHolderName: accountHolderName.trim(),
         branchName: branchName ? branchName.trim() : null,
         accountType,
-        openingBalance: openingBalance || 0,
         coaAccount, // FIXED: Include coaAccount
         createdBy: req.user.userId,
       };
@@ -94,9 +87,19 @@ class BankController {
 
       return ApiResponse.success(res, account, "Bank account retrieved successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
+      next(error);
+    }
+  }
+
+  /**
+   * Persist the drag-and-drop card order from the Bank & Cash screen.
+   */
+  static async reorderBankAccounts(req, res, next) {
+    try {
+      const order = await BankService.reorderBankAccounts(req.body.order);
+
+      return ApiResponse.success(res, order, "Bank account order updated");
+    } catch (error) {
       next(error);
     }
   }
@@ -114,8 +117,19 @@ class BankController {
         return ApiResponse.badRequest(res, "Bank account ID is required");
       }
 
-      // Prevent updating immutable fields
-      const immutableFields = ["accountNumber", "coaAccount", "createdBy", "createdAt"];
+      // openingBalance is not a Bank field at all (it lives on the linked COA
+      // account — see bank.model.js). Strip it rather than reject it: older
+      // cached clients still submit their whole form state on update, and
+      // rejecting it made every edit fail. There's nothing to update anyway.
+      delete updateData.openingBalance;
+
+      // Prevent updating genuinely immutable fields
+      const immutableFields = [
+        "accountNumber",
+        "coaAccount",
+        "createdBy",
+        "createdAt",
+      ];
       const attemptedImmutableUpdate = immutableFields.some((field) => field in updateData);
 
       if (attemptedImmutableUpdate) {
@@ -140,12 +154,6 @@ class BankController {
 
       return ApiResponse.success(res, account, "Bank account updated successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      if (error.message.includes("Cannot update immutable")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
@@ -165,12 +173,6 @@ class BankController {
 
       return ApiResponse.success(res, account, "Bank account deleted successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      if (error.message.includes("Cannot delete")) {
-        return ApiResponse.badRequest(res, error.message);
-      }
       next(error);
     }
   }
@@ -189,138 +191,75 @@ class BankController {
   }
 
   /**
-   * Reconcile a bank account
+   * FDR accounts (children of 1100) with balances and transaction counts
    */
-  static async reconcileBankAccount(req, res, next) {
+  static async getFdrSummary(req, res, next) {
+    try {
+      const summary = await BankService.getFdrSummary();
+
+      return ApiResponse.success(res, summary, "FDR summary retrieved successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getBankTransactions(req, res, next) {
     try {
       const { id } = req.params;
-      const { reconciledBalance, reconciledDate } = req.body;
+      const { page, limit, startDate, endDate, status, search, referenceNumber } =
+        req.query;
 
       if (!id) {
         return ApiResponse.badRequest(res, "Bank account ID is required");
       }
 
-      if (reconciledBalance === undefined || reconciledBalance === null) {
-        return ApiResponse.badRequest(res, "Reconciled balance is required");
-      }
+      const result = await BankService.getApprovedBankTransactions(id, {
+        page,
+        limit,
+        startDate,
+        endDate,
+        status,
+        search,
+        referenceNumber,
+      });
 
-      if (!reconciledDate) {
-        return ApiResponse.badRequest(res, "Reconciliation date is required");
-      }
-
-      if (typeof reconciledBalance !== "number") {
-        return ApiResponse.badRequest(res, "Reconciled balance must be a number");
-      }
-
-      // Validate date format
-      const dateObj = new Date(reconciledDate);
-      if (isNaN(dateObj.getTime())) {
-        return ApiResponse.badRequest(res, "Reconciliation date must be a valid date");
-      }
-
-      const account = await BankService.reconcileBankAccount(
-        id,
-        reconciledBalance,
-        dateObj,
-        req.user.userId
+      return ApiResponse.success(
+        res,
+        result,
+        "Bank transactions retrieved successfully",
       );
-
-      return ApiResponse.success(res, account, "Bank account reconciled successfully");
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
       next(error);
     }
   }
 
   /**
-   * Get reconciliation status for a bank account
+   * Printable cash-book report for one bank account
    */
-  static async getReconciliationStatus(req, res, next) {
+  static async getBankReport(req, res, next) {
     try {
       const { id } = req.params;
+      const { startDate, endDate } = req.query;
 
       if (!id) {
         return ApiResponse.badRequest(res, "Bank account ID is required");
       }
 
-      const status = await BankService.getReconciliationStatus(id);
+      const result = await BankService.getJournalBackedReport(id, {
+        startDate,
+        endDate,
+      });
 
-      return ApiResponse.success(res, status, "Reconciliation status retrieved successfully");
+      return ApiResponse.success(
+        res,
+        result,
+        "Bank report retrieved successfully",
+      );
     } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
       next(error);
     }
   }
 
-  /**
-   * Archive a bank account
-   */
-  static async archiveBankAccount(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      const account = await BankService.archiveBankAccount(id, req.user.userId);
-
-      return ApiResponse.success(res, account, "Bank account archived successfully");
-    } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Restore an archived bank account
-   */
-  static async restoreBankAccount(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      const account = await BankService.restoreBankAccount(id, req.user.userId);
-
-      return ApiResponse.success(res, account, "Bank account restored successfully");
-    } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
-
-  /**
-   * Validate if a bank account can be deactivated
-   */
-  static async validateCanDeactivate(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return ApiResponse.badRequest(res, "Bank account ID is required");
-      }
-
-      const validation = await BankService.validateCanDeactivate(id);
-
-      return ApiResponse.success(res, validation, "Validation completed successfully");
-    } catch (error) {
-      if (error.message === "Bank account not found") {
-        return ApiResponse.notFound(res, error.message);
-      }
-      next(error);
-    }
-  }
 }
 
 module.exports = BankController;

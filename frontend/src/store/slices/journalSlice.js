@@ -7,6 +7,51 @@ export const fetchJournalEntries = createAsyncThunk(
   "journals/fetchJournalEntries",
   async (params = {}, { rejectWithValue }) => {
     try {
+      // If a search term is provided, use the search service endpoint
+      if (params.search) {
+        const searchParams = { q: params.search };
+        if (params.dateFrom) searchParams.dateFrom = params.dateFrom;
+        if (params.dateTo) searchParams.dateTo = params.dateTo;
+        if (params.transactionType) searchParams.transactionType = params.transactionType;
+        if (params.approvalStatus) searchParams.approvalStatus = params.approvalStatus;
+        if (params.sourceModule) searchParams.sourceModule = params.sourceModule;
+        if (params.account) searchParams.account = params.account;
+        if (params.sortBy) searchParams.sortBy = params.sortBy;
+        if (params.sortOrder) searchParams.sortOrder = params.sortOrder;
+
+        const response = await api.get("/search/journal-entries", { params: searchParams });
+        const payload = response?.data?.data ?? response?.data;
+
+        // Search returns plain array of matching entries. sortEntries() would
+        // re-sort by voucherDate desc and silently undo an explicit sort, so
+        // the server's order is kept whenever one was asked for.
+        if (Array.isArray(payload)) {
+          return {
+            entries: params.sortBy ? payload : sortEntries(payload),
+            pagination: {
+              total: payload.length,
+              page: 1,
+              limit: payload.length || 20,
+              pages: 1,
+              hasNextPage: false,
+              hasPrevPage: false,
+            },
+          };
+        }
+
+        return {
+          entries: [],
+          pagination: {
+            total: 0,
+            page: 1,
+            limit: 20,
+            pages: 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        };
+      }
+
       const response = await api.get("/accounting/journal-entries", { params });
 
       const payload = response?.data?.data ?? response?.data;
@@ -27,7 +72,7 @@ export const fetchJournalEntries = createAsyncThunk(
       // Fallback for plain array responses
       if (Array.isArray(payload)) {
         return {
-          entries: sortEntries(payload),
+          entries: params.sortBy ? payload : sortEntries(payload),
           pagination: {
             total: payload.length,
             page: 1,
@@ -65,8 +110,11 @@ export const createJournalEntry = createAsyncThunk(
       const response = await api.post("/accounting/journal-entries", entryData);
       return response.data.data || response.data.entry || response.data;
     } catch (error) {
+      // Preserve the full backend error payload (not just the message
+      // string) so the form can inspect `.errors` for field-level
+      // validation issues, same pattern as accountSlice.js/payrollSlice.js.
       return rejectWithValue(
-        error.response?.data?.message || "Failed to create entry",
+        error.response?.data || { message: "Failed to create entry" },
       );
     }
   },
@@ -74,16 +122,16 @@ export const createJournalEntry = createAsyncThunk(
 
 export const updateJournalEntry = createAsyncThunk(
   "journals/updateJournalEntry",
-  async ({ id, ...updateData }, { rejectWithValue }) => {
+  async ({ id, data }, { rejectWithValue }) => {
     try {
       const response = await api.put(
         `/accounting/journal-entries/${id}`,
-        updateData,
+        data,
       );
       return response.data.data || response.data.entry || response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to update entry",
+        error.response?.data || { message: "Failed to update entry" },
       );
     }
   },
@@ -170,7 +218,10 @@ const journalSlice = createSlice({
       })
       .addCase(createJournalEntry.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        // Field-level errors are shown inline via setError instead — skip
+        // the generic toast in that case (same pattern as accountSlice.js).
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || "Failed to create entry";
       })
 
       .addCase(updateJournalEntry.pending, (state) => {
@@ -182,7 +233,8 @@ const journalSlice = createSlice({
       })
       .addCase(updateJournalEntry.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || "Failed to update entry";
       })
 
       .addCase(deleteJournalEntry.pending, (state) => {

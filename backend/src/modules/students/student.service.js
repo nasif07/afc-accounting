@@ -1,5 +1,7 @@
 const Student = require("./student.model");
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 class StudentService {
   /**
    * Create a new student
@@ -21,12 +23,12 @@ class StudentService {
     if (filters.class) query.class = filters.class;
     if (filters.status) query.status = filters.status;
 
-    // Regex Search
     if (filters.search) {
+      const safe = escapeRegex(String(filters.search).slice(0, 100));
       query.$or = [
-        { name: { $regex: filters.search, $options: "i" } },
-        { rollNumber: { $regex: filters.search, $options: "i" } },
-        { email: { $regex: filters.search, $options: "i" } },
+        { name: { $regex: safe, $options: "i" } },
+        { rollNumber: { $regex: safe, $options: "i" } },
+        { email: { $regex: safe, $options: "i" } },
       ];
     }
 
@@ -61,7 +63,27 @@ class StudentService {
     const student = await Student.findById(studentId);
     if (!student) return null;
 
-    student.set(updateData);
+    // financials/parent are merged field-by-field via dotted paths so a
+    // partial payload (e.g. only totalPaid) doesn't blow away sibling
+    // fields the way a blind student.set({ financials: {...} }) would.
+    const { financials, parent, ...rest } = updateData;
+    student.set(rest);
+
+    if (financials) {
+      if (financials.totalPayable !== undefined) {
+        student.set("financials.totalPayable", financials.totalPayable);
+      }
+      if (financials.totalPaid !== undefined) {
+        student.set("financials.totalPaid", financials.totalPaid);
+      }
+    }
+
+    if (parent) {
+      if (parent.name !== undefined) student.set("parent.name", parent.name);
+      if (parent.email !== undefined) student.set("parent.email", parent.email);
+      if (parent.phone !== undefined) student.set("parent.phone", parent.phone);
+    }
+
     return await student.save(); // This triggers your "pending" logic!
   }
 

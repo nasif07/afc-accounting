@@ -5,7 +5,23 @@ const ApiResponse = require('../../utils/apiResponse');
 class PayrollController {
   static async createPayroll(req, res, next) {
     try {
-      const { employee, month, year, baseSalary, allowances, bonus, deductions, leaveDeduction, description } = req.body;
+      const {
+        employee,
+        month,
+        year,
+        salaryType,
+        baseSalary,
+        houseRent,
+        conveyanceAllowance,
+        allowances,
+        bonus,
+        deductions,
+        leaveDeduction,
+        leavesTaken,
+        workingDays,
+        attendancePercentage,
+        description,
+      } = req.body;
 
       if (!employee || !month || !year || !baseSalary) {
         return ApiResponse.badRequest(res, 'Employee, month, year, and base salary are required');
@@ -15,11 +31,17 @@ class PayrollController {
         employee,
         month,
         year,
+        salaryType: salaryType || 'monthly',
         baseSalary,
+        houseRent: houseRent || 0,
+        conveyanceAllowance: conveyanceAllowance || 0,
         allowances: allowances || 0,
         bonus: bonus || 0,
         deductions: deductions || 0,
         leaveDeduction: leaveDeduction || 0,
+        leavesTaken: leavesTaken || 0,
+        workingDays: workingDays || 0,
+        attendancePercentage: attendancePercentage || 0,
         description,
         createdBy: req.user.userId
       };
@@ -33,16 +55,18 @@ class PayrollController {
 
   static async getAllPayroll(req, res, next) {
     try {
-      const { employee, month, year, approvalStatus, paymentStatus } = req.query;
+      const { employee, month, year, approvalStatus, paymentStatus, page, limit } = req.query;
       const filters = {};
       if (employee) filters.employee = employee;
       if (month) filters.month = month;
       if (year) filters.year = year;
       if (approvalStatus) filters.approvalStatus = approvalStatus;
       if (paymentStatus) filters.paymentStatus = paymentStatus;
+      if (page) filters.page = page;
+      if (limit) filters.limit = limit;
 
-      const payroll = await PayrollService.getAllPayroll(filters);
-      return ApiResponse.success(res, payroll, 'Payroll records retrieved successfully');
+      const result = await PayrollService.getAllPayroll(filters);
+      return ApiResponse.success(res, result, 'Payroll records retrieved successfully');
     } catch (error) {
       next(error);
     }
@@ -83,7 +107,7 @@ class PayrollController {
   static async deletePayroll(req, res, next) {
     try {
       const { id } = req.params;
-      const payroll = await PayrollService.deletePayroll(id);
+      const payroll = await PayrollService.deletePayroll(id, req.user.userId);
 
       if (!payroll) {
         return ApiResponse.notFound(res, 'Payroll record not found');
@@ -152,27 +176,17 @@ class PayrollController {
     }
   }
 
-  static async getPayrollSummary(req, res, next) {
-    try {
-      const { month, year } = req.query;
-
-      if (!month || !year) {
-        return ApiResponse.badRequest(res, 'Month and year are required');
-      }
-
-      const summary = await PayrollService.getPayrollSummary(month, year);
-      return ApiResponse.success(res, summary, 'Payroll summary retrieved successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
-
   static async generatePayslip(req, res, next) {
     try {
       const { id } = req.params;
-      const pdfPath = await PayrollService.generatePayslip(id);
-      
-      res.download(pdfPath, `payslip-${id}.pdf`);
+      const format = req.query.format === 'docx' ? 'docx' : 'pdf';
+
+      const { filepath, payroll } = await PayrollService.generatePayslip(id, format);
+
+      // A name the accountant can file without renaming: who, which period.
+      const employeeCode = payroll.employee?.employeeCode || id;
+      const period = `${payroll.month}-${payroll.year}`;
+      res.download(filepath, `payslip-${employeeCode}-${period}.${format}`);
     } catch (error) {
       next(error);
     }

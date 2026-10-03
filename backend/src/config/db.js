@@ -1,14 +1,31 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    const mongoUri =
+      process.env.MONGODB_URI ||
+      process.env.MONGO_URI ||
+      process.env.MONGO_URL ||
+      process.env.DATABASE_URL;
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    if (!mongoUri) {
+      throw new Error(
+        "MongoDB connection string is missing. Set MONGODB_URI in your environment variables.",
+      );
+    }
+
+    if (mongoose.connection.readyState === 1) {
+      return mongoose.connection;
+    }
+
+    const conn = await mongoose.connect(mongoUri);
+
+    logger.info({ host: conn.connection.host }, 'MongoDB connected');
     return conn;
   } catch (error) {
-    console.error(`Error: ${error.message}`);
-    process.exit(1);
+    logger.error({ err: error }, 'MongoDB connection failed');
+    throw error;
   }
 };
 

@@ -32,6 +32,25 @@ const payrollSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    // The payslip prints House Rent and Conveyance Allowance as separate
+    // earnings lines. They used to be rendered from the generic `allowances`
+    // and `bonus` fields, which meant House Rent was mislabelled and
+    // Conveyance Allowance could never be entered at all — there was no form
+    // input bound to `bonus`.
+    //
+    // `allowances` and `bonus` are kept so records written before this split
+    // keep reading correctly (see resolveEarnings below); new records write
+    // the named fields.
+    houseRent: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    conveyanceAllowance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     allowances: {
       type: Number,
       default: 0,
@@ -95,8 +114,37 @@ const payrollSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   { timestamps: true },
 );
+
+// Prevent duplicate payroll for the same employee in the same month/year
+payrollSchema.index({ employee: 1, month: 1, year: 1 }, { unique: true, sparse: false });
+
+// Exclude soft-deleted records by default
+function excludeDeleted(next) {
+  const query = this.getQuery();
+  if (!query.includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
+}
+payrollSchema.pre("find", excludeDeleted);
+payrollSchema.pre("findOne", excludeDeleted);
+payrollSchema.pre("countDocuments", excludeDeleted);
 
 module.exports = mongoose.model("Payroll", payrollSchema);

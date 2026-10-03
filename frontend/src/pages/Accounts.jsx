@@ -1,21 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   fetchAccounts,
+  fetchLeafAccounts,
   createAccount,
   updateAccount,
   archiveAccount,
   restoreAccount,
   updateAccountStatus,
 } from "../store/slices/accountSlice";
-import { Plus, X, FolderTree, Landmark, Filter } from "lucide-react";
+import { Plus, FolderTree, Landmark, Filter } from "lucide-react";
 import { toast } from "sonner";
 import COATreeView from "../components/coa/COATreeView";
 import SectionHeader from "../components/common/SectionHeader";
 import Button from "../components/common/Button";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
+import AccountCombobox from "../components/common/AccountCombobox";
+import DatePicker from "../components/common/DatePicker";
+import Modal from "../components/common/Modal";
+import { toISODate } from "../utils/date";
 
 const getDefaultBalanceType = (accountType) => {
   return ["asset", "expense"].includes(String(accountType).toLowerCase())
@@ -35,8 +42,9 @@ const INITIAL_FORM_DATA = {
   accountName: "",
   accountType: "asset",
   description: "",
-  openingBalance: 0,
+  openingBalance: "",
   openingBalanceType: "debit",
+  openingDate: "",
   parentAccount: "",
   status: "active",
 };
@@ -59,18 +67,71 @@ const ACCOUNT_STATUS_OPTIONS = [
   { value: "inactive", label: "Inactive" },
 ];
 
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Mirrors backend/src/validation/coa.validation.js. Two live bugs found and
+// fixed as a natural consequence of correctly modelling "optional" here:
+//   1. openingDate: the backend's z.coerce.date().optional() rejects an
+//      empty string (only literal undefined counts as "not provided"). The
+//      old code already worked around this manually for openingDate
+//      specifically (`openingDate: formData.openingDate || undefined`) —
+//      this schema now enforces the same fix declaratively.
+//   2. parentAccount on CREATE: createAccountBody's parentAccount is
+//      `objectId.optional()` — it accepts undefined but NOT null. The old
+//      code always sent `parentAccount: formData.parentAccount || null`,
+//      which means creating any top-level (no-parent) account has been
+//      failing with a 400 today. updateAccountBody, by contrast, uses
+//      `objectId.nullable().optional()` and the controller explicitly
+//      distinguishes "omitted" (leave unchanged) from "null" (clear the
+//      parent) — so update must still send null to clear a parent. Payload
+//      construction below branches on create-vs-edit to match each schema.
+// Not fixed here (would require a backend schema change, out of scope):
+// createAccountBody has no `status` field at all, so selecting a non-default
+// status while creating a new account is silently ignored server-side —
+// every new account ends up "active" regardless of what's selected here.
+const blankToUndefined = (v) => (v === "" || v == null ? undefined : v);
+const optionalDate = z.preprocess(blankToUndefined, z.string().optional());
+
+const accountSchema = z.object({
+  accountCode: z
+    .string()
+    .trim()
+    .min(1, "Account code is required")
+    .regex(/^\d+$/, "Account code must contain numbers only"),
+  accountName: z.string().trim().min(1, "Account name is required"),
+  accountType: z.enum(["asset", "liability", "equity", "income", "expense"]),
+  parentAccount: z.preprocess(blankToUndefined, z.string().optional()),
+  openingBalance: z.coerce.number().min(0, "Opening balance must be 0 or greater").optional(),
+  openingBalanceType: z.enum(["debit", "credit"]),
+  openingDate: optionalDate,
+  status: z.enum(["active", "inactive"]),
+  description: z.string().trim().optional(),
+});
+
 export default function Accounts() {
   const dispatch = useDispatch();
-  const queryClient = useQueryClient();
   const { accounts, isLoading, error } = useSelector((state) => state.accounts);
 
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [statusFilter, setStatusFilter] = useState("active");
-  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    setValue,
+    control,
+    watch,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(accountSchema), defaultValues: INITIAL_FORM_DATA });
+
+  const watchedAccountType = watch("accountType");
+  const watchedOpeningBalance = watch("openingBalance");
 
   useEffect(() => {
     dispatch(fetchAccounts({ includeDeleted: true }));
+    dispatch(fetchLeafAccounts());
   }, [dispatch]);
 
   useEffect(() => {
@@ -81,7 +142,7 @@ export default function Accounts() {
 
   const resetForm = () => {
     setEditingAccount(null);
-    setFormData(INITIAL_FORM_DATA);
+    reset(INITIAL_FORM_DATA);
   };
 
   const openCreateForm = () => {
@@ -96,9 +157,7 @@ export default function Accounts() {
 
   const refreshAccountsUI = async () => {
     await dispatch(fetchAccounts({ includeDeleted: true }));
-    await queryClient.invalidateQueries({ queryKey: ["accountTree"] });
-    await queryClient.invalidateQueries({ queryKey: ["accounts"] });
-    await queryClient.invalidateQueries({ queryKey: ["leafAccounts"] });
+    await dispatch(fetchLeafAccounts());
   };
 
   const normalizedAccounts = useMemo(() => {
@@ -119,12 +178,19 @@ export default function Accounts() {
   const visibleAccounts = useMemo(() => {
     if (!Array.isArray(normalizedAccounts)) return [];
     if (statusFilter === "all") return normalizedAccounts;
-    return normalizedAccounts.filter((acc) => acc.status === statusFilter);
+
+    return normalizedAccounts.filter(
+      (acc) => String(acc.status || "").toLowerCase() === statusFilter,
+    );
   }, [normalizedAccounts, statusFilter]);
 
-  const parentOptions = useMemo(() => {
-    const options = normalizedAccounts
-      .filter((acc) => acc.accountType === formData.accountType)
+  // Same eligibility rule as before — same account type, active, never
+  // itself. Only the shape changed: AccountCombobox takes account records and
+  // formats "code - name" itself, so the {value,label} mapping moved into the
+  // component rather than being repeated at every account field.
+  const parentAccountOptions = useMemo(() => {
+    return normalizedAccounts
+      .filter((acc) => acc.accountType === watchedAccountType)
       .filter((acc) => acc.status === "active")
       .filter((acc) => !editingAccount || acc._id !== editingAccount._id)
       .sort((a, b) =>
@@ -132,82 +198,47 @@ export default function Accounts() {
           numeric: true,
           sensitivity: "base",
         }),
-      )
-      .map((acc) => ({
-        value: acc._id,
-        label: `${acc.accountCode} - ${acc.accountName}`,
-      }));
+      );
+  }, [normalizedAccounts, watchedAccountType, editingAccount]);
 
-    return options;
-  }, [normalizedAccounts, formData.accountType, editingAccount]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const accountCode = formData.accountCode.trim();
-    const accountName = formData.accountName.trim();
-    const accountType = String(formData.accountType || "").toLowerCase();
-    const description = formData.description.trim();
-    const openingBalance = Number(formData.openingBalance) || 0;
-    const status = String(formData.status || "").toLowerCase();
-
-    if (!accountCode || !accountName) {
-      toast.error("Account code and account name are required");
+  const onSubmit = async (data) => {
+    if (editingAccount?.status === "archived") {
+      toast.error("Archived accounts cannot be edited");
       return;
     }
 
-    if (!/^\d+$/.test(accountCode)) {
-      toast.error("Account code must contain numbers only");
-      return;
-    }
-
-    if (!["debit", "credit"].includes(formData.openingBalanceType)) {
-      toast.error("Opening balance type must be either debit or credit");
-      return;
-    }
-
-    if (!["active", "inactive"].includes(status)) {
-      toast.error("Invalid account status");
-      return;
-    }
+    const openingBalance = Number(data.openingBalance) || 0;
 
     const payload = {
-      accountCode,
-      accountName,
-      accountType,
-      description,
+      accountCode: data.accountCode,
+      accountName: data.accountName,
+      accountType: data.accountType,
+      description: data.description,
       openingBalance,
       openingBalanceType:
         openingBalance === 0
-          ? getDefaultBalanceType(accountType)
-          : formData.openingBalanceType,
-      parentAccount: formData.parentAccount || null,
-      status,
+          ? getDefaultBalanceType(data.accountType)
+          : data.openingBalanceType,
+      openingDate: data.openingDate,
+      // createAccountBody only accepts an ObjectId string or undefined (no
+      // null); updateAccountBody explicitly supports null to clear an
+      // existing parent, and the controller treats "omitted" and "null"
+      // differently (omitted = leave unchanged). Branch to match each.
+      parentAccount: data.parentAccount || (editingAccount ? null : undefined),
+      status: data.status,
     };
 
-    let result;
-
-    if (editingAccount) {
-      if (editingAccount.status === "archived") {
-        toast.error("Archived accounts cannot be edited");
-        return;
-      }
-
-      result = await dispatch(
-        updateAccount({
-          id: editingAccount._id,
-          data: payload,
-        }),
-      );
-    } else {
-      result = await dispatch(createAccount(payload));
-    }
+    const result = editingAccount
+      ? await dispatch(updateAccount({ id: editingAccount._id, data: payload }))
+      : await dispatch(createAccount(payload));
 
     if (result?.error) {
-      toast.error(
-        result.payload ||
-          `Failed to ${editingAccount ? "update" : "create"} account`,
-      );
+      const fieldErrors = result.payload?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      }
       return;
     }
 
@@ -269,7 +300,7 @@ export default function Accounts() {
     const accountType = String(account.accountType || "asset").toLowerCase();
 
     setEditingAccount(account);
-    setFormData({
+    reset({
       accountCode: account.accountCode || "",
       accountName: account.accountName || "",
       accountType,
@@ -278,17 +309,14 @@ export default function Accounts() {
           ? account.parentAccount?._id || ""
           : account.parentAccount || "",
       description: account.description || "",
-      openingBalance: Number(account.openingBalance) || 0,
+      openingBalance: account.openingBalance ?? "",
       openingBalanceType:
         account.openingBalanceType || getDefaultBalanceType(accountType),
+      openingDate: toISODate(account.openingDate),
       status: account.status || "active",
     });
 
     setShowForm(true);
-
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
   };
 
   return (
@@ -297,175 +325,156 @@ export default function Accounts() {
         icon={Landmark}
         title="Chart of Accounts"
         description="Maintain account structure, parent-child relationships, and account status in a clear and simple way."
-        buttonText="Create Account"
-        onButtonClick={openCreateForm}
-        buttonIcon={Plus}
-      />
+        iconBg="bg-brand-navy-light"
+        iconColor="text-brand-navy"
+        // No buttonText, so SectionHeader renders no button of its own — this
+        // only binds the Alt+N shortcut to the custom button below.
+        onButtonClick={openCreateForm}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openCreateForm}
+          title="Create Account (Alt + N)"
+          icon={Plus}
+          className="w-full border-brand-navy bg-brand-navy text-white hover:bg-brand-navy-dark hover:border-brand-navy-dark focus:ring-brand-navy-light md:w-auto">
+          Create Account
+        </Button>
+      </SectionHeader>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm">
-          <Filter size={14} />
-          Account Filters
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          {STATUS_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              type="button"
-              variant={statusFilter === option.value ? "primary" : "outline"}
-              size="sm"
-              onClick={() => setStatusFilter(option.value)}
-              className={
-                statusFilter === option.value
-                  ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
-                  : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-700"
-              }>
-              {option.label}
-            </Button>
-          ))}
+   <section className="rounded-xl  bg-white p-3 border border-slate-200">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <div className="flex shrink-0 items-center gap-2 border-r pr-3 text-slate-500">
+            <Filter size={16} />
+            <span className="text-xs font-bold uppercase tracking-wider">Filter</span>
+          </div>
+          <div className="flex gap-2 pl-1">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setStatusFilter(opt.value)}
+                className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                  statusFilter === opt.value
+                    ? "bg-brand-navy text-white shadow-md"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
-      {showForm && (
-        <section className="relative rounded-xl border border-red-100 bg-white p-3 sm:p-4">
-          <Button
-            onClick={closeForm}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="absolute right-3 top-3 min-h-0! border-slate-200 px-2 py-2 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
-            <X size={16} />
-          </Button>
-
-          <div className="mb-4 border-b border-slate-100 pb-3 pr-12">
-            <h2 className="text-base font-bold text-slate-900 sm:text-lg">
-              {editingAccount ? "Edit Account" : "Create New Account"}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-              Enter account details in a clean and consistent format.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        title={editingAccount ? "Edit Account" : "Create New Account"}
+        description="Enter account details in a clean and consistent format."
+        size="3xl">
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 label="Account Code"
-                name="accountCode"
                 placeholder="e.g. 1000"
-                value={formData.accountCode}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    accountCode: e.target.value,
-                  }))
-                }
                 required
+                error={errors.accountCode?.message}
+                touched={!!errors.accountCode}
+                {...register("accountCode")}
               />
 
               <Input
                 label="Account Name"
-                name="accountName"
                 placeholder="e.g. Cash in Hand"
-                value={formData.accountName}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    accountName: e.target.value,
-                  }))
-                }
                 required
+                error={errors.accountName?.message}
+                touched={!!errors.accountName}
+                {...register("accountName")}
               />
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select
                 label="Account Type"
-                name="accountType"
-                value={formData.accountType}
-                onChange={(e) => {
-                  const selectedType = e.target.value.toLowerCase();
-                  setFormData((prev) => ({
-                    ...prev,
-                    accountType: selectedType,
-                    parentAccount: "",
-                    openingBalanceType: getDefaultBalanceType(selectedType),
-                  }));
-                }}
                 options={ACCOUNT_TYPE_OPTIONS}
                 required
+                error={errors.accountType?.message}
+                touched={!!errors.accountType}
+                {...register("accountType", {
+                  onChange: (e) => {
+                    const selectedType = e.target.value.toLowerCase();
+                    setValue("parentAccount", "");
+                    setValue("openingBalanceType", getDefaultBalanceType(selectedType));
+                  },
+                })}
               />
 
-              <Select
-                label="Parent Account"
+              <Controller
                 name="parentAccount"
-                value={formData.parentAccount}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    parentAccount: e.target.value,
-                  }))
-                }
-                options={parentOptions}
-                placeholder="No Parent Account"
+                control={control}
+                render={({ field }) => (
+                  <AccountCombobox
+                    label="Parent Account"
+                    name={field.name}
+                    accounts={parentAccountOptions}
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    placeholder="No Parent Account"
+                    panelTitle="Select Parent Account"
+                    // parentAccount is optional and the update path treats
+                    // null as "clear the parent", so this must stay un-settable
+                    // the way the native placeholder option allowed.
+                    clearLabel="No Parent Account"
+                    error={errors.parentAccount?.message}
+                    touched={!!errors.parentAccount}
+                  />
+                )}
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <Input
                 label="Opening Balance"
-                name="openingBalance"
                 type="number"
                 placeholder="0.00"
-                value={formData.openingBalance}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    openingBalance: parseFloat(e.target.value) || 0,
-                  }))
-                }
                 step="0.01"
+                error={errors.openingBalance?.message}
+                touched={!!errors.openingBalance}
+                {...register("openingBalance")}
               />
 
               <Select
                 label="Balance Type"
-                name="openingBalanceType"
-                value={formData.openingBalanceType}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    openingBalanceType: e.target.value,
-                  }))
-                }
                 options={BALANCE_TYPE_OPTIONS}
-                disabled={Number(formData.openingBalance) === 0}
+                disabled={Number(watchedOpeningBalance) === 0}
+                {...register("openingBalanceType")}
+              />
+
+              <Controller
+                name="openingDate"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Opening Date"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.openingDate?.message}
+                  />
+                )}
               />
 
               <Select
                 label="Status"
-                name="status"
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    status: e.target.value,
-                  }))
-                }
                 options={ACCOUNT_STATUS_OPTIONS}
+                {...register("status")}
               />
 
               <Input
                 label="Description"
-                name="description"
                 type="text"
                 placeholder="Optional description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
+                {...register("description")}
               />
             </div>
 
@@ -483,17 +492,16 @@ export default function Accounts() {
                 variant="primary"
                 disabled={isLoading}
                 loading={isLoading}
-                className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto">
+                className="w-full bg-brand-navy text-white hover:bg-brand-navy-dark focus:ring-brand-navy-light sm:w-auto">
                 {editingAccount ? "Update Account" : "Create Account"}
               </Button>
             </div>
           </form>
-        </section>
-      )}
+      </Modal>
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 p-3 sm:p-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-red-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-brand-navy">
             <FolderTree size={18} />
           </div>
           <div>

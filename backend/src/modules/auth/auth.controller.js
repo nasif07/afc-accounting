@@ -1,44 +1,129 @@
 const { StatusCodes } = require("http-status-codes");
 const AuthService = require("./auth.service");
+const User = require("../users/user.model");
 const ApiResponse = require("../../utils/apiResponse");
 
+const cookieSecurityOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+});
+
+const getAccessTokenCookieOptions = () => ({
+  ...cookieSecurityOptions(),
+  maxAge: 15 * 60 * 1000, // matches AuthService's ACCESS_TOKEN_EXPIRY
+});
+
+// Scoped to /api/auth (not just /api/auth/refresh) so it's never sent on
+// ordinary API calls, but IS still sent to /api/auth/logout — logout needs
+// to read this cookie's value to revoke the specific token it identifies.
+const getRefreshTokenCookieOptions = () => ({
+  ...cookieSecurityOptions(),
+  path: "/api/auth",
+  maxAge: 14 * 24 * 60 * 60 * 1000, // matches AuthService's REFRESH_TOKEN_TTL_MS
+});
+
+// Express's res.clearCookie merges whatever options it's given on top of
+// its own { expires: <past date> } default (see express/lib/response.js).
+// If we passed maxAge here, that positive Max-Age would win over Expires
+// per RFC 6265 and the browser would NOT actually clear the cookie — only
+// path/security attributes are needed to identify which cookie to drop.
+const getAccessTokenClearOptions = () => cookieSecurityOptions();
+const getRefreshTokenClearOptions = () => ({ ...cookieSecurityOptions(), path: "/api/auth" });
+
 class AuthController {
+  // ── Passwords ─────────────────────────────────────────────────────────
+
+  /**
+   * Changes a signed-in user's password, then clears their session.
+   *
+   * Every other refresh token was revoked by the service, so this browser's
+   * cookies are stale too — clearing them here returns the user to the login
+   * screen deliberately, rather than letting them discover it on their next
+   * request as a confusing forced logout.
+   */
+  static async changePassword(req, res) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+
+      await AuthService.changePassword(
+        req.user.userId || req.user.id,
+        currentPassword,
+        newPassword,
+      );
+
+      res.clearCookie('token', getAccessTokenClearOptions());
+      res.clearCookie('refreshToken', getRefreshTokenClearOptions());
+
+      return ApiResponse.success(
+        res,
+        null,
+        'Password changed. Please sign in again with your new password.',
+      );
+    } catch (error) {
+      // These are user-correctable input problems ("your current password is
+      // incorrect"), not server faults — a 500 would be both wrong and
+      // unhelpful in the form.
+      return ApiResponse.badRequest(res, error.message);
+    }
+  }
+
+  /**
+   * Emails a reset link.
+   *
+   * Always answers 200 with the same message, whether or not the address has
+   * an account. Anything else — a different status, different wording, even a
+   * conspicuously different response time — turns this into a way to test
+   * which addresses are registered here. The log is where the real outcome is
+   * recorded; failures are swallowed for the same reason.
+   */
+  static async forgotPassword(req, res) {
+    try {
+      await AuthService.requestPasswordReset(req.body.email, {
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+    } catch (error) {
+      logger.error({ err: error }, 'Password reset request failed');
+    }
+
+    return ApiResponse.success(
+      res,
+      null,
+      'If that email address has an account, a reset link is on its way.',
+    );
+  }
+
+  static async resetPassword(req, res) {
+    try {
+      await AuthService.resetPassword(req.body.token, req.body.password);
+      return ApiResponse.success(
+        res,
+        null,
+        'Password updated. You can now sign in with your new password.',
+      );
+    } catch (error) {
+      return ApiResponse.badRequest(res, error.message);
+    }
+  }
+
+
   static async register(req, res, next) {
     try {
-      const { name, email, password, confirmPassword, role } = req.body;
+      const { name, email, password } = req.body;
 
-      // Validation
-      if (!name || !email || !password || !confirmPassword) {
+      if (!name || !email || !password) {
         return ApiResponse.badRequest(res, "All fields are required");
       }
 
-      if (password !== confirmPassword) {
-        return ApiResponse.badRequest(res, "Passwords do not match");
+      if (password.length < 8) {
+        return ApiResponse.badRequest(res, "Password must be at least 8 characters");
       }
 
-      if (password.length < 6) {
-        return ApiResponse.badRequest(
-          res,
-          "Password must be at least 6 characters",
-        );
-      }
+      const result = await AuthService.register({ name, email, password });
 
-      const result = await AuthService.register({
-        name,
-        email,
-        password,
-        role,
-        userId: `USR-${Date.now()}`
-      });
-
-      res.cookie("token", result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
-
-      return ApiResponse.created(res, result, "User registered successfully");
+      // No cookie — account is pending director approval and cannot authenticate yet.
+      return ApiResponse.created(res, result, "Registration successful. Your account is pending director approval.");
     } catch (error) {
       next(error);
     }
@@ -48,29 +133,69 @@ class AuthController {
     try {
       const { email, password } = req.body;
 
-      // Validation
       if (!email || !password) {
         return ApiResponse.badRequest(res, "Email and password are required");
       }
 
       const result = await AuthService.login(email, password);
 
-      res.cookie("token", result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      res.cookie("token", result.token, getAccessTokenCookieOptions());
+      res.cookie("refreshToken", result.refreshToken, getRefreshTokenCookieOptions());
+
+      // Never put the raw refresh token in the response body — it only
+      // ever leaves the server as an httpOnly cookie.
+      return ApiResponse.success(
+        res,
+        { user: result.user, token: result.token },
+        "Login successful",
+      );
+    } catch (error) {
+      const knownMessages = [
+        "Invalid email or password",
+        "Account is locked. Try again later.",
+        "Account pending Director approval",
+        "Account has been rejected",
+        "Account has been deactivated",
+      ];
+      if (knownMessages.includes(error.message)) {
+        return ApiResponse.unauthorized(res, error.message);
+      }
+      next(error);
+    }
+  }
+
+  // Not authenticated by the `auth` middleware on purpose — this endpoint
+  // IS how a session gets re-authenticated once the access token has
+  // expired. Trust comes entirely from the refresh-token cookie.
+  static async refresh(req, res, next) {
+    try {
+      const refreshToken = req.cookies?.refreshToken;
+      if (!refreshToken) {
+        return ApiResponse.unauthorized(res, "Refresh token is required");
+      }
+
+      const result = await AuthService.refreshSession(refreshToken, {
+        ip: req.ip,
+        userAgent: req.header("User-Agent"),
       });
 
-      return ApiResponse.success(res, result, "Login successful");
+      res.cookie("token", result.token, getAccessTokenCookieOptions());
+      res.cookie("refreshToken", result.refreshToken, getRefreshTokenCookieOptions());
+
+      return ApiResponse.success(
+        res,
+        { user: result.user, token: result.token },
+        "Token refreshed successfully",
+      );
     } catch (error) {
-      if (
-        error.message === "User not found" ||
-        error.message === "Invalid email or password" ||
-        error.message === "Account is locked. Try again later." ||
-        error.message === "Account pending Director approval" ||
-        error.message === "Account has been rejected"
-      ) {
+      const knownMessages = [
+        "Invalid refresh token",
+        "Refresh token has been revoked",
+        "Refresh token has expired",
+        "Refresh token has already been used",
+        "Account is not active",
+      ];
+      if (knownMessages.includes(error.message)) {
         return ApiResponse.unauthorized(res, error.message);
       }
       next(error);
@@ -79,8 +204,32 @@ class AuthController {
 
   static async logout(req, res, next) {
     try {
-      res.clearCookie("token");
+      const refreshToken = req.cookies?.refreshToken;
+      if (refreshToken) {
+        await AuthService.revokeRefreshToken(refreshToken);
+      }
+
+      res.clearCookie("token", getAccessTokenClearOptions());
+      res.clearCookie("refreshToken", getRefreshTokenClearOptions());
       return ApiResponse.success(res, null, "Logout successful");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Identifies the user from the current (valid) access token via the
+  // `auth` middleware, then revokes EVERY refresh token belonging to that
+  // user — not just the one presented by this request. A separate code
+  // path from logout(), sharing only the underlying revoke/clear-cookie
+  // primitives, so single-device logout is unaffected by this endpoint
+  // existing.
+  static async logoutAll(req, res, next) {
+    try {
+      await AuthService.revokeAllRefreshTokens(req.user.id);
+
+      res.clearCookie("token", getAccessTokenClearOptions());
+      res.clearCookie("refreshToken", getRefreshTokenClearOptions());
+      return ApiResponse.success(res, null, "Logged out of all devices");
     } catch (error) {
       next(error);
     }
@@ -88,27 +237,21 @@ class AuthController {
 
   static async getCurrentUser(req, res, next) {
     try {
-      const user = req.user;
-      if (!user) {
+      if (!req.user) {
         return ApiResponse.unauthorized(res, "User not found");
       }
-      return ApiResponse.success(res, { user }, "User retrieved successfully");
+      return ApiResponse.success(res, { user: req.user }, "User retrieved successfully");
     } catch (error) {
       next(error);
     }
   }
 
+  // Role is already enforced by directorOnly middleware on these routes
   static async getPendingUsers(req, res, next) {
     try {
-      // Only directors can view pending users
-      if (req.user.role !== 'director') {
-        return ApiResponse.forbidden(res, "Only directors can view pending users");
-      }
-
-      const pendingUsers = await require("../users/user.model").find({ status: 'pending' })
-        .select('-password')
+      const pendingUsers = await User.find({ status: "pending" })
+        .select("-password")
         .sort({ createdAt: -1 });
-
       return ApiResponse.success(res, pendingUsers, "Pending users retrieved");
     } catch (error) {
       next(error);
@@ -117,29 +260,18 @@ class AuthController {
 
   static async approveUser(req, res, next) {
     try {
-      // Only directors can approve
-      if (req.user.role !== 'director') {
-        return ApiResponse.forbidden(res, "Only directors can approve users");
-      }
-
-      const { id } = req.params;
-      const User = require("../users/user.model");
-      const user = await User.findById(id);
-
-      if (!user) {
-        return ApiResponse.notFound(res, "User not found");
-      }
-
-      if (user.status !== 'pending') {
+      const user = await User.findById(req.params.id);
+      if (!user) return ApiResponse.notFound(res, "User not found");
+      if (user.status !== "pending") {
         return ApiResponse.badRequest(res, "User is not pending approval");
       }
 
-      user.status = 'approved';
+      user.status = "approved";
       user.approvedBy = req.user.id;
       user.approvedAt = new Date();
       await user.save();
 
-      return ApiResponse.success(res, user, "User approved successfully");
+      return ApiResponse.success(res, { id: user._id, status: user.status }, "User approved successfully");
     } catch (error) {
       next(error);
     }
@@ -147,29 +279,19 @@ class AuthController {
 
   static async rejectUser(req, res, next) {
     try {
-      // Only directors can reject
-      if (req.user.role !== 'director') {
-        return ApiResponse.forbidden(res, "Only directors can reject users");
-      }
-
-      const { id } = req.params;
-      const User = require("../users/user.model");
-      const user = await User.findById(id);
-
-      if (!user) {
-        return ApiResponse.notFound(res, "User not found");
-      }
-
-      if (user.status !== 'pending') {
+      const user = await User.findById(req.params.id);
+      if (!user) return ApiResponse.notFound(res, "User not found");
+      if (user.status !== "pending") {
         return ApiResponse.badRequest(res, "User is not pending approval");
       }
 
-      user.status = 'rejected';
-      user.approvedBy = req.user.id;
-      user.approvedAt = new Date();
+      user.status = "rejected";
+      user.rejectedBy = req.user.id;
+      user.rejectedAt = new Date();
+      user.rejectionReason = req.body.reason || "";
       await user.save();
 
-      return ApiResponse.success(res, user, "User rejected successfully");
+      return ApiResponse.success(res, { id: user._id, status: user.status }, "User rejected");
     } catch (error) {
       next(error);
     }

@@ -1,154 +1,296 @@
+import { useMemo, useState, useCallback } from "react";
+import { useSearchParams } from "react-router";
 import {
   Plus,
   Edit2,
   Trash2,
-  Search,
-  Loader,
-  X,
   Users,
   Mail,
-  Phone,
-  Briefcase,
-  Calendar,
-  CreditCard,
   MapPin,
-  ClipboardList,
-  Activity,
+  CreditCard,
+  Briefcase,
+  Eye,
+  ShieldAlert,
+  FileText,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import toast from "react-hot-toast";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
-  fetchEmployees,
-  createEmployee,
-  updateEmployee,
-  deleteEmployee,
-  clearError,
-  clearSuccess,
-} from "../store/slices/employeeSlice";
+  useEmployees,
+  useCreateEmployee,
+  useUpdateEmployee,
+  useDeleteEmployee,
+} from "../hooks/useEmployees";
 import SectionHeader from "../components/common/SectionHeader";
+import {
+  Input,
+  Select,
+  Textarea,
+  Button,
+  Modal,
+  Badge,
+  Table,
+  DatePicker,
+} from "../components/common";
+import EmployeeDetailsModal from "../components/employees/EmployeeDetailsModal";
 
-const DESIGNATIONS = [
-  "director",
-  "teacher",
-  "accountant",
-  "admin",
-  "support",
-];
 const STATUS_OPTIONS = ["active", "inactive", "on-leave", "resigned"];
 
+const EMPTY_FORM = {
+  employeeCode: "",
+  name: "",
+  email: "",
+  phone: "",
+  designation: "teacher",
+  department: "",
+  dateOfJoining: "",
+  dateOfBirth: "",
+  address: "",
+  city: "",
+  state: "",
+  zipCode: "",
+  country: "",
+  bankAccountNumber: "",
+  bankName: "",
+  status: "active",
+  notes: "",
+  // Payslip reference figures
+  employmentType: "Permanent",
+  payScale: "",
+  scalePointValue: "",
+  monthlyWorkingHours: "",
+  healthFundTotal: "",
+  healthFundTaken: "",
+  healthFundNote: "",
+  lifeFundBalance: "",
+  retirementBenefitBalance: "",
+  // Leave — drives the payslip's Leave Status block
+  annualLeaveDays: "",
+  annualLeaveTaken: "",
+  sickLeaveDays: "",
+  sickLeaveTaken: "",
+  // Emergency contact
+  emergencyContactName: "",
+  emergencyContactRelationship: "",
+  emergencyContactPhone: "",
+  emergencyContactAltPhone: "",
+  emergencyContactAddress: "",
+};
+
+const statusVariant = (s) =>
+  s === "active" ? "success" : s === "on-leave" ? "warning" : "secondary";
+
+// ── Zod validation schema ────────────────────────────────────────────────────
+// Mirrors backend/src/validation/employee.validation.js exactly. That schema
+// uses bare `.optional()` for email/dateOfBirth, which — since the form always
+// sends "" rather than omitting an untouched field — actually rejects blank
+// values today (a live bug: creating an employee with the Email or Date of
+// Birth field left blank currently 400s). The preprocess below fixes that by
+// treating "" as "not provided", matching what "optional" was always meant to
+// mean, without changing what the field validates when a value IS given.
+const blankToUndefined = (v) => (v === "" || v == null ? undefined : v);
+
+const optionalEmail = z.preprocess(
+  blankToUndefined,
+  z.string().trim().email("Enter a valid email address").optional(),
+);
+const optionalDate = z.preprocess(blankToUndefined, z.string().optional());
+// Payslip figures: an untouched box posts "", which means "not provided".
+const optionalAmount = z.preprocess(
+  blankToUndefined,
+  z.coerce.number().min(0, "Cannot be negative").optional(),
+);
+
+const employeeSchema = z.object({
+  employeeCode: z.string().trim().min(1, "Employee code is required"),
+  name: z.string().trim().min(1, "Name is required"),
+  email: optionalEmail,
+  phone: z.string().trim().optional(),
+  designation: z.string().trim().min(1, "Designation is required"),
+  department: z.string().trim().optional(),
+  dateOfJoining: z.string().min(1, "Joining date is required"),
+  dateOfBirth: optionalDate,
+  address: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  state: z.string().trim().optional(),
+  zipCode: z.string().trim().optional(),
+  country: z.string().trim().optional(),
+  bankAccountNumber: z.string().trim().optional(),
+  bankName: z.string().trim().optional(),
+  status: z.string().optional(),
+  notes: z.string().trim().optional(),
+  employmentType: z.string().trim().optional(),
+  payScale: optionalAmount,
+  scalePointValue: optionalAmount,
+  monthlyWorkingHours: optionalAmount,
+  healthFundTotal: optionalAmount,
+  healthFundTaken: optionalAmount,
+  healthFundNote: z.string().trim().optional(),
+  lifeFundBalance: optionalAmount,
+  retirementBenefitBalance: optionalAmount,
+  annualLeaveDays: optionalAmount,
+  annualLeaveTaken: optionalAmount,
+  sickLeaveDays: optionalAmount,
+  sickLeaveTaken: optionalAmount,
+  emergencyContactName: z.string().trim().optional(),
+  emergencyContactRelationship: z.string().trim().optional(),
+  emergencyContactPhone: z.string().trim().optional(),
+  emergencyContactAltPhone: z.string().trim().optional(),
+  emergencyContactAddress: z.string().trim().optional(),
+});
+
 export default function Employees() {
-  const dispatch = useDispatch();
-  const { items, loading, error, success } = useSelector(
-    (state) => state.employees,
-  );
-  const [searchTerm, setSearchTerm] = useState("");
+  // Lets the global search drawer deep-link into a pre-filtered directory
+  // (this page has no per-employee detail route, so the list is the
+  // destination). Students.jsx and Payroll.jsx already read ?search= the
+  // same way; this brings Employees in line.
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get("search") || "";
+
+  const { data: items = [], isLoading: loading } = useEmployees();
+  const createMutation = useCreateEmployee();
+  const updateMutation = useUpdateEmployee();
+  const deleteMutation = useDeleteEmployee();
+
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [viewEmployee, setViewEmployee] = useState(null);
 
-  // Updated state to match Mongoose Model
-  const [formData, setFormData] = useState({
-    employeeCode: "",
-    name: "",
-    email: "",
-    phone: "",
-    designation: "teacher",
-    department: "",
-    dateOfJoining: "",
-    dateOfBirth: "",
-    address: "",
-    city: "",
-    state: "",
-    zipCode: "",
-    country: "",
-    bankAccountNumber: "",
-    bankName: "",
-    status: "active",
-    notes: "",
-  });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    control,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(employeeSchema), defaultValues: EMPTY_FORM });
 
-  useEffect(() => {
-    dispatch(fetchEmployees());
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (success) {
-      toast.success(
-        editingId ? "Updated successfully!" : "Created successfully!",
-      );
-      dispatch(clearSuccess());
-      setShowModal(false);
-      resetForm();
-      dispatch(fetchEmployees());
-    }
-  }, [success, dispatch, editingId]);
-
-  const resetForm = () => {
-    setFormData({
-      employeeCode: "",
-      name: "",
-      email: "",
-      phone: "",
-      designation: "teacher",
-      department: "",
-      dateOfJoining: "",
-      dateOfBirth: "",
-      address: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      country: "",
-      bankAccountNumber: "",
-      bankName: "",
-      status: "active",
-      notes: "",
-    });
+  const openCreate = () => {
+    reset(EMPTY_FORM);
     setEditingId(null);
-  };
-
-  const handleOpenModal = (employee = null) => {
-    if (employee) {
-      // Basic formatting for dates to work with HTML date inputs
-      const formattedEmployee = { ...employee };
-      if (employee.dateOfJoining)
-        formattedEmployee.dateOfJoining = employee.dateOfJoining.split("T")[0];
-      if (employee.dateOfBirth)
-        formattedEmployee.dateOfBirth = employee.dateOfBirth.split("T")[0];
-
-      setFormData(formattedEmployee);
-      setEditingId(employee._id);
-    } else {
-      resetForm();
-    }
     setShowModal(true);
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (editingId) {
-      dispatch(updateEmployee({ id: editingId, data: formData }));
-    } else {
-      dispatch(createEmployee(formData));
-    }
-  };
-
-  const handleDelete = (id) => {
-    if (window.confirm("Delete this employee?")) {
-      dispatch(deleteEmployee(id));
-      toast.success("Deleted successfully!");
-    }
-  };
-
-  const filteredEmployees = items.filter(
-    (emp) =>
-      emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.employeeCode?.toLowerCase().includes(searchTerm.toLowerCase()),
+  const openEdit = useCallback(
+    (emp) => {
+      const f = { ...EMPTY_FORM, ...emp };
+      if (f.dateOfJoining) f.dateOfJoining = f.dateOfJoining.split("T")[0];
+      if (f.dateOfBirth) f.dateOfBirth = f.dateOfBirth.split("T")[0];
+      reset(f);
+      setEditingId(emp._id);
+      setShowModal(true);
+    },
+    [reset],
   );
+
+  const onSubmit = async (data) => {
+    try {
+      if (editingId) {
+        await updateMutation.mutateAsync({ id: editingId, data });
+      } else {
+        await createMutation.mutateAsync(data);
+      }
+      setShowModal(false);
+      setEditingId(null);
+    } catch (err) {
+      // useEmployees.js's mutationFn normalizes thrown errors to
+      // { message, errors? } — same shape as every Redux slice's
+      // rejectWithValue — so this reads err.errors directly now.
+      const fieldErrors = err?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
+      }
+    }
+  };
+
+  const confirmDelete = async () => {
+    await deleteMutation.mutateAsync(pendingDelete);
+    setPendingDelete(null);
+  };
+
+  const columns = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Employee",
+        render: (value, row) => (
+          <div className="flex items-center gap-3">
+            <div
+              aria-hidden="true"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-700 text-sm">
+              {value?.charAt(0)}
+            </div>
+            <div>
+              <p className="font-semibold text-slate-900">{value}</p>
+              <p className="font-mono text-xs text-slate-500">
+                #{row.employeeCode}
+              </p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "designation",
+        label: "Designation",
+        render: (value) => (
+          <span className="text-sm capitalize text-slate-600">
+            {value?.replace("_", " ")}
+          </span>
+        ),
+      },
+      {
+        key: "status",
+        label: "Status",
+        render: (value) => (
+          <Badge variant={statusVariant(value)}>{value}</Badge>
+        ),
+      },
+      {
+        key: "department",
+        label: "Department",
+        render: (value) => (
+          <span className="text-sm text-slate-600">{value || "N/A"}</span>
+        ),
+      },
+      {
+        key: "_id",
+        label: "Actions",
+        render: (value, row) => (
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`View ${row.name}`}
+              title="View details"
+              onClick={() => setViewEmployee(row)}>
+              <Eye size={15} className="text-indigo-500" />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Edit ${row.name}`}
+              onClick={() => openEdit(row)}>
+              <Edit2 size={15} className="text-blue-600" />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Delete ${row.name}`}
+              onClick={() => setPendingDelete(value)}>
+              <Trash2 size={15} className="text-red-600" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [openEdit],
+  );
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -157,409 +299,317 @@ export default function Employees() {
         title="Employee Directory"
         description="Comprehensive management of staff records, payroll data, and employment status."
         buttonText="Add Employee"
-        onButtonClick={() => handleOpenModal()}
+        onButtonClick={openCreate}
         buttonIcon={Plus}
       />
 
-      {/* Search Bar */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div className="relative group">
-          <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"
-            size={20}
-          />
-          <input
-            type="text"
-            placeholder="Search by name or employee code..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all outline-none"
-          />
-        </div>
-      </div>
+      <Table
+        // Table's search box is uncontrolled after mount, so remounting on a
+        // changed ?search= is what re-seeds it when navigating here from the
+        // search drawer while already on this page.
+        key={initialSearch}
+        columns={columns}
+        data={items}
+        loading={loading}
+        searchable
+        initialSearch={initialSearch}
+        // Client-side slice by design: GET /employees is not paginated, so
+        // Table already holds every row. The footer is the same Pagination
+        // component the server-driven lists use.
+        paginated
+        pageSize={10}
+        itemLabel="employees"
+        emptyMessage="No employees found."
+      />
 
-      {/* Table Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100 text-left">
-                <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase">
-                  Employee
-                </th>
-                <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase">
-                  Designation
-                </th>
-                <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase">
-                  Status
-                </th>
-                <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase">
-                  Department
-                </th>
-                <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredEmployees.map((emp) => (
-                <tr
-                  key={emp._id}
-                  className="hover:bg-blue-50/30 transition-colors group">
-                  <td className="py-4 px-6">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-                        {emp.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          {emp.name}
-                        </p>
-                        <p className="text-xs text-gray-500 font-mono">
-                          #{emp.employeeCode}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-sm text-gray-600 capitalize">
-                    {emp.designation?.replace("_", " ")}
-                  </td>
-                  <td className="py-4 px-6">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        emp.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : emp.status === "on-leave"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-                      }`}>
-                      {emp.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6 text-sm text-gray-600">
-                    {emp.department || "N/A"}
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleOpenModal(emp)}
-                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors">
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(emp._id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* ── Employee Details Modal ── */}
+      <EmployeeDetailsModal
+        employee={viewEmployee}
+        isOpen={!!viewEmployee}
+        onClose={() => setViewEmployee(null)}
+        onEdit={openEdit}
+      />
 
-      {/* Full Feature Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {editingId
-                    ? "Edit Employee Profile"
-                    : "New Employee Registration"}
-                </h2>
-                <p className="text-sm text-gray-500">
-                  Provide all details to maintain an accurate staff record.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-white rounded-full transition-colors text-gray-400 hover:text-gray-600">
-                <X size={24} />
-              </button>
+      {/* ── Employee Form Modal ── */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={
+          editingId ? "Edit Employee Profile" : "New Employee Registration"
+        }
+        description="Provide all details to maintain an accurate staff record."
+        size="3xl">
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-8">
+          {/* Professional Info */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
+              <Briefcase size={14} aria-hidden="true" /> Professional Info
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Input
+                label="Employee Code"
+                required
+                error={errors.employeeCode?.message}
+                touched={!!errors.employeeCode}
+                {...register("employeeCode")}
+              />
+              <Input
+                label="Full Name"
+                required
+                error={errors.name?.message}
+                touched={!!errors.name}
+                {...register("name")}
+              />
+              <Select
+                label="Status"
+                options={STATUS_OPTIONS.map((o) => ({ value: o, label: o }))}
+                {...register("status")}
+              />
+              <Input
+                label="Designation"
+                error={errors.designation?.message}
+                touched={!!errors.designation}
+                {...register("designation")}
+              />
+              <Input label="Department" {...register("department")} />
+              <Controller
+                name="dateOfJoining"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Joining Date"
+                    required
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.dateOfJoining?.message}
+                  />
+                )}
+              />
             </div>
-
-            {/* Modal Body - Form */}
-            <form
-              onSubmit={handleSubmit}
-              className="p-8 overflow-y-auto space-y-8">
-              {/* SECTION 1: PROFESSIONAL DETAILS */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <Briefcase size={16} /> Professional Info
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Employee Code *
-                    </label>
-                    <input
-                      type="text"
-                      name="employeeCode"
-                      value={formData.employeeCode}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Status
-                    </label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none capitalize">
-                      {STATUS_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Designation
-                    </label>
-                    <select
-                      name="designation"
-                      value={formData.designation}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none capitalize">
-                      {DESIGNATIONS.map((d) => (
-                        <option key={d} value={d}>
-                          {d.replace("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Department
-                    </label>
-                    <input
-                      type="text"
-                      name="department"
-                      value={formData.department}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Joining Date *
-                    </label>
-                    <input
-                      type="date"
-                      name="dateOfJoining"
-                      value={formData.dateOfJoining}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 2: CONTACT & PERSONAL */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <Mail size={16} /> Contact & Personal
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Phone
-                    </label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Date of Birth
-                    </label>
-                    <input
-                      type="date"
-                      name="dateOfBirth"
-                      value={formData.dateOfBirth}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 3: ADDRESS */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <MapPin size={16} /> Address Details
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Street Address
-                    </label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      State/Province
-                    </label>
-                    <input
-                      type="text"
-                      name="state"
-                      value={formData.state}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Zip Code
-                    </label>
-                    <input
-                      type="text"
-                      name="zipCode"
-                      value={formData.zipCode}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      name="country"
-                      value={formData.country}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 4: BANKING & NOTES */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                  <CreditCard size={16} /> Financial & Notes
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Bank Name
-                    </label>
-                    <input
-                      type="text"
-                      name="bankName"
-                      value={formData.bankName}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Account Number
-                    </label>
-                    <input
-                      type="text"
-                      name="bankAccountNumber"
-                      value={formData.bankAccountNumber}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs font-bold text-gray-700 ml-1">
-                      Administrative Notes
-                    </label>
-                    <textarea
-                      name="notes"
-                      value={formData.notes}
-                      onChange={handleChange}
-                      rows="2"
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4 pt-6 border-t border-gray-100">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
-                  {loading ? (
-                    <Loader className="animate-spin" size={20} />
-                  ) : null}
-                  {editingId ? "Update Employee Record" : "Register Employee"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-all">
-                  Cancel
-                </button>
-              </div>
-            </form>
           </div>
+
+          {/* Contact & Personal */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
+              <Mail size={14} aria-hidden="true" /> Contact &amp; Personal
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Input
+                label="Email"
+                type="email"
+                error={errors.email?.message}
+                touched={!!errors.email}
+                {...register("email")}
+              />
+              <Input label="Phone" type="tel" {...register("phone")} />
+              <Controller
+                name="dateOfBirth"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Date of Birth"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.dateOfBirth?.message}
+                  />
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Address Details */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
+              <MapPin size={14} aria-hidden="true" /> Address Details
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="md:col-span-2">
+                <Input label="Street Address" {...register("address")} />
+              </div>
+              <Input label="City" {...register("city")} />
+              <Input label="State/Province" {...register("state")} />
+              <Input label="Zip Code" {...register("zipCode")} />
+              <Input label="Country" {...register("country")} />
+            </div>
+          </div>
+
+          {/* Emergency Contact */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-rose-500">
+              <ShieldAlert size={14} aria-hidden="true" /> Emergency Contact
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Input label="Contact Name" {...register("emergencyContactName")} />
+              <Input label="Relationship" {...register("emergencyContactRelationship")} />
+              <Input label="Phone Number" type="tel" {...register("emergencyContactPhone")} />
+              <Input label="Alternative Phone" type="tel" {...register("emergencyContactAltPhone")} />
+              <div className="md:col-span-2">
+                <Input label="Address" {...register("emergencyContactAddress")} />
+              </div>
+            </div>
+          </div>
+
+          {/* Financial & Notes */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
+              <CreditCard size={14} aria-hidden="true" /> Financial &amp; Notes
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input label="Bank Name" {...register("bankName")} />
+              <Input label="Account Number" {...register("bankAccountNumber")} />
+              <div className="md:col-span-2">
+                <Textarea label="Administrative Notes" rows={3} {...register("notes")} />
+              </div>
+            </div>
+          </div>
+
+          {/* Payslip Details — printed verbatim on the payslip */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
+              <FileText size={14} aria-hidden="true" /> Payslip Details
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <Input label="Employment Type" placeholder="Permanent" {...register("employmentType")} />
+              <Input
+                label="Scale of Pay"
+                type="number" step="0.01" min="0"
+                error={errors.payScale?.message}
+                touched={!!errors.payScale}
+                {...register("payScale")}
+              />
+              <Input
+                label="Value of Scale Point"
+                type="number" step="0.01" min="0"
+                error={errors.scalePointValue?.message}
+                touched={!!errors.scalePointValue}
+                {...register("scalePointValue")}
+              />
+              <Input
+                label="Monthly Working Hours"
+                type="number" step="1" min="0"
+                error={errors.monthlyWorkingHours?.message}
+                touched={!!errors.monthlyWorkingHours}
+                {...register("monthlyWorkingHours")}
+              />
+              <Input
+                label="Health Fund Total"
+                type="number" step="0.01" min="0"
+                error={errors.healthFundTotal?.message}
+                touched={!!errors.healthFundTotal}
+                {...register("healthFundTotal")}
+              />
+              <Input
+                label="Health Fund Taken"
+                type="number" step="0.01" min="0"
+                error={errors.healthFundTaken?.message}
+                touched={!!errors.healthFundTaken}
+                {...register("healthFundTaken")}
+              />
+              <Input
+                label="Life Fund Balance"
+                type="number" step="0.01" min="0"
+                error={errors.lifeFundBalance?.message}
+                touched={!!errors.lifeFundBalance}
+                {...register("lifeFundBalance")}
+              />
+              <Input
+                label="Retirement Benefit Balance"
+                type="number" step="0.01" min="0"
+                error={errors.retirementBenefitBalance?.message}
+                touched={!!errors.retirementBenefitBalance}
+                {...register("retirementBenefitBalance")}
+              />
+              <div className="md:col-span-4">
+                <Input label="Health Fund Note" {...register("healthFundNote")} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Leave ──────────────────────────────────────────────────────
+              Feeds the payslip's Leave Status block directly. Entitlement
+              left blank falls back to the organisation-wide figure in
+              Settings, so only employees on different terms need filling in. */}
+          <div>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
+              Leave
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <Input
+                label="Annual Leave (days)"
+                type="number" step="0.5" min="0"
+                placeholder="Uses Settings default"
+                error={errors.annualLeaveDays?.message}
+                touched={!!errors.annualLeaveDays}
+                {...register("annualLeaveDays")}
+              />
+              <Input
+                label="Annual Leave Taken"
+                type="number" step="0.5" min="0"
+                error={errors.annualLeaveTaken?.message}
+                touched={!!errors.annualLeaveTaken}
+                {...register("annualLeaveTaken")}
+              />
+              <Input
+                label="Sick Leave (days)"
+                type="number" step="0.5" min="0"
+                placeholder="Uses Settings default"
+                error={errors.sickLeaveDays?.message}
+                touched={!!errors.sickLeaveDays}
+                {...register("sickLeaveDays")}
+              />
+              <Input
+                label="Sick Leave Taken"
+                type="number" step="0.5" min="0"
+                error={errors.sickLeaveTaken?.message}
+                touched={!!errors.sickLeaveTaken}
+                {...register("sickLeaveTaken")}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 border-t border-slate-100 pt-6">
+            <Button type="submit" size="sm" loading={isSaving}>
+              <Edit2 size={12} className="text-white" />
+              {editingId ? "Update Employee Record" : "Register Employee"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowModal(false)}>
+              <Trash2 size={12} className="text-slate-600" />
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Delete confirmation ── */}
+      <Modal
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        title="Delete Employee"
+        size="lg">
+        <p className="text-sm text-slate-600 mb-6">
+          Are you sure you want to delete this employee? This action cannot be
+          undone.
+        </p>
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => setPendingDelete(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            fullWidth
+            loading={deleteMutation.isPending}
+            onClick={confirmDelete}>
+            Delete
+          </Button>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

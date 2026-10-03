@@ -3,11 +3,12 @@ import { payrollAPI } from '../../services/apiMethods';
 
 export const fetchPayroll = createAsyncThunk(
   'payroll/fetchPayroll',
-  async (params = {}, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue, signal }) => {
     try {
-      const response = await payrollAPI.getAll(params);
+      const response = await payrollAPI.getAll(params, { signal });
       return response.data;
     } catch (error) {
+      if (error.code === 'ERR_CANCELED') throw error;
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch payroll');
     }
   }
@@ -32,7 +33,12 @@ export const createPayroll = createAsyncThunk(
       const response = await payrollAPI.create(data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create payroll');
+      // Preserve the full backend error payload (not just the message
+      // string) so the component can inspect `.errors` for field-level
+      // validation issues, same pattern as accountSlice.js.
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to create payroll' },
+      );
     }
   }
 );
@@ -44,7 +50,9 @@ export const updatePayroll = createAsyncThunk(
       const response = await payrollAPI.update(id, data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update payroll');
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update payroll' },
+      );
     }
   }
 );
@@ -88,6 +96,7 @@ export const rejectPayroll = createAsyncThunk(
 
 const initialState = {
   items: [],
+  pagination: { total: 0, page: 1, limit: 20, totalPages: 1 },
   item: null,
   loading: false,
   error: null,
@@ -116,7 +125,15 @@ const payrollSlice = createSlice({
       })
       .addCase(fetchPayroll.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.data || action.payload;
+        // API returns { success, data: { data: [], pagination: {} }, message }
+        const outer = action.payload?.data;
+        if (outer && Array.isArray(outer.data)) {
+          state.items      = outer.data;
+          state.pagination = outer.pagination ?? state.pagination;
+        } else {
+          // Fallback for any non-paginated shape
+          state.items = Array.isArray(outer) ? outer : [];
+        }
       })
       .addCase(fetchPayroll.rejected, (state, action) => {
         state.loading = false;
@@ -145,7 +162,10 @@ const payrollSlice = createSlice({
       })
       .addCase(createPayroll.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        // Field-level errors are shown inline via setError instead — skip
+        // the generic toast in that case (same pattern as accountSlice.js).
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || 'Failed to create payroll';
       })
       .addCase(updatePayroll.pending, (state) => {
         state.loading = true;
@@ -161,7 +181,8 @@ const payrollSlice = createSlice({
       })
       .addCase(updatePayroll.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || 'Failed to update payroll';
       })
       .addCase(deletePayroll.pending, (state) => {
         state.loading = true;

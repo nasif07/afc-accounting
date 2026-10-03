@@ -1,39 +1,105 @@
 import React, { useState, useRef } from "react";
 import {
-  Download,
   Printer,
   BarChart3,
-  AlertCircle,
-  Loader,
 } from "lucide-react";
-import { Card, CardContent } from "../components/ui/Card";
-import Button from "../components/ui/Button";
+import { Card, CardContent, Button } from "../components/common";
 import KPICard from "../components/reports/KPICard";
 import ReportFilters from "../components/reports/ReportFilters";
 import TrialBalanceReport from "../components/reports/TrialBalanceReport";
-import IncomeStatementReport from "../components/reports/IncomeStatementReport";
+import ReceiptsPaymentsReport from "../components/reports/ReceiptsPaymentsReport";
 import BalanceSheetReport from "../components/reports/BalanceSheetReport";
 import CashFlowReport from "../components/reports/CashFlowReport";
+import GeneralLedgerReport from "../components/reports/GeneralLedgerReport"; // ✅ add this
 import { toast } from "sonner";
 import api from "../services/api";
 import SectionHeader from "../components/common/SectionHeader";
+import { SectionSkeleton, ErrorState } from "../components/common/Loaders";
+import {
+  formatDisplayDate,
+  monthRange,
+  previousMonthValue,
+  todayISO,
+} from "../utils/date";
+import { useGeneralLedgerReport } from "../hooks/useGeneralLedgerReport";
+import { openPrintWindow } from "../utils/printWindow";
+import { usePaginationParams } from "../hooks/usePaginationParams";
+import { REPORT_LOGO } from "../constants/branding";
+
+const LEDGER_DEFAULT_PAGE_SIZE = 50;
+// The ledger endpoint clamps `limit` at 200 (accounting.service.js).
+const LEDGER_PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+
+// Period reports open on the previous month — the one normally being closed
+// and reported on — rather than on blank dates.
+const defaultFilters = () => {
+  const month = previousMonthValue();
+  return {
+    period: "month",
+    periodValue: month,
+    ...monthRange(month),
+    asOfDate: todayISO(),
+    viewType: "detailed",
+    accountId: "",
+  };
+};
+
+const REPORT_TITLES = {
+  "trial-balance": "Trial Balance",
+  "receipts-payments": "Receipts & Payments Account",
+  "balance-sheet": "Balance Sheet",
+  "cash-flow": "Cash Flow Statement",
+  "general-ledger": "General Ledger",
+};
 
 export default function Reports() {
   const printRef = useRef(null);
 
   const [reportType, setReportType] = useState("trial-balance");
-  const [filters, setFilters] = useState({
-    startDate: "",
-    endDate: "",
-    asOfDate: new Date().toISOString().split("T")[0],
-    viewType: "detailed",
-  });
+  const [filters, setFilters] = useState(defaultFilters);
 
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
 
+  // ── General Ledger: React Query-driven (page/limit live in the query key) ──
+  const {
+    page: ledgerPage,
+    pageSize: ledgerPageSize,
+    setPage: setLedgerPage,
+    setPageSize: setLedgerPageSize,
+    resetPage: resetLedgerPage,
+  } = usePaginationParams(LEDGER_DEFAULT_PAGE_SIZE, { maxPageSize: 200 });
+  const [ledgerSubmitted, setLedgerSubmitted] = useState(false);
+  const isLedger = reportType === "general-ledger";
+  const ledgerQuery = useGeneralLedgerReport(
+    {
+      accountId: filters.accountId,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      page: ledgerPage,
+      limit: ledgerPageSize,
+    },
+    { enabled: isLedger && ledgerSubmitted && !!filters.accountId },
+  );
+
   const fetchReport = async () => {
+    if (reportType === "general-ledger") {
+      if (!filters.accountId) {
+        toast.error("Please select an account for General Ledger report");
+        return;
+      }
+      resetLedgerPage();
+      if (ledgerSubmitted) {
+        // Query is already enabled for this account — force a fresh fetch.
+        ledgerQuery.refetch();
+      } else {
+        // Flipping `enabled` to true triggers the initial fetch declaratively.
+        setLedgerSubmitted(true);
+      }
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setReportData(null);
@@ -48,8 +114,8 @@ export default function Reports() {
           if (filters.asOfDate) params.asOfDate = filters.asOfDate;
           break;
 
-        case "income-statement":
-          endpoint += "/income-statement";
+        case "receipts-payments":
+          endpoint += "/receipts-payments";
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
@@ -61,18 +127,6 @@ export default function Reports() {
 
         case "cash-flow":
           endpoint += "/cash-flow";
-          if (filters.startDate) params.startDate = filters.startDate;
-          if (filters.endDate) params.endDate = filters.endDate;
-          break;
-
-        case "general-ledger":
-          // FIXED: Add general-ledger support
-          if (!filters.accountId) {
-            throw new Error(
-              "Please select an account for General Ledger report",
-            );
-          }
-          endpoint += "/ledger/" + filters.accountId;
           if (filters.startDate) params.startDate = filters.startDate;
           if (filters.endDate) params.endDate = filters.endDate;
           break;
@@ -96,180 +150,70 @@ export default function Reports() {
     }
   };
 
-  const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+  // Takes (key, value) for one field, or an object to patch several at once —
+  // picking a month sets the period and both dates in a single update.
+  const handleFilterChange = (keyOrPatch, value) => {
+    const patch =
+      typeof keyOrPatch === "object" ? keyOrPatch : { [keyOrPatch]: value };
+    setFilters((prev) => ({ ...prev, ...patch }));
   };
 
   const handleReportTypeChange = (type) => {
     setReportType(type);
     setReportData(null);
     setError(null);
+    setLedgerSubmitted(false);
+    resetLedgerPage();
   };
 
   const handleReset = () => {
-    setFilters({
-      startDate: "",
-      endDate: "",
-      asOfDate: new Date().toISOString().split("T")[0],
-      viewType: "detailed",
-    });
+    setFilters(defaultFilters());
     setReportData(null);
     setError(null);
+    setLedgerSubmitted(false);
+    resetLedgerPage();
   };
 
   const handlePrint = () => {
     if (!printRef.current) return;
 
-    const printWindow = window.open("", "", "height=700,width=1000");
+    const printWindow = openPrintWindow(printRef.current, {
+      title: `${reportType}-report`,
+      windowFeatures: "height=700,width=1000",
+    });
+
     if (!printWindow) {
       toast.error("Unable to open print window");
-      return;
-    }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Print Report</title>
-          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
-          <style>
-            body {
-              padding: 24px;
-              font-family: Arial, sans-serif;
-              color: #111827;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            th, td {
-              padding: 8px;
-              border: 1px solid #e5e7eb;
-              text-align: left;
-            }
-          </style>
-        </head>
-        <body>
-          ${printRef.current.innerHTML}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 500);
-  };
-
-  const handleDownloadPDF = async () => {
-    try {
-      const source = printRef.current;
-      if (!source) {
-        toast.error("No report content found to export");
-        return;
-      }
-
-      const html2pdfModule = await import("html2pdf.js");
-      const html2pdf = html2pdfModule.default || html2pdfModule;
-
-      // Create a clean export container
-      const exportWrapper = document.createElement("div");
-      exportWrapper.style.position = "fixed";
-      exportWrapper.style.left = "0";
-      exportWrapper.style.top = "0";
-      exportWrapper.style.width = "794px"; // A4-ish content width in px
-      exportWrapper.style.background = "#ffffff";
-      exportWrapper.style.color = "#111827";
-      exportWrapper.style.padding = "24px";
-      exportWrapper.style.zIndex = "-1";
-      exportWrapper.style.opacity = "1";
-      exportWrapper.style.pointerEvents = "none";
-
-      // Clone the report content
-      const clone = source.cloneNode(true);
-      exportWrapper.appendChild(clone);
-      document.body.appendChild(exportWrapper);
-
-      // Force plain export-safe styling
-      const all = exportWrapper.querySelectorAll("*");
-      all.forEach((node) => {
-        if (!(node instanceof HTMLElement)) return;
-
-        node.style.boxShadow = "none";
-        node.style.textShadow = "none";
-        node.style.filter = "none";
-        node.style.backdropFilter = "none";
-        node.style.borderColor = "#d1d5db";
-
-        const text = window.getComputedStyle(node).color;
-        const bg = window.getComputedStyle(node).backgroundColor;
-
-        if (text && text.includes("oklch")) {
-          node.style.color = "#111827";
-        }
-
-        if (bg && bg.includes("oklch")) {
-          node.style.backgroundColor = "#ffffff";
-        }
-      });
-
-      // Give the browser a moment to render the clone
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      const options = {
-        margin: 10,
-        filename: `${reportType}-${new Date().toISOString().split("T")[0]}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-        },
-        jsPDF: {
-          unit: "mm",
-          format: "a4",
-          orientation: "portrait",
-        },
-        pagebreak: { mode: ["css", "legacy"] },
-      };
-
-      await html2pdf().set(options).from(exportWrapper).save();
-
-      document.body.removeChild(exportWrapper);
-      toast.success("Report downloaded successfully");
-    } catch (err) {
-      console.error("PDF export error:", err);
-      toast.error(
-        typeof err?.message === "string" ? err.message : "Failed to export PDF",
-      );
     }
   };
+
+  // ── Unify ledger (React Query) and other report types (local state) ────────
+  const effectiveReportData = isLedger ? ledgerQuery.data : reportData;
+  const effectiveLoading = isLedger ? ledgerQuery.isLoading && !ledgerQuery.data : loading;
+  const effectiveError = isLedger
+    ? (ledgerQuery.isError && (ledgerQuery.error?.response?.data?.message || ledgerQuery.error?.message || "Failed to load ledger")) || null
+    : error;
 
   const getKPIs = () => {
-    if (!reportData) return [];
+    if (!effectiveReportData) return [];
 
     switch (reportType) {
-      case "income-statement":
+      case "receipts-payments":
         return [
           {
-            title: "Total Revenue",
-            value: reportData.totalRevenue || 0,
+            title: "Total Receipts",
+            value: effectiveReportData.totalReceipts || 0,
             color: "green",
           },
           {
-            title: "Total Expenses",
-            value: reportData.totalExpenses || 0,
+            title: "Total Payments",
+            value: effectiveReportData.totalPayments || 0,
             color: "red",
           },
           {
-            title: "Net Income",
-            value: reportData.netIncome || 0,
-            color: reportData.netIncome >= 0 ? "green" : "red",
+            title: "Closing Cash & Bank",
+            value: effectiveReportData.totalClosing || 0,
+            color: "blue",
           },
         ];
 
@@ -277,17 +221,17 @@ export default function Reports() {
         return [
           {
             title: "Total Assets",
-            value: reportData.totalAssets || 0,
+            value: effectiveReportData.totalAssets || 0,
             color: "blue",
           },
           {
             title: "Total Liabilities",
-            value: reportData.totalLiabilities || 0,
+            value: effectiveReportData.totalLiabilities || 0,
             color: "amber",
           },
           {
             title: "Total Equity",
-            value: reportData.totalEquity || 0,
+            value: effectiveReportData.totalEquity || 0,
             color: "purple",
           },
         ];
@@ -296,18 +240,18 @@ export default function Reports() {
         return [
           {
             title: "Total Inflows",
-            value: reportData.totalInflow || 0,
+            value: effectiveReportData.totalInflow || 0,
             color: "green",
           },
           {
             title: "Total Outflows",
-            value: reportData.totalOutflow || 0,
+            value: effectiveReportData.totalOutflow || 0,
             color: "red",
           },
           {
             title: "Net Cash Flow",
-            value: reportData.netCashFlow || 0,
-            color: reportData.netCashFlow >= 0 ? "green" : "red",
+            value: effectiveReportData.netCashFlow || 0,
+            color: effectiveReportData.netCashFlow >= 0 ? "green" : "red",
           },
         ];
 
@@ -315,18 +259,38 @@ export default function Reports() {
         return [
           {
             title: "Total Debits",
-            value: reportData.totalDebits || 0,
+            value: effectiveReportData.totalDebits || 0,
             color: "blue",
           },
           {
             title: "Total Credits",
-            value: reportData.totalCredits || 0,
+            value: effectiveReportData.totalCredits || 0,
             color: "blue",
           },
           {
             title: "Status",
-            value: reportData.isBalanced ? "Balanced" : "Unbalanced",
-            color: reportData.isBalanced ? "green" : "red",
+            value: effectiveReportData.isBalanced ? "Balanced" : "Unbalanced",
+            color: effectiveReportData.isBalanced ? "green" : "red",
+            format: "text",
+          },
+        ];
+
+      case "general-ledger":
+        return [
+          {
+            title: "Opening Balance",
+            value: effectiveReportData.openingBalance || 0,
+            color: "blue",
+          },
+          {
+            title: "Closing Balance",
+            value: effectiveReportData.closingBalance || 0,
+            color: "green",
+          },
+          {
+            title: "Transactions",
+            value: effectiveReportData.pagination?.total || effectiveReportData.transactions?.length || 0,
+            color: "purple",
             format: "text",
           },
         ];
@@ -345,9 +309,10 @@ export default function Reports() {
         title="Financial Reports"
         description="Generate and analyze comprehensive financial statements"
         buttonText="Generate Report"
+        hotkey={false}
         onButtonClick={fetchReport}
         buttonIcon={BarChart3}
-        isLoading={loading}
+        isLoading={effectiveLoading}
       />
 
       <ReportFilters
@@ -356,34 +321,18 @@ export default function Reports() {
         filters={filters}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
-        loading={loading}
+        loading={effectiveLoading}
       />
 
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="flex items-center gap-3 pt-6">
-            <AlertCircle size={20} className="text-red-600" />
-            <div>
-              <p className="font-semibold text-red-900">Error</p>
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          </CardContent>
-        </Card>
+      {effectiveError && (
+        <ErrorState message={effectiveError} onRetry={fetchReport} />
       )}
 
-      {loading && (
-        <Card>
-          <CardContent className="pt-12 text-center">
-            <Loader
-              size={48}
-              className="mx-auto mb-4 animate-spin text-neutral-400"
-            />
-            <p className="text-neutral-600">Generating report...</p>
-          </CardContent>
-        </Card>
+      {effectiveLoading && (
+        <SectionSkeleton rows={8} />
       )}
 
-      {reportData && !loading && (
+      {effectiveReportData && !effectiveLoading && (
         <>
           {kpis.length > 0 && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -402,44 +351,48 @@ export default function Reports() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={handlePrint}>
               <Printer size={16} className="mr-2" />
-              Print
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
-              <Download size={16} className="mr-2" />
-              Download PDF
+              Print / Save as PDF
             </Button>
           </div>
 
-          <Card className="border-t-4 border-mahogany-700 shadow-xl">
+          <Card className="border-t-4 border-red-600 shadow-xl">
             <CardContent className="pt-8" ref={printRef}>
-              <div className="mb-8 border-b-2 border-neutral-900 pb-6 text-center">
-                <h1 className="text-2xl font-bold uppercase tracking-wider text-neutral-900">
+              <div className="mb-8 border-b-2 border-slate-900 pb-6 text-center">
+                {/* h-auto with a capped height keeps the landscape full logo
+                    (758x564) undistorted. printWindow waits for images before
+                    printing, so it can't be dropped from the output. */}
+                <img
+                  src={REPORT_LOGO}
+                  alt="Alliance Française de Chittagong"
+                  className="mx-auto mb-4 h-16 w-auto"
+                />
+                <h1 className="text-2xl font-bold uppercase tracking-wider text-slate-900">
                   Alliance Française
                 </h1>
-                <p className="mt-1 font-medium text-neutral-600">
+                <p className="mt-1 font-medium text-slate-600">
                   Financial Management System
                 </p>
 
-                <div className="mt-6 inline-block rounded-full bg-neutral-900 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white">
-                  {reportType === "trial-balance" && "Trial Balance"}
-                  {reportType === "income-statement" &&
-                    "Profit & Loss Statement"}
-                  {reportType === "balance-sheet" && "Balance Sheet"}
-                  {reportType === "cash-flow" && "Cash Flow Statement"}
+                {/* ✅ Changed: wrap in flex div instead of inline-block */}
+                <div className="mt-6 flex justify-center">
+                  <div className="rounded-full bg-slate-900 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white">
+                    {REPORT_TITLES[reportType]}
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-col items-center gap-1">
                   {(filters.startDate || filters.endDate) &&
-                    (reportType === "income-statement" ||
-                      reportType === "cash-flow") && (
-                      <p className="text-sm text-neutral-600">
+                    (reportType === "receipts-payments" ||
+                      reportType === "cash-flow" ||
+                      reportType === "general-ledger") && (
+                      <p className="text-sm text-slate-600">
                         <span className="font-semibold">Period:</span>{" "}
                         {filters.startDate
-                          ? new Date(filters.startDate).toLocaleDateString()
+                          ? formatDisplayDate(filters.startDate)
                           : "N/A"}{" "}
                         to{" "}
                         {filters.endDate
-                          ? new Date(filters.endDate).toLocaleDateString()
+                          ? formatDisplayDate(filters.endDate)
                           : "N/A"}
                       </p>
                     )}
@@ -447,9 +400,9 @@ export default function Reports() {
                   {filters.asOfDate &&
                     (reportType === "trial-balance" ||
                       reportType === "balance-sheet") && (
-                      <p className="text-sm text-neutral-600">
+                      <p className="text-sm text-slate-600">
                         <span className="font-semibold">As of:</span>{" "}
-                        {new Date(filters.asOfDate).toLocaleDateString()}
+                        {formatDisplayDate(filters.asOfDate)}
                       </p>
                     )}
                 </div>
@@ -463,11 +416,14 @@ export default function Reports() {
                   />
                 )}
 
-                {reportType === "income-statement" && (
-                  <IncomeStatementReport
+                {reportType === "receipts-payments" && (
+                  <ReceiptsPaymentsReport
                     data={reportData}
                     startDate={filters.startDate}
                     endDate={filters.endDate}
+                    // Display toggle only — the vouchers are already in the
+                    // response, so switching View doesn't refetch.
+                    viewType={filters.viewType}
                   />
                 )}
 
@@ -485,9 +441,26 @@ export default function Reports() {
                     endDate={filters.endDate}
                   />
                 )}
+
+                {reportType === "general-ledger" && (
+                  <GeneralLedgerReport
+                    data={effectiveReportData}
+                    startDate={filters.startDate}
+                    endDate={filters.endDate}
+                    page={ledgerPage}
+                    pageSize={ledgerPageSize}
+                    onPageChange={setLedgerPage}
+                    onPageSizeChange={setLedgerPageSize}
+                    pageSizeOptions={LEDGER_PAGE_SIZE_OPTIONS}
+                    isFetching={ledgerQuery.isFetching}
+                    // Purely a display toggle — the contra lines are already
+                    // in the response, so switching View doesn't refetch.
+                    viewType={filters.viewType}
+                  />
+                )}
               </div>
 
-              <div className="mt-12 border-t border-neutral-200 pt-6 text-center text-xs italic text-neutral-500">
+              <div className="mt-12 border-t border-slate-200 pt-6 text-center text-xs italic text-slate-500">
                 <p>
                   Generated on {new Date().toLocaleDateString()} at{" "}
                   {new Date().toLocaleTimeString()}
@@ -502,20 +475,20 @@ export default function Reports() {
         </>
       )}
 
-      {!reportData && !loading && !error && (
-        <Card className="border-2 border-dashed border-neutral-200 bg-neutral-50">
+      {!effectiveReportData && !effectiveLoading && !effectiveError && (
+        <Card className="border-2 border-dashed border-slate-200 bg-slate-50">
           <CardContent className="py-20 text-center">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
-              <BarChart3 size={40} className="text-neutral-300" />
+              <BarChart3 size={40} className="text-slate-300" />
             </div>
-            <h3 className="mb-2 text-xl font-bold text-neutral-900">
+            <h3 className="mb-2 text-xl font-bold text-slate-900">
               No Report Generated
             </h3>
-            <p className="mx-auto mb-8 max-w-md text-neutral-600">
+            <p className="mx-auto mb-8 max-w-md text-slate-600">
               Select your report type and date filters above, then click the
               "Generate Report" button to view your financial statements.
             </p>
-            <Button variant="primary" onClick={fetchReport} size="lg">
+            <Button variant="primary" onClick={fetchReport} >
               <BarChart3 size={18} className="mr-2" />
               Generate Report Now
             </Button>

@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log*
+.env
+.env.*
+uploads
+coverage
+.nyc_output
+.cache
+server.log
+Dockerfile
+.dockerignore

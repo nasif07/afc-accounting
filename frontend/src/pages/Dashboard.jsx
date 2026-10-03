@@ -1,309 +1,621 @@
-import { useState, useMemo } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
+import { Link } from "react-router";
+import { selectOrgInfo } from "../store/slices/settingsSlice";
 import {
-  DollarSign,
-  TrendingUp,
-  Users,
-  AlertCircle,
-  Plus,
-  ArrowUpRight,
+  AlertTriangle,
   ArrowDownRight,
+  ArrowUpRight,
+  FileText,
+  Landmark,
   RefreshCcw,
+  Wallet,
 } from "lucide-react";
-import { useReceipts } from "../hooks/useReceipts";
 import {
-  useAccountingSummary,
-  useRevenueData,
-  useRecentTransactions,
-} from "../hooks/useAccounting";
-import StatCard from "../components/StatCard";
-import RevenueChart from "../components/RevenueChart";
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { dashboardAPI } from "../services/apiMethods";
+import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from "../components/common";
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "../components/ui/Card";
-import Table from "../components/ui/Table";
-import Button from "../components/ui/Button";
-import Badge from "../components/ui/Badge";
-import EmptyState from "../components/EmptyState";
-import { formatCurrency } from "../utils/currency";
+  EmptyState,
+  ErrorState,
+  SectionSkeleton,
+} from "../components/common/Loaders";
+import KPICard from "../components/reports/KPICard";
+import MaskedAmount from "../components/common/MaskedAmount";
+
+// Navy (new shell primary) + the existing consolidated emerald/red/amber/
+// slate semantic colors, replacing the old ad-hoc teal/purple/cyan/pink set
+// that had no relationship to the app's actual design tokens.
+const chartColors = [
+  "#203C8F",
+  "#DC2626",
+  "#059669",
+  "#D97706",
+  "#64748B",
+  "#102050",
+  "#B91C1C",
+  "#94A3B8",
+];
+
+const formatDate = (date) => {
+  if (!date) return "-";
+  return new Date(date).toLocaleDateString("en-BD", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+function PanelState({ loading, error, empty, children, emptyText }) {
+  if (loading) {
+    return <SectionSkeleton rows={6} />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} />;
+  }
+
+  if (empty) {
+    return <EmptyState description={emptyText || "No data available yet."} />;
+  }
+
+  return children;
+}
+
+// `format="text"` because the value arrives already run through formatMoney,
+// not as a raw number — so `maskable` has to be passed explicitly here. Only
+// the money cards set it; "Pending Approval" is a count and stays visible.
+function SummaryCard({ title, value, icon, color, href, maskable }) {
+  return (
+    <KPICard
+      title={title}
+      value={value}
+      format="text"
+      maskable={maskable}
+      icon={icon}
+      color={color}
+      footer={
+        href && (
+          <Link
+            to={href}
+            className="mt-3 inline-flex text-xs font-bold uppercase tracking-wide text-slate-600 hover:text-brand-navy">
+            View details
+          </Link>
+        )
+      }
+    />
+  );
+}
+
+// Hero stat: bank + petty cash balances combined, the closest real "how much
+// liquid cash does the org have right now" figure the backend already
+// computes (dashboard.service.js returns both separately; no new endpoint
+// needed). The sparkline is real data too, not fabricated — it's the same
+// 6-month incomeVsExpense series already fetched for the bar chart below,
+// reduced to a monthly net (income − expense). That's a net CASH FLOW trend,
+// not a literal balance history (the backend has no daily/monthly balance
+// snapshots to chart), so it's captioned accordingly rather than implied to
+// be "Net Position over time."
+function NetPositionHero({ value, trendData, loading }) {
+  return (
+    <Card className="overflow-hidden border-0 bg-gradient-to-br from-brand-navy to-brand-navy-dark text-white shadow-none">
+      <CardContent className="p-5 sm:p-6 lg:p-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+          <div className="flex items-start gap-4">
+            <div className="rounded-xl bg-white/15 p-3">
+              <Wallet size={24} />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-white/60">
+                Net Position
+              </p>
+              {loading ? (
+                <div className="mt-2 h-8 w-40 animate-pulse rounded bg-white/15 sm:h-9 sm:w-52" />
+              ) : (
+                // The one balance figure not rendered through KPICard, and the
+                // largest on the screen — masked on the same terms. Button
+                // colours are overridden for the dark gradient behind it.
+                <MaskedAmount
+                  className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl"
+                  buttonClassName="text-white/60 hover:bg-white/15 hover:text-white focus:ring-white/30"
+                  label="net position"
+                  iconSize={18}>
+                  {value}
+                </MaskedAmount>
+              )}
+              <p className="mt-1 text-xs text-white/50">Bank + petty cash, current balance</p>
+            </div>
+          </div>
+
+          <div className="lg:w-64">
+            <div className="h-16 sm:h-20">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="netFlowFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="net"
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                    fill="url(#netFlowFill)"
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-1 text-right text-[10px] uppercase tracking-wide text-white/40">
+              6-month net cash flow
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatusBadge({ status }) {
+  const normalized = String(status || "pending").toLowerCase();
+  const variant =
+    normalized === "approved"
+      ? "success"
+      : normalized === "pending"
+        ? "warning"
+        : "secondary";
+
+  return (
+    <Badge variant={variant} className="capitalize">
+      {normalized}
+    </Badge>
+  );
+}
 
 export default function Dashboard() {
-  const { user } = useSelector((state) => state.auth);
-  const [dateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), 0, 1)
-      .toISOString()
-      .split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
-  });
+  const { currency, currencySymbol } = useSelector(selectOrgInfo);
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Fetch data
-  const { data: summary, isLoading: summaryLoading } = useAccountingSummary();
-  const { data: revenueData, isLoading: revenueLoading } = useRevenueData(
-    dateRange.startDate,
-    dateRange.endDate,
-  );
-  const { data: recentTransactions, isLoading: transactionsLoading } =
-    useRecentTransactions(5);
-  const { data: receipts } = useReceipts();
+  const formatMoney = useCallback((amount) => {
+    const num = Number(amount || 0);
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency || "BDT",
+        maximumFractionDigits: 2,
+      }).format(num);
+    } catch {
+      return `${currencySymbol}${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+    }
+  }, [currency, currencySymbol]);
 
-  // Optimized Stats Logic
-  const stats = useMemo(
-    () => [
+  const loadDashboard = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const response = await dashboardAPI.getSummary();
+      setDashboard(response.data?.data || response.data || null);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to load dashboard summary.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  const summaryCards = useMemo(() => {
+    const summary = dashboard?.summary || {};
+
+    return [
       {
-        title: "Cash on Hand",
-        value: formatCurrency(summary?.cashOnHand || 0),
-        icon: DollarSign,
-        trend: "up",
-        trendValue: "12.5%",
+        title: "Petty Cash",
+        value: formatMoney(summary.pettyCash),
+        maskable: true,
+        icon: Wallet,
+        color: "green",
+        href: "/dashboard/petty-cash",
+      },
+      {
+        title: "Bank Balance",
+        value: formatMoney(summary.bankBalance),
+        maskable: true,
+        icon: Landmark,
         color: "blue",
-        loading: summaryLoading,
+        href: "/dashboard/bank-cash",
       },
       {
-        title: "Accounts Receivable",
-        value: formatCurrency(summary?.accountsReceivable || 0),
-        icon: TrendingUp,
-        trend: "up",
-        trendValue: "8.2%",
-        color: "emerald",
-        loading: summaryLoading,
+        title: "Monthly Income",
+        value: formatMoney(summary.monthlyIncome),
+        maskable: true,
+        icon: ArrowUpRight,
+        color: "teal",
+        href: "/dashboard/reports",
       },
       {
-        title: "Accounts Payable",
-        value: formatCurrency(summary?.accountsPayable || 0),
-        icon: AlertCircle,
-        trend: "down",
-        trendValue: "3.1%",
-        color: "rose",
-        loading: summaryLoading,
+        title: "Monthly Expense",
+        value: formatMoney(summary.monthlyExpense),
+        maskable: true,
+        icon: ArrowDownRight,
+        color: "red",
+        href: "/dashboard/reports",
       },
       {
-        title: "Total Receipts",
-        value: formatCurrency(summary?.totalReceipts || 0),
-        icon: RefreshCcw,
-        trend: "up",
-        trendValue: "15.3%",
+        title: "Pending Approval",
+        value: String(summary.pendingApproval || 0),
+        icon: AlertTriangle,
         color: "amber",
-        loading: summaryLoading,
+        href: "/director/approvals",
       },
-    ],
-    [summary, summaryLoading],
-  );
+    ];
+  }, [dashboard, formatMoney]);
 
-  // Define Table Columns with Standard ERP Styling
-  const transactionColumns = useMemo(
-    () => [
-      {
-        key: "date",
-        label: "Date",
-        render: (value) => (
-          <span className="text-gray-500 font-medium">
-            {new Date(value).toLocaleDateString()}
-          </span>
-        ),
-      },
-      {
-        key: "description",
-        label: "Description",
-        render: (value) => (
-          <span className="font-semibold text-gray-800">{value}</span>
-        ),
-      },
-      {
-        key: "type",
-        label: "Category",
-        render: (value) => (
-          <Badge
-            variant="secondary"
-            className="uppercase text-[10px] tracking-widest">
-            {value}
-          </Badge>
-        ),
-      },
-      {
-        key: "amount",
-        label: "Amount",
-        // Align numbers to the right - a standard accounting rule
-        className: "text-right",
-        render: (value) => (
-          <span
-            className={`font-mono font-bold ${value < 0 ? "text-rose-600" : "text-emerald-600"}`}>
-            {formatCurrency(value)}
-          </span>
-        ),
-      },
-      {
-        key: "status",
-        label: "Status",
-        render: (value) => (
-          <Badge
-            className="capitalize shadow-sm"
-            variant={
-              value === "approved"
-                ? "success"
-                : value === "pending"
-                  ? "warning"
-                  : "error"
-            }>
-            {value || "Pending"}
-          </Badge>
-        ),
-      },
-    ],
-    [],
+  const incomeVsExpense = useMemo(() => dashboard?.charts?.incomeVsExpense || [], [dashboard]);
+
+  // The backend always returns one bucket per month, pre-seeded with zeros
+  // (dashboard.service.getIncomeExpenseChart), so this array is never empty
+  // and a `.length === 0` check could never fire the empty state. With no
+  // income/expense journals the chart then rendered flat at zero, and
+  // Recharts' default 0–4 domain made the axis read "0.001k … 0.004k" — which
+  // looks like broken data rather than no data. Check for actual values.
+  const hasIncomeExpenseData = useMemo(
+    () => incomeVsExpense.some((m) => Number(m.income) > 0 || Number(m.expense) > 0),
+    [incomeVsExpense],
+  );
+  const expenseByCategory = dashboard?.charts?.expenseByCategory || [];
+  const recentJournals = dashboard?.recentJournals || [];
+  const recentPettyCash = dashboard?.recentPettyCash || [];
+  const bankAccounts = dashboard?.bankAccounts || [];
+
+  const netPosition = formatMoney(
+    (dashboard?.summary?.bankBalance || 0) + (dashboard?.summary?.pettyCash || 0),
+  );
+  const netFlowTrend = useMemo(
+    () => incomeVsExpense.map((m) => ({ month: m.month, net: (m.income || 0) - (m.expense || 0) })),
+    [incomeVsExpense],
   );
 
   return (
-    <div className="space-y-10 antialiased">
-      {/* 1. Minimalist Header */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-100 pb-8">
+    <div className="space-y-6">
+      <header className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:gap-4 sm:pb-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-gray-900 uppercase">
-            Overview <span className="text-[#DA002E]">.</span>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+            Accounting Dashboard
           </h1>
-          <p className="text-sm font-medium text-gray-500 mt-1">
-            Bonjour, {user?.name?.split(" ")[0] || "Admin"}. Monitoring the
-            financial pulse of AF-Chittagong.
+          <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+            Approved ledger balances, current month performance, and
+            recent activity.
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="text-xs font-bold uppercase tracking-wider h-11 px-6">
-            Export PDF
-          </Button>
-          <Button className="bg-[#DA002E] hover:bg-[#b80027] text-white text-xs font-bold uppercase tracking-wider h-11 px-6 shadow-lg shadow-red-100 gap-2">
-            <Plus size={16} /> New Entry
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadDashboard}
+          icon={RefreshCcw}
+          className="w-full md:w-auto">
+          Refresh
+        </Button>
       </header>
 
-      {/* 2. Optimized Stats Grid (No Borders, Subtle Backgrounds) */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <StatCard
-            key={index}
-            {...stat}
-            className="bg-white border-none shadow-sm hover:shadow-md transition-shadow"
-          />
-        ))}
+      {dashboard?.warnings?.pettyCash && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {dashboard.warnings.pettyCash}
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <section className="space-y-3 sm:space-y-4">
+        <NetPositionHero value={netPosition} trendData={netFlowTrend} loading={loading} />
+
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
+          {loading
+            ? Array.from({ length: 5 }).map((_, index) => (
+                <Card key={index} className="shadow-none">
+                  <CardContent className="p-3 sm:p-5">
+                    <div className="h-3 w-16 animate-pulse rounded bg-slate-100 sm:w-20" />
+                    <div className="mt-2 h-5 w-20 animate-pulse rounded bg-slate-100 sm:mt-3 sm:h-6 sm:w-28" />
+                  </CardContent>
+                </Card>
+              ))
+            : summaryCards.map((card) => (
+                <SummaryCard key={card.title} {...card} />
+              ))}
+        </div>
       </section>
 
-      {/* 3. Primary Data Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        <div className="xl:col-span-8">
-          <Card className="border-none shadow-sm bg-white overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between px-8 py-6 border-b border-gray-50">
-              <CardTitle className="text-sm font-bold uppercase tracking-[0.15em] text-gray-400">
-                Revenue Performance
-              </CardTitle>
-              <Badge
-                variant="outline"
-                className="text-[10px] uppercase tracking-tighter">
-                Fiscal Year 2026
-              </Badge>
-            </CardHeader>
-            <CardContent className="p-8">
-              <RevenueChart
-                data={revenueData || []}
-                loading={revenueLoading}
-                height={350}
-              />
-            </CardContent>
-          </Card>
-        </div>
+      <section className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-5">
+        <Card className="shadow-none lg:col-span-1 xl:col-span-3">
+          <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
+              Income vs Expense
+            </CardTitle>
+            <Link
+              to="/dashboard/reports"
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
+              Reports
+            </Link>
+          </CardHeader>
+          <CardContent className="p-5">
+            <PanelState
+              loading={loading}
+              error={error}
+              empty={!hasIncomeExpenseData}
+              emptyText="No approved income or expense journals yet.">
+              <div className="h-[220px] sm:h-[270px] lg:h-[300px] xl:h-80">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={incomeVsExpense}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(value) => `${Number(value) / 1000}k`}
+                    />
+                    <Tooltip formatter={(value) => formatMoney(value)} />
+                    <Legend />
+                    <Bar
+                      dataKey="income"
+                      name="Income"
+                      fill="#203C8F"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="expense"
+                      name="Expense"
+                      fill="#DC2626"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </PanelState>
+          </CardContent>
+        </Card>
 
-        <div className="xl:col-span-4 space-y-6">
-          {/* Quick Metrics Panel */}
-          <Card className="border-none shadow-sm bg-[#111827] text-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                Activity Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6 pt-4">
-              <div className="flex justify-between items-center group cursor-default">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                    Total Enrolled Students
+        <Card className="shadow-none lg:col-span-1 xl:col-span-2">
+          <CardHeader className="border-b border-slate-100 p-5">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
+              Expense by Category
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-5">
+            <PanelState
+              loading={loading}
+              error={error}
+              empty={expenseByCategory.length === 0}
+              emptyText="No approved expense journals this month.">
+              <div className="h-72 sm:h-80 lg:h-[300px] xl:h-80">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <PieChart>
+                    <Pie
+                      data={expenseByCategory}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="42%"
+                      innerRadius="30%"
+                      outerRadius="55%"
+                      paddingAngle={2}>
+                      {expenseByCategory.map((entry, index) => (
+                        <Cell
+                          key={entry.name}
+                          fill={chartColors[index % chartColors.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatMoney(value)} />
+                    <Legend
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      align="center"
+                      iconSize={10}
+                      iconType="circle"
+                      wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </PanelState>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-3">
+        <Card className="shadow-none">
+          <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
+              Recent Journals
+            </CardTitle>
+            <Link
+              to="/dashboard/journal-entries"
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
+              View all
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <PanelState
+              loading={loading}
+              error={error}
+              empty={recentJournals.length === 0}
+              emptyText="No journal entries found.">
+              <div className="divide-y divide-slate-100">
+                {recentJournals.map((journal) => (
+                  <Link
+                    key={journal.id}
+                    to={`/dashboard/journal-entries/${journal.id}`}
+                    className="flex items-start gap-3 p-4 transition hover:bg-slate-50">
+                    <FileText className="mt-1 h-4 w-4 text-slate-400" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-sm font-semibold text-slate-800">
+                          {journal.voucherNumber}
+                        </p>
+                        <StatusBadge status={journal.status} />
+                      </div>
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {journal.description ||
+                          journal.referenceNumber ||
+                          "Journal entry"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {formatDate(journal.voucherDate)} ·{" "}
+                        {formatMoney(journal.totalDebit)}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </PanelState>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-none">
+          <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
+              Recent Petty Cash
+            </CardTitle>
+            <Link
+              to="/dashboard/petty-cash"
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
+              View all
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <PanelState
+              loading={loading}
+              error={error}
+              empty={recentPettyCash.length === 0}
+              emptyText="No approved petty cash movements found.">
+              <div className="divide-y divide-slate-100">
+                {recentPettyCash.map((row) => (
+                  <div key={row.id} className="flex items-start gap-3 p-4">
+                    {row.type === "deposit" ? (
+                      <ArrowUpRight className="mt-1 h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <ArrowDownRight className="mt-1 h-4 w-4 text-red-600" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-sm font-semibold text-slate-800">
+                          {row.voucherNumber}
+                        </p>
+                        <span
+                          className={
+                            row.type === "deposit"
+                              ? "text-sm font-bold text-emerald-700"
+                              : "text-sm font-bold text-red-700"
+                          }>
+                          {formatMoney(row.debit || row.credit)}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {row.description || row.counterparty}
+                      </p>
+                      <p className="mt-1 text-xs capitalize text-slate-400">
+                        {formatDate(row.date)} · {row.type}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PanelState>
+          </CardContent>
+        </Card>
+
+        {/* Where the "Bank Balance" figure actually sits. Built from the
+            same approved journal lines as that card, so the rows add up to
+            it. Amounts are masked one by one, like every balance here —
+            no share-of-total bars, which would leak the proportions. */}
+        <Card className="shadow-none">
+          <CardHeader className="flex-row items-center justify-between border-b border-slate-100 p-5">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-600">
+              Bank Accounts
+            </CardTitle>
+            <Link
+              to="/dashboard/bank-cash"
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-dark">
+              View all
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <PanelState
+              loading={loading}
+              error={error}
+              empty={bankAccounts.length === 0}
+              emptyText="No active bank accounts under the Bank head yet.">
+              <div className="divide-y divide-slate-100">
+                {bankAccounts.map((account) => (
+                  <div key={account.id} className="flex items-start gap-3 p-4">
+                    <Landmark className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <Link
+                          to={`/dashboard/ledger?accountId=${account.id}`}
+                          title="Open this account's ledger"
+                          className="truncate text-sm font-semibold text-slate-800 hover:text-brand-navy hover:underline">
+                          {account.accountName}
+                        </Link>
+                        <MaskedAmount
+                          className={`shrink-0 text-sm font-bold ${
+                            account.balance < 0 ? "text-red-700" : "text-slate-800"
+                          }`}
+                          label={`${account.accountName} balance`}>
+                          {formatMoney(account.balance)}
+                        </MaskedAmount>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">
+                        <span className="font-mono">{account.accountCode}</span>
+                        {" · "}
+                        {account.lastActivity
+                          ? `Last activity ${formatDate(account.lastActivity)}`
+                          : "No approved activity"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Total
                   </p>
-                  <p className="text-2xl font-black tracking-tighter mt-0.5">
-                    {receipts?.length || 0}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-gray-800 text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                  <Users size={20} />
+                  <MaskedAmount
+                    className="text-sm font-bold text-slate-900"
+                    label="total bank balance">
+                    {formatMoney(dashboard?.summary?.bankBalance)}
+                  </MaskedAmount>
                 </div>
               </div>
-              <div className="flex justify-between items-center group cursor-default">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                    Pending Approvals
-                  </p>
-                  <p className="text-2xl font-black tracking-tighter mt-0.5 text-amber-400">
-                    {receipts?.filter((r) => r.approvalStatus === "pending")
-                      ?.length || 0}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-gray-800 text-amber-400 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                  <AlertCircle size={20} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* System Integrity Card */}
-          <Card className="border-none shadow-sm bg-gray-50">
-            <CardContent className="p-6 space-y-4">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                System Integrity
-              </h3>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-600 flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{" "}
-                  Core API
-                </span>
-                <span className="text-[10px] font-bold text-emerald-600 uppercase">
-                  Operational
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* 4. Secondary Row: Transactions Table */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between px-2">
-          <h2 className="text-lg font-bold tracking-tight text-gray-900">
-            Recent Transactions
-          </h2>
-          <Button
-            variant="link"
-            className="text-xs font-bold text-[#DA002E] uppercase tracking-widest">
-            View Ledger
-          </Button>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-50 overflow-hidden">
-          {transactionsLoading ? (
-            <div className="p-20 text-center space-y-4">
-              <div className="w-10 h-10 border-4 border-gray-100 border-t-[#DA002E] rounded-full animate-spin mx-auto" />
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                Syncing Ledger...
-              </p>
-            </div>
-          ) : (
-            <Table
-              columns={transactionColumns}
-              data={recentTransactions}
-              hoverable={true}
-              transparentHeader={true}
-            />
-          )}
-        </div>
+            </PanelState>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

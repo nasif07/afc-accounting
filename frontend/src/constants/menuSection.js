@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   GraduationCap,
-  Receipt,
   Wallet,
   Briefcase,
   Users,
@@ -11,8 +10,9 @@ import {
   Landmark,
   CheckCircle2,
   BarChart3,
-  ShieldCheck,
   ClipboardList,
+  ClipboardCheck,
+  FileCheck2,
   Settings,
 } from "lucide-react";
 
@@ -31,6 +31,27 @@ export const menuSections = [
         icon: LayoutDashboard,
         roles: ["director", "accountant", "sub-accountant"],
       },
+      // A director's two approval queues sit here, immediately under the
+      // Dashboard link, rather than being scattered across Accounting and
+      // Control. They are the work a director opens the app to do, so they
+      // belong at the top with it — and grouping them means the role's daily
+      // queue is one glance rather than two hunts down the sidebar.
+      //
+      // The routes stay on /director/* deliberately: that path is what
+      // enforces the role (DirectorLayoutWrapper in Routes.jsx), and it is the
+      // target of the deep link in approval notification emails.
+      {
+        title: "Request Approvals",
+        path: "/director/approval-requests",
+        icon: FileCheck2,
+        roles: ["director"],
+      },
+      {
+        title: "Journal Approvals",
+        path: "/director/journal-approvals",
+        icon: ClipboardList,
+        roles: ["director"],
+      },
     ],
   },
   {
@@ -40,12 +61,6 @@ export const menuSections = [
         title: "Students",
         path: "/dashboard/students",
         icon: GraduationCap,
-        roles: ["director", "accountant", "sub-accountant"],
-      },
-      {
-        title: "Receipts",
-        path: "/dashboard/receipts",
-        icon: Receipt,
         roles: ["director", "accountant", "sub-accountant"],
       },
       {
@@ -61,15 +76,21 @@ export const menuSections = [
         roles: ["director", "accountant"],
       },
       {
-        title: "Vendors",
-        path: "/dashboard/vendors",
-        icon: Users,
+        title: "Student Collection",
+        path: "/dashboard/bank-book",
+        icon: NotebookText,
         roles: ["director", "accountant"],
       },
       {
-        title: "Expenses",
-        path: "/dashboard/expenses",
+        title: "Petty Cash",
+        path: "/dashboard/petty-cash",
         icon: Wallet,
+        roles: ["director", "accountant", "sub-accountant"],
+      },
+      {
+        title: "Approval Requests",
+        path: "/dashboard/approval-requests",
+        icon: ClipboardCheck,
         roles: ["director", "accountant"],
       },
     ],
@@ -96,22 +117,23 @@ export const menuSections = [
         roles: ["director", "accountant"],
       },
       {
+        title: "Bank Reconciliation",
+        path: "/dashboard/bank-book/reconciliation",
+        icon: NotebookText,
+        roles: ["director", "accountant"],
+      },
+      {
         title: "Bank / Cash",
         path: "/dashboard/bank-cash",
         icon: Landmark,
         roles: ["director", "accountant"],
       },
+
       {
         title: "Reports",
         path: "/dashboard/reports",
         icon: BarChart3,
         roles: ["director", "accountant"],
-      },
-      {
-        title: "Approvals",
-        path: "/director/approvals",
-        icon: CheckCircle2,
-        roles: ["director"],
       },
     ],
   },
@@ -119,15 +141,9 @@ export const menuSections = [
     title: "Control",
     items: [
       {
-        title: "User Management",
-        path: "/dashboard/users",
-        icon: ShieldCheck,
-        roles: ["director"],
-      },
-      {
-        title: "Audit Log",
-        path: "/dashboard/audit-log",
-        icon: ClipboardList,
+        title: "User Approvals",
+        path: "/director/approvals",
+        icon: CheckCircle2,
         roles: ["director"],
       },
       {

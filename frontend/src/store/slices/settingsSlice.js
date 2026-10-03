@@ -1,70 +1,41 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import { settingsAPI } from '../../services/apiMethods';
+import { API_URL } from '../../services/api';
 
 export const fetchSettings = createAsyncThunk(
-  'settings/fetchSettings',
-  async (params = {}, { rejectWithValue }) => {
+  'settings/fetch',
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await settingsAPI.getAll(params);
-      return response.data;
+      const response = await settingsAPI.get();
+      return response.data?.data ?? response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch settings');
     }
-  }
+  },
 );
 
-export const fetchSettingById = createAsyncThunk(
-  'settings/fetchSettingById',
-  async (id, { rejectWithValue }) => {
-    try {
-      const response = await settingsAPI.getById(id);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch setting');
-    }
-  }
-);
-
-export const createSetting = createAsyncThunk(
-  'settings/createSetting',
+export const updateSettings = createAsyncThunk(
+  'settings/update',
   async (data, { rejectWithValue }) => {
     try {
-      const response = await settingsAPI.create(data);
-      return response.data;
+      const response = await settingsAPI.update(data);
+      return response.data?.data ?? response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create setting');
+      // Preserve the full backend error payload (not just the message
+      // string), same pattern as accountSlice.js/payrollSlice.js. Currently
+      // a no-op in practice — there's no Zod validation middleware on the
+      // /settings route, so `errors[]` is never populated for this endpoint
+      // today — but this keeps the slice consistent and correct if that
+      // ever changes.
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update settings' },
+      );
     }
-  }
+  },
 );
-
-export const updateSetting = createAsyncThunk(
-  'settings/updateSetting',
-  async ({ id, data }, { rejectWithValue }) => {
-    try {
-      const response = await settingsAPI.update(id, data);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update setting');
-    }
-  }
-);
-
-export const deleteSetting = createAsyncThunk(
-  'settings/deleteSetting',
-  async (id, { rejectWithValue }) => {
-    try {
-      await settingsAPI.delete(id);
-      return id;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete setting');
-    }
-  }
-);
-
 
 const initialState = {
-  items: [],
-  item: null,
+  data: null,
   loading: false,
   error: null,
   success: false,
@@ -74,87 +45,85 @@ const settingsSlice = createSlice({
   name: 'settings',
   initialState,
   reducers: {
-    clearError: (state) => {
-      state.error = null;
-    },
-    clearSuccess: (state) => {
-      state.success = false;
-    },
-    clearItem: (state) => {
-      state.item = null;
-    },
+    clearError:   (state) => { state.error   = null;  },
+    clearSuccess: (state) => { state.success = false; },
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchSettings.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+      .addCase(fetchSettings.pending,  (state) => { state.loading = true;  state.error = null; })
       .addCase(fetchSettings.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.data || action.payload;
+        state.data    = action.payload;
       })
       .addCase(fetchSettings.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error   = action.payload;
       })
-      .addCase(fetchSettingById.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchSettingById.fulfilled, (state, action) => {
-        state.loading = false;
-        state.item = action.payload.data || action.payload;
-      })
-      .addCase(fetchSettingById.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(createSetting.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(createSetting.fulfilled, (state, action) => {
+      .addCase(updateSettings.pending,  (state) => { state.loading = true;  state.error = null; })
+      .addCase(updateSettings.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        state.items.push(action.payload.data || action.payload);
+        state.data    = action.payload;
       })
-      .addCase(createSetting.rejected, (state, action) => {
+      .addCase(updateSettings.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(updateSetting.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(updateSetting.fulfilled, (state, action) => {
-        state.loading = false;
-        state.success = true;
-        const index = state.items.findIndex(item => item._id === action.payload.data._id);
-        if (index !== -1) {
-          state.items[index] = action.payload.data;
-        }
-      })
-      .addCase(updateSetting.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      .addCase(deleteSetting.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(deleteSetting.fulfilled, (state, action) => {
-        state.loading = false;
-        state.success = true;
-        state.items = state.items.filter(item => item._id !== action.payload);
-      })
-      .addCase(deleteSetting.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || 'Failed to update settings';
+      });
   },
 });
 
-export const { clearError, clearSuccess, clearItem } = settingsSlice.actions;
+export const { clearError, clearSuccess } = settingsSlice.actions;
+
+// Memoized selector — only recomputes when settings.data reference changes,
+// preventing unnecessary rerenders in every consumer on unrelated state updates.
+const selectSettingsData = (state) => state.settings.data;
+
+/**
+ * The URL an <img> should load for the organisation logo.
+ *
+ * Three sources, in priority order, because installs exist in all three states:
+ *   1. an uploaded object — served through the API, which redirects to a
+ *      short-lived presigned GET (the bucket is private, so the key itself is
+ *      never a URL);
+ *   2. a legacy hand-typed path or URL from the old text field;
+ *   3. the artwork bundled with the frontend.
+ *
+ * The `v` parameter is what makes a replaced logo actually appear: the URL is
+ * otherwise identical across uploads, so the browser would keep serving the
+ * previous image from cache.
+ */
+const resolveLogoUrl = (data) => {
+  if (data?.orgLogoKey) {
+    const version = data.orgLogoUpdatedAt
+      ? new Date(data.orgLogoUpdatedAt).getTime()
+      : '';
+    return `${API_URL}/settings/logo${version ? `?v=${version}` : ''}`;
+  }
+  return data?.orgLogo || '/afc-full-logo.jpg';
+};
+
+export const selectOrgInfo = createSelector(selectSettingsData, (data) => ({
+  orgName:               data?.orgName    || 'Alliance Francaise de Chittagong',
+  orgEmail:              data?.orgEmail   || '',
+  orgPhone:              data?.orgPhone   || '',
+  orgAddress:            data?.orgAddress || '',
+  orgWebsite:            data?.orgWebsite || '',
+  orgLogo:               resolveLogoUrl(data),
+  // The raw key, for the Settings screen: it needs to know whether a logo was
+  // uploaded (and so whether "Remove" applies) rather than just what to render.
+  orgLogoKey:            data?.orgLogoKey || '',
+  directorName:          data?.directorName  || 'Bruno LACRAMPE',
+  directorTitle:         data?.directorTitle || 'Director',
+  leaveYearLabel:        data?.leaveYearLabel     || "July'2025 - June'2026",
+  benefitPeriodLabel:    data?.benefitPeriodLabel || '01-07-2023 to 30-06-2025',
+  healthFundLabel:       data?.healthFundLabel    || 'Health Fund',
+  annualLeaveDays:       data?.annualLeaveDays ?? 0,
+  sickLeaveDays:         data?.sickLeaveDays   ?? 0,
+  bankNameForPayment:    data?.bankNameForPayment   || 'Brac Bank PLC',
+  bankAccountForPayment: data?.bankAccountForPayment || 'XXXXXXXXXXXXXXX',
+  currency:              data?.currency       || 'BDT',
+  currencySymbol:        data?.currencySymbol || '৳',
+}));
+
 export default settingsSlice.reducer;

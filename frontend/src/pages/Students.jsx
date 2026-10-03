@@ -1,15 +1,6 @@
-import { useState, useEffect } from "react";
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Eye,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Users,
-} from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+﻿import { useState, useEffect } from "react";
+import { Plus, Edit2, Trash2, Eye, Users, GraduationCap } from "lucide-react";
+import { useSearchParams } from "react-router";
 
 import {
   useStudents,
@@ -19,10 +10,8 @@ import {
   useBulkCreateStudents,
 } from "../hooks/useStudents";
 
-import Table from "../components/ui/Table";
-import Badge from "../components/ui/Badge";
-import EmptyState from "../components/EmptyState";
-import { Card, CardContent } from "../components/ui/Card";
+import { Table, Badge, Button, Modal } from "../components/common";
+import { usePaginationParams } from "../hooks/usePaginationParams";
 import { formatCurrency } from "../utils/currency";
 import StudentFormModal from "../components/students/StudentFormModal";
 import StudentDetailsModal from "../components/students/StudentDetailsModal";
@@ -31,99 +20,82 @@ import SectionHeader from "../components/common/SectionHeader";
 export default function Students() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // URL state
-  const page = Number(searchParams.get("page") || "1");
+  const {
+    page,
+    pageSize: limit,
+    setPage,
+    setPageSize,
+  } = usePaginationParams(10);
   const searchTerm = searchParams.get("search") || "";
 
-  // Local UI state
   const [localSearch, setLocalSearch] = useState(searchTerm);
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
-
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingStudent, setViewingStudent] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
 
-  // Sync local input if URL changes manually / browser back-forward
   useEffect(() => {
     setLocalSearch(searchTerm);
   }, [searchTerm]);
 
-  // Fetch students
-  const { data, isLoading } = useStudents({
-    page,
-    search: searchTerm,
-    limit: 10,
-  });
+  const { data, isLoading } = useStudents({ page, search: searchTerm, limit });
 
   const students = Array.isArray(data?.students) ? data.students : [];
   const pagination = data?.pagination || { totalPages: 1, total: 0 };
 
-  // Mutations
   const createMutation = useCreateStudent();
   const updateMutation = useUpdateStudent();
   const deleteMutation = useDeleteStudent();
   const bulkMutation = useBulkCreateStudents();
 
-  // Debounced search
   useEffect(() => {
     const timeout = setTimeout(() => {
+      const currentSearch = searchParams.get("search") || "";
+      const trimmedSearch = localSearch.trim();
+      if (currentSearch === trimmedSearch) return;
       const currentParams = Object.fromEntries(searchParams.entries());
-
-      setSearchParams({
-        ...currentParams,
-        search: localSearch.trim(),
-        page: "1",
-      });
+      if (trimmedSearch) {
+        setSearchParams({ ...currentParams, search: trimmedSearch, page: "1" });
+      } else {
+        const newParams = { ...currentParams };
+        delete newParams.search;
+        newParams.page = "1";
+        setSearchParams(newParams);
+      }
     }, 500);
-
     return () => clearTimeout(timeout);
-  }, [localSearch, searchParams, setSearchParams]);
-
-  const handlePageChange = (newPage) => {
-    const currentParams = Object.fromEntries(searchParams.entries());
-
-    setSearchParams({
-      ...currentParams,
-      page: String(newPage),
-    });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams read inside timeout intentionally; adding it would reset the debounce on every navigation
+  }, [localSearch, setSearchParams]);
 
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingStudent(null);
   };
-
   const handleAddStudent = () => {
     setEditingStudent(null);
     setShowForm(true);
   };
-
   const handleViewStudent = (student) => {
     setViewingStudent(student);
     setShowViewModal(true);
   };
-
   const handleEditStudent = (student) => {
     setEditingStudent(student);
     setShowForm(true);
   };
-
   const handleCloseViewModal = () => {
     setShowViewModal(false);
     setViewingStudent(null);
   };
 
-  const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this student record?",
-    );
-
-    if (!confirmed) return;
-
+  const handleConfirmDelete = async () => {
     try {
-      await deleteMutation.mutateAsync(id);
+      await deleteMutation.mutateAsync(pendingDelete);
     } catch (error) {
       console.error("Failed to delete student:", error);
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -131,8 +103,9 @@ export default function Students() {
     {
       key: "rollNumber",
       label: "Roll #",
+      mono: true,
       render: (val) => (
-        <span className="font-mono font-medium text-neutral-600">
+        <span className="font-mono font-medium text-slate-600">
           {val || "—"}
         </span>
       ),
@@ -140,21 +113,25 @@ export default function Students() {
     {
       key: "name",
       label: "Student Info",
+      primary: true,
+      wrap: true,
       render: (_, row) => (
         <div>
-          <p className="font-semibold text-neutral-900">{row?.name || "—"}</p>
-          <p className="text-xs text-neutral-500">{row?.email || "No email"}</p>
+          <p className="font-semibold text-slate-900">{row?.name || "—"}</p>
+          <p className="text-xs text-slate-500">{row?.email || "No email"}</p>
         </div>
       ),
     },
     {
       key: "class",
       label: "Class",
-      render: (val) => <Badge variant="outline">{val || "N/A"}</Badge>,
+      render: (val) => <Badge variant="default">{val || "N/A"}</Badge>,
     },
     {
       key: "financials",
       label: "Pending Fees",
+      align: "right",
+      mono: true,
       render: (val) => {
         const pending = val?.pending || 0;
         return (
@@ -179,31 +156,31 @@ export default function Students() {
     {
       key: "_id",
       label: "Actions",
+      type: "actions",
+      align: "center",
       render: (id, row) => (
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleViewStudent(row)}
-            className="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100"
-            title="View">
-            <Eye size={16} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleEditStudent(row)}
-            className="rounded-lg p-2 text-amber-600 transition hover:bg-amber-50"
-            title="Edit">
-            <Edit2 size={16} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleDelete(id)}
-            className="rounded-lg p-2 text-red-600 transition hover:bg-red-50"
-            title="Delete">
-            <Trash2 size={16} />
-          </button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`View ${row.name}'s details`}
+            onClick={() => handleViewStudent(row)}>
+            <Eye size={15} className="text-slate-500" />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Edit ${row.name}`}
+            onClick={() => handleEditStudent(row)}>
+            <Edit2 size={15} className="text-amber-600" />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Delete ${row.name}`}
+            onClick={() => setPendingDelete(id)}>
+            <Trash2 size={15} className="text-red-600" />
+          </Button>
         </div>
       ),
     },
@@ -225,67 +202,51 @@ export default function Students() {
         onButtonClick={handleAddStudent}
         buttonIcon={Plus}
       />
-      {/* 
-      <Card className="border-neutral-200/60">
-        <CardContent className="p-3">
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="Search by name, roll number, or email..."
-              className="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-2.5 pl-10 pr-4 outline-none transition focus:ring-2 focus:ring-neutral-200"
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card> */}
 
-      <Card className="overflow-hidden border-neutral-200/60">
-        {isLoading ? (
-          <div className="py-20 text-center text-neutral-500 animate-pulse">
-            Loading records...
-          </div>
-        ) : students.length > 0 ? (
-          <>
-            <Table columns={columns} data={students} />
+      {/* Loading, empty and paginated states all live inside Table now, so
+          this page no longer branches between three different shells. */}
+      <Table
+        columns={columns}
+        data={students}
+        loading={isLoading}
+        searchable={false}
+        page={page}
+        pageSize={limit}
+        totalItems={pagination.total || 0}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        itemLabel="records"
+        emptyIcon={GraduationCap}
+        emptyMessage={searchTerm ? "No results found" : "No students yet"}
+        emptyDescription="Try adjusting your search or add a new student."
+      />
 
-            <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-50 px-6 py-4">
-              <p className="text-sm text-neutral-600">
-                Showing page{" "}
-                <span className="font-semibold text-neutral-900">{page}</span>{" "}
-                of {pagination.totalPages || 1}
-              </p>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => handlePageChange(page - 1)}
-                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50">
-                  <ChevronLeft size={18} />
-                </button>
-
-                <button
-                  type="button"
-                  disabled={page >= (pagination.totalPages || 1)}
-                  onClick={() => handlePageChange(page + 1)}
-                  className="rounded-lg border border-neutral-200 bg-white p-2 transition hover:bg-neutral-50 disabled:opacity-50">
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <EmptyState
-            title={searchTerm ? "No results found" : "No students yet"}
-            description="Try adjusting your search or add a new student."
-          />
-        )}
-      </Card>
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        title="Delete Student"
+        size="sm">
+        <p className="text-sm text-slate-600 mb-6">
+          Are you sure you want to delete this student record? This action
+          cannot be undone.
+        </p>
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => setPendingDelete(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            fullWidth
+            loading={deleteMutation.isPending}
+            onClick={handleConfirmDelete}>
+            Delete
+          </Button>
+        </div>
+      </Modal>
 
       <StudentFormModal
         open={showForm}
@@ -293,20 +254,20 @@ export default function Students() {
         student={editingStudent}
         isSubmitting={isSubmitting}
         onSubmit={async (payload) => {
-          try {
-            if (editingStudent?._id) {
-              await updateMutation.mutateAsync({
-                id: editingStudent._id,
-                data: payload,
-              });
-            } else {
-              await createMutation.mutateAsync(payload);
-            }
-
-            handleCloseForm();
-          } catch (error) {
-            console.error("Failed to submit student form:", error);
+          // Deliberately not caught here — StudentFormModal awaits this call
+          // and needs the rejection to reach its own catch block so it can
+          // map backend field errors (err.response.data.errors) via setError.
+          // The mutation's own onError (useStudents.js) still shows a toast
+          // for any non-field error regardless of what happens to this promise.
+          if (editingStudent?._id) {
+            await updateMutation.mutateAsync({
+              id: editingStudent._id,
+              data: payload,
+            });
+          } else {
+            await createMutation.mutateAsync(payload);
           }
+          handleCloseForm();
         }}
         onBulkImport={async (studentsArray) => {
           try {

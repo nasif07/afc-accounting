@@ -1,9 +1,82 @@
 @import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap");
 @import "tailwindcss";
+/* shadcn/ui (Calendar + Popover only — see components/common/DatePicker.jsx).
+   tw-animate-css and shadcn/tailwind.css supply the data-open/data-closed
+   variants and animate-in/out keyframes Radix's Popover needs for its
+   open/close transitions. Deliberately NOT importing shadcn's own font
+   (Geist) or its oklch-based color theme (:root/.dark/@theme inline that
+   `shadcn init` also generates) — this app keeps its existing Quicksand
+   typeface and the consolidated slate/red/emerald/amber palette above;
+   the Calendar/Popover are styled directly with those same utility
+   classes rather than shadcn's bg-primary/text-foreground indirection. */
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* ── Brand design tokens (Tailwind v4 @theme) ────────────────────────────── */
+/* Alliance Française tricolor (blue/white/red). Usage: bg-brand-blue,
+   text-brand-red, border-brand-white — brand-blue is the only one with a
+   live call site today (Register.jsx's submit button); brand-red/white
+   are reserved for the same identity but currently unused directly.
+   ────────────────────────────────────────────────────────────────────────
+   Token consolidation (design-system audit): brand-red previously held
+   #ED1C24, but the color actually used everywhere for primary actions,
+   destructive buttons, and error states is Tailwind's own red-600
+   (#DC2626) — 40+ call sites, vs. 0 for the old brand-red value. Rather
+   than retire the token (it completes the brand trio, and blue/white are
+   still live), brand-red now equals red-600 exactly, so it's finally a
+   correct alias for the color already in use rather than a second,
+   slightly-off red nobody reaches for. Actual usage app-wide should keep
+   using the stock red-600/emerald-600/amber-600/slate-* utility classes
+   below — this token stays reserved for the literal brand mark.
+
+   Consolidated color decisions (see docs/frontendreport.md audit):
+     neutral/gray  → slate-*     (was competing with gray-* and neutral-*)
+     success       → emerald-*   (was competing with green-*)
+     danger/error  → red-*       (was competing with rose-* in a few
+                                   genuinely duplicate spots — most rose-*
+                                   usage app-wide is a deliberate, distinct
+                                   convention: paired emerald/rose for
+                                   inflow-vs-outflow amounts, and a four-way
+                                   approved/pending/rejected/paid status
+                                   semaphore — both were left as-is)
+     warning       → amber-*     (already consistent, unchanged)        */
+@theme {
+  --color-brand-blue:  #002395;
+  --color-brand-red:   #DC2626;
+  --color-brand-white: #FFFFFF;
+}
+
+/* ── App-shell primary (navy) ────────────────────────────────────────────── */
+/* New addition for the dashboard/shell redesign — NOT a replacement for the
+   semantic palette above (emerald=success, red=danger, amber=warning stay
+   exactly as-is). Navy is the new UI-chrome primary: sidebar background,
+   header accents, and primary nav/link affordances.
+   -light/-dark are the same hue/saturation as the base, just relit (plain
+   HSL math, computed once and hardcoded — no oklch(), consistent with this
+   app's existing avoidance of oklch anywhere in hand-written CSS):
+     base  #203C8F → hsl(224.9, 63.4%, 34.3%)
+     light #E3E7F2 → same hue, desaturated + raised to L92% (subtle tints/hover)
+     dark  #102050 → same hue/sat, dropped to L~19% (sidebar surface)         */
+@theme {
+  --color-brand-navy:       #203C8F;
+  --color-brand-navy-light: #E3E7F2;
+  --color-brand-navy-dark:  #102050;
+}
 
 /* Global Styles */
 * {
   font-family: "Quicksand", sans-serif;
+}
+
+/* Respect prefers-reduced-motion app-wide (sidebar/drawer slide, hover
+   transitions, etc.) rather than special-casing just the new shell. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 /* Custom Scrollbar for Sidebar */
 /* Target the sidebar navigation specifically */
@@ -36,7 +109,6 @@
   scrollbar-color: #e2e8f0 transparent;
 }
 
-
 @keyframes heartbeat {
   0% {
     transform: scale(1);
@@ -58,3 +130,124 @@
 .animate-heartbeat {
   animation: heartbeat 1.2s ease-in-out infinite;
 }
+
+/* ── Top bar page-navigation loader (components/common/TopBarLoader.jsx) ── */
+@keyframes topbar-loader {
+  0%   { transform: translateX(-100%); width: 40%; }
+  50%  { transform: translateX(60%);   width: 60%; }
+  100% { transform: translateX(200%);  width: 40%; }
+}
+
+.animate-topbar-loader {
+  animation: topbar-loader 1.1s ease-in-out infinite;
+}
+
+/* ── Rich text (TipTap) ──────────────────────────────────────────────────── */
+/* One class shared by the editor surface (RichTextEditor.jsx) and the read-only
+   renderer (RichTextView.jsx), so a description looks identical while it is
+   being written and after it is saved. Written by hand rather than pulled in
+   with @tailwindcss/typography: prose's defaults are tuned for article pages
+   (large headings, generous vertical rhythm) and would have needed overriding
+   on almost every element to sit inside a modal at this app's text scale.
+
+   Tailwind's preflight resets margins and list markers to nothing, so every
+   rule below is restoring something the reset removed — not overriding a
+   browser default. */
+.rich-text {
+  font-size: 0.875rem;      /* text-sm — matches the surrounding form controls */
+  line-height: 1.65;
+  color: #334155;           /* slate-700 */
+  overflow-wrap: anywhere;  /* a pasted URL must not widen the modal */
+}
+
+.rich-text > :first-child { margin-top: 0; }
+.rich-text > :last-child  { margin-bottom: 0; }
+
+.rich-text p { margin: 0 0 0.75em; }
+
+/* The editor represents a blank line as an empty paragraph. Without a height
+   it collapses, and the author's spacing silently disappears on save. */
+.rich-text p:empty::before { content: ""; display: inline-block; }
+
+.rich-text h2,
+.rich-text h3 {
+  font-weight: 700;
+  color: #0f172a;           /* slate-900 */
+  line-height: 1.35;
+  margin: 1.25em 0 0.5em;
+}
+.rich-text h2 { font-size: 1.0625rem; }
+.rich-text h3 { font-size: 0.9375rem; }
+
+.rich-text ul,
+.rich-text ol { margin: 0 0 0.75em; padding-left: 1.4em; }
+.rich-text ul { list-style: disc; }
+.rich-text ol { list-style: decimal; }
+.rich-text li { margin: 0.2em 0; }
+.rich-text li > p { margin: 0; }          /* TipTap wraps list content in <p> */
+.rich-text li::marker { color: #94a3b8; } /* slate-400 */
+
+.rich-text blockquote {
+  margin: 0 0 0.75em;
+  padding: 0.15em 0 0.15em 0.9em;
+  border-left: 3px solid var(--color-brand-navy-light);
+  color: #475569;           /* slate-600 */
+  font-style: italic;
+}
+
+.rich-text a {
+  color: var(--color-brand-navy);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich-text a:hover { color: var(--color-brand-navy-dark); }
+
+.rich-text code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: #f1f5f9;      /* slate-100 */
+  padding: 0.12em 0.35em;
+  border-radius: 0.3rem;
+}
+
+.rich-text hr {
+  margin: 1.1em 0;
+  border: 0;
+  border-top: 1px solid #e2e8f0;  /* slate-200 */
+}
+
+/* Placeholder for the empty editor. TipTap's Placeholder extension puts the
+   text on a data attribute of the first node; it has to be drawn as generated
+   content so it never becomes part of the document's value. */
+.rich-text p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: #94a3b8;           /* slate-400 — same as input placeholders */
+}
+
+/* ── Print quality (Reports.jsx / PettyCashReportPage.jsx print windows) ──── */
+/* These popups clone the app's own stylesheets (see utils/printWindow.js),
+   so these rules apply there exactly as they would on the main document. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* Deliberately no shadcn :root/.dark/@theme-inline color theme and no
+   @layer base { body { @apply bg-background text-foreground } } here —
+   `shadcn init` generates that block by default, but it's an oklch-based
+   theme this app doesn't use (see the note above the imports). Removed
+   rather than left dormant, since Tailwind would otherwise still emit its
+   CSS custom properties into every page's stylesheet for no reason. */

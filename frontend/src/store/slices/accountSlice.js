@@ -62,8 +62,12 @@ export const createAccount = createAsyncThunk(
       const res = await api.post("/accounts", data);
       return res.data.data;
     } catch (err) {
+      // Preserve the full backend error payload (not just the message
+      // string) so the component can inspect `.errors` for field-level
+      // validation issues, same as the React Query mutation pattern
+      // elsewhere.
       return rejectWithValue(
-        err.response?.data?.message || "Failed to create account",
+        err.response?.data || { message: "Failed to create account" },
       );
     }
   },
@@ -79,7 +83,7 @@ export const updateAccount = createAsyncThunk(
       return res.data.data;
     } catch (err) {
       return rejectWithValue(
-        err.response?.data?.message || "Failed to update account",
+        err.response?.data || { message: "Failed to update account" },
       );
     }
   },
@@ -206,7 +210,15 @@ const accountSlice = createSlice({
       })
       .addCase(createAccount.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        // action.payload is now the full { message, errors? } object (see
+        // the createAccount thunk above) — state.error stays a plain string
+        // since it's rendered directly via toast.error(error) elsewhere.
+        // When structured field errors are present, the form maps them via
+        // setError instead, so skip setting state.error entirely — otherwise
+        // the shared error-toast effect would fire a redundant generic toast
+        // on top of the inline field messages.
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || "Failed to create account";
       })
 
       // UPDATE
@@ -224,7 +236,8 @@ const accountSlice = createSlice({
       })
       .addCase(updateAccount.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        const hasFieldErrors = Array.isArray(action.payload?.errors) && action.payload.errors.length > 0;
+        state.error = hasFieldErrors ? null : action.payload?.message || "Failed to update account";
       })
 
       // STATUS

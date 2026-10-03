@@ -123,26 +123,3 @@ export const composeValidators = (...validatorFunctions) => (value) => {
   return null;
 };
 
-/**
- * Validate form data object
- */
-export const validateFormData = (data, schema) => {
-  const errors = {};
-
-  Object.keys(schema).forEach((field) => {
-    const validator = schema[field];
-    const error = validator(data[field]);
-    if (error) {
-      errors[field] = error;
-    }
-  });
-
-  return errors;
-};
-
-/**
- * Check if form has any errors
- */
-export const hasErrors = (errors) => {
-  return Object.keys(errors).length > 0;
-};

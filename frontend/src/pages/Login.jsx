@@ -1,136 +1,185 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { login } from "../store/slices/authSlice";
-import toast from "react-hot-toast";
-import { Mail, Lock, Loader } from "lucide-react";
+import { fetchSettings } from "../store/slices/settingsSlice";
+import { toast } from "sonner";
+import { Mail, Lock, ShieldCheck, Landmark } from "lucide-react";
+import { Input, Button } from "../components/common";
+import logo from "/afc-logo.png";
+
+const authInputClass =
+  "pl-10 rounded-sm! focus:ring-1! focus:ring-[#002395]! focus:border-[#002395]! py-2.5 sm:py-2.5";
+
+// ── Zod validation schema ────────────────────────────────────────────────────
+// The backend has no dedicated login validation schema (login failures are
+// intentionally generic business-logic errors, e.g. "Invalid email or
+// password", to avoid revealing which field was wrong) — this schema only
+// catches structural mistakes (empty fields, malformed email) before the
+// request ever reaches the server.
+const loginSchema = z.object({
+  email: z.string().min(1, "Email is required").email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const EMPTY_VALUES = { email: "", password: "" };
 
 export default function Login() {
-  const [formData, setFormData] = useState({ email: "", password: "" });
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { loading, error } = useSelector((state) => state.auth);
+  const location = useLocation();
+  const { loading } = useSelector((state) => state.auth);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(loginSchema), defaultValues: EMPTY_VALUES });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (location.state?.pendingApproval) {
+      toast.info("Your account is pending Director approval.");
+    }
+  }, [location.state]);
+
+  const onSubmit = async (data) => {
     try {
-      const result = await dispatch(login(formData)).unwrap();
+      const result = await dispatch(login(data)).unwrap();
 
-      // CHECK IF ACCOUNT IS APPROVED
       if (result.user?.status === "pending") {
-        toast.error(
-          "Account pending Director approval. Please wait for approval email.",
-        );
+        toast.warning("Account pending financial controller approval.");
         return;
       }
 
-      toast.success("Login successful!");
-      navigate("/dashboard");
+      if (result.user?.status !== "approved") {
+        toast.error("Your account is not approved for access.");
+        return;
+      }
+
+      // The root reducer wipes `settings` (and every other slice) on logout,
+      // and AppInitializer's fetchSettings only ever runs once per page load —
+      // refetch here so a fast re-login in the same tab isn't left with blank
+      // org settings until the next hard refresh.
+      dispatch(fetchSettings());
+
+      const destination = location.state?.from?.pathname || "/dashboard";
+      toast.success("Ledger access granted.");
+      navigate(destination, { replace: true });
     } catch (err) {
-      // SHOW SPECIFIC ERROR MESSAGES
-      if (err === "Account pending Director approval") {
-        toast.error(
-          "Your account is pending Director approval. Please check your email.",
-        );
-      } else if (err === "Account has been rejected") {
-        toast.error("Your account has been rejected. Please contact support.");
-      } else if (err === "User not found") {
-        toast.error("Email not found. Please register first.");
-      } else if (err === "Invalid email or password") {
-        toast.error("Invalid email or password.");
-      } else if (err === "Account is locked. Try again later.") {
-        toast.error(
-          "Account locked due to too many login attempts. Try again later.",
-        );
+      // Backend validation failures (errorMiddleware.js) come back as
+      // errors: [{ field, message }] — map each to its form field. Login
+      // itself never actually emits these today (its failures are
+      // intentionally generic), but this keeps the same pattern as every
+      // other converted form in case that ever changes.
+      const fieldErrors = err?.errors;
+      if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        fieldErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: "server", message });
+        });
       } else {
-        toast.error(err || "Login failed");
+        toast.error(err?.message || "Login failed. Verify credentials.");
       }
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">
-            Alliance Accounting
+    <div className="min-h-screen bg-[#F4F7F9] flex items-center justify-center p-4">
+      <div className="fixed top-0 left-0 w-full h-1 flex z-50">
+        <div className="w-1/3 bg-[#002395]"></div>
+        <div className="w-1/3 bg-white"></div>
+        <div className="w-1/3 bg-[#ED1C24]"></div>
+      </div>
+
+      <div className="bg-white rounded-sm border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="border-b border-slate-100 p-8 text-center">
+          <img src={logo} alt="Alliance Française" className="h-16 md:h-24 w-auto mx-auto mb-4" />
+          <h1 className="text-lg font-serif font-bold text-[#002395] tracking-widest uppercase">
+            Accounting Portal
           </h1>
-          <p className="text-gray-600 mt-2">Financial Management System</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="your@email.com"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2">
-            {loading ? <Loader className="animate-spin" size={20} /> : null}
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-gray-600">
-            Don't have an account?{" "}
-            <Link
-              to="/register"
-              className="text-blue-600 hover:text-blue-700 font-medium">
-              Register here
-            </Link>
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">
+            Financial Management &amp; Reporting
           </p>
         </div>
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-gray-600">
-            <strong>Demo Credentials:</strong>
-          </p>
-          <p className="text-sm text-gray-600">Email: admin@alliance.com</p>
-          <p className="text-sm text-gray-600">Password: password123</p>
+        <div className="p-8">
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                User Identification
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
+                <Input
+                  type="email"
+                  placeholder="finance.officer@alliance.org"
+                  autoComplete="email"
+                  className={authInputClass}
+                  error={errors.email?.message}
+                  touched={!!errors.email}
+                  {...register("email")}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                Secure Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className={authInputClass}
+                  error={errors.password?.message}
+                  touched={!!errors.password}
+                  {...register("password")}
+                />
+              </div>
+            </div>
+
+            {/* The Settings page also offers this, but only to someone already
+                signed in — which is the one situation where you do not need
+                it. The link belongs where people actually get stuck. */}
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-xs font-semibold text-slate-500 transition hover:text-[#ED1C24] hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+
+            <Button
+              type="submit"
+              fullWidth
+              loading={loading}
+              icon={ShieldCheck}
+              className="bg-[#002395]! hover:bg-[#001a6e]! rounded-sm! font-bold! uppercase tracking-widest text-xs! py-3! shadow-md">
+              {loading ? "Authenticating..." : "Access Ledger"}
+            </Button>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-slate-100">
+            <div className="flex items-center justify-center gap-4 text-slate-400 mb-4">
+              <div className="flex items-center gap-1">
+                <Landmark size={12} />
+                <span className="text-[10px] uppercase font-medium">Internal Use Only</span>
+              </div>
+            </div>
+            <p className="text-center text-[10px] text-slate-500 leading-relaxed">
+              Protected by Alliance Française Security Protocols.{" "}
+              <br />
+              New staff?{" "}
+              <Link to="/register" className="text-[#ED1C24] font-bold hover:underline">
+                Request Financial Access
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

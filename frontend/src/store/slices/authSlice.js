@@ -1,46 +1,86 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 
+const normalizeAuthPayload = (payload) => {
+  const data = payload?.data || payload || {};
+  return {
+    user: data.user || payload?.user || null,
+  };
+};
+
+// Auth is cookie-based (httpOnly). The token is never stored in localStorage.
+// State is always loaded fresh from GET /auth/me on startup.
+const clearAuthSession = () => {
+  // Nothing to clear locally — the server clears the httpOnly cookie via POST /auth/logout.
+};
+
 export const register = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/register', userData);
-    // Token is set in httpOnly cookie by backend, not in response
-    return response.data;
+    const authData = normalizeAuthPayload(response.data);
+    return authData;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Registration failed');
+    // Preserve the full backend error payload (not just the message string)
+    // so callers using .unwrap() can inspect `.errors` for field-level
+    // validation issues, same as the React Query mutation pattern elsewhere.
+    return rejectWithValue(
+      error.response?.data || { message: 'Registration failed' }
+    );
   }
 });
 
 export const login = createAsyncThunk('auth/login', async (credentials, { rejectWithValue }) => {
   try {
     const response = await api.post('/auth/login', credentials);
-    // Token is set in httpOnly cookie by backend, not in response
-    return response.data;
+    const authData = normalizeAuthPayload(response.data);
+    return authData;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Login failed');
+    // Preserve the full backend error payload (not just the message string)
+    // so callers using .unwrap() can inspect `.errors` for field-level
+    // validation issues, same as the React Query mutation pattern elsewhere.
+    return rejectWithValue(
+      error.response?.data || { message: 'Login failed' }
+    );
   }
 });
 
 export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/auth/me');
-    // Handle both response formats: { user: {...} } or direct user object
     return response.data?.user || response.data?.data?.user || response.data;
   } catch (error) {
-    // 401 is expected when no cookie exists - not an error
-    return null;
+    const status = error.response?.status;
+    if (!status || status === 401 || status === 403) {
+      clearAuthSession();
+      return null;
+    }
+    return rejectWithValue(error.response?.data?.message || 'Session check failed');
   }
 });
 
-export const logoutAsync = createAsyncThunk('auth/logoutAsync', async (_, { rejectWithValue }) => {
+export const logoutAsync = createAsyncThunk('auth/logoutAsync', async () => {
   try {
     await api.post('/auth/logout');
-    // Cookie is cleared by backend
-    return null;
-  } catch (error) {
-    // Clear anyway
-    return null;
+  } catch {
+    // Always clear locally even if the server request fails
+  } finally {
+    clearAuthSession();
   }
+  return null;
+});
+
+// "Log out of all devices" — revokes every refresh token for this user, not
+// just the current session's. A separate call from logoutAsync above; the
+// two never share a request.
+export const logoutAllAsync = createAsyncThunk('auth/logoutAllAsync', async () => {
+  try {
+    await api.post('/auth/logout-all');
+  } catch {
+    // Always clear locally even if the server request fails
+  } finally {
+    clearAuthSession();
+  }
+  return null;
 });
 
 const initialState = {
@@ -48,92 +88,98 @@ const initialState = {
   loading: true,
   error: null,
   isAuthenticated: false,
-  isPending: false,  // Track pending approval status
+  isPending: false,
 };
 
 const authSlice = createSlice({
-  name: "auth",
+  name: 'auth',
   initialState,
   reducers: {
     logout: (state) => {
+      clearAuthSession();
       state.user = null;
       state.isAuthenticated = false;
       state.isPending = false;
-    },
-    clearError: (state) => {
+      state.loading = false;
       state.error = null;
     },
+    clearError: (state) => { state.error = null; },
     setUser: (state, action) => {
       state.user = action.payload;
-      state.isAuthenticated = !!action.payload;
       state.isPending = action.payload?.status === 'pending';
+      state.isAuthenticated = action.payload?.status === 'approved';
     },
   },
   extraReducers: (builder) => {
     builder
-      .addCase(register.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+      .addCase(register.pending,   (state) => { state.loading = true;  state.error = null; })
       .addCase(register.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-        // Check if pending approval
         state.isPending = action.payload.user?.status === 'pending';
         state.isAuthenticated = action.payload.user?.status === 'approved';
       })
-      .addCase(register.rejected, (state, action) => {
+      .addCase(register.rejected,  (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        // action.payload is now the full { message, errors? } object (see the
+        // register thunk above) — state.error stays a plain string since it's
+        // rendered directly in JSX elsewhere.
+        state.error = action.payload?.message || 'Registration failed';
       })
-      .addCase(login.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+
+      .addCase(login.pending,   (state) => { state.loading = true;  state.error = null; })
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-        state.isAuthenticated = true;
+        state.isPending = action.payload.user?.status === 'pending';
+        state.isAuthenticated = action.payload.user?.status === 'approved';
       })
-      .addCase(login.rejected, (state, action) => {
+      .addCase(login.rejected,  (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        // action.payload is now the full { message, errors? } object (see the
+        // login thunk above) — state.error stays a plain string since it's
+        // rendered directly in JSX elsewhere.
+        state.error = action.payload?.message || 'Login failed';
       })
-      .addCase(getCurrentUser.pending, (state) => {
-        state.loading = true;
-      })
+
+      .addCase(getCurrentUser.pending,   (state) => { state.loading = true; })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
         state.loading = false;
-        // Handle null payload (no cookie exists)
         if (action.payload === null) {
           state.user = null;
           state.isAuthenticated = false;
           state.isPending = false;
         } else {
           state.user = action.payload;
-          state.isAuthenticated = !!state.user;
           state.isPending = state.user?.status === 'pending';
+          state.isAuthenticated = state.user?.status === 'approved';
         }
       })
-      .addCase(getCurrentUser.rejected, (state) => {
+      .addCase(getCurrentUser.rejected, (state, action) => {
         state.loading = false;
         state.isAuthenticated = false;
         state.user = null;
         state.isPending = false;
+        state.error = action.payload ?? null;
       })
+
       .addCase(logoutAsync.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.isPending = false;
         state.loading = false;
+        state.error = null;
+      })
+
+      .addCase(logoutAllAsync.fulfilled, (state) => {
+        state.user = null;
+        state.isAuthenticated = false;
+        state.isPending = false;
+        state.loading = false;
+        state.error = null;
       });
   },
 });
 
 export const { logout, clearError, setUser } = authSlice.actions;
-export const selectUser = (state) => state.auth.user;
-export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
-export const selectAuthLoading = (state) => state.auth.loading;
-export const selectAuthError = (state) => state.auth.error;
-export const selectIsPending = (state) => state.auth.isPending;
 export default authSlice.reducer;

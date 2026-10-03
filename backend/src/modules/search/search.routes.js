@@ -1,16 +1,23 @@
 const express = require('express');
 const SearchController = require('./search.controller');
 const auth = require('../../middleware/auth');
+const validate = require('../../validation/validate');
+const { globalSearchQuery } = require('../../validation/search.validation');
 
 const router = express.Router();
 
 router.use(auth);
 
-router.get('/', SearchController.globalSearch);
-router.get('/receipts', SearchController.searchReceipts);
-router.get('/expenses', SearchController.searchExpenses);
+// Global (cross-module) search behind the header search drawer. No roleCheck
+// middleware: every authenticated role may search, but SearchService.globalSearch
+// decides which collections that role's results can come from, so the guard is
+// per-result-type rather than per-route.
+router.get(
+  '/',
+  validate({ query: globalSearchQuery }),
+  SearchController.globalSearch,
+);
+
 router.get('/journal-entries', SearchController.searchJournalEntries);
-router.get('/students', SearchController.searchStudents);
-router.get('/amount-range', SearchController.searchByAmountRange);
 
 module.exports = router;
